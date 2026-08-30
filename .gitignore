@@ -1,0 +1,33 @@
+# Local secrets. Keep documented examples only.
+.env
+.env.*
+!.env.example
+**/.env
+**/.env.*
+!**/.env.example
+
+# Frontend dependencies and build output.
+frontend/node_modules/
+frontend/dist/
+frontend/output/
+frontend/graphify-out/
+frontend/.uv-cache-graphify/
+frontend/.agents/
+frontend/.github/
+
+# Python environments, test caches, logs, and generated reports.
+backend/backend_api_python/.venv/
+backend/backend_api_python/.pytest*/
+backend/backend_api_python/**/__pycache__/
+backend/backend_api_python/**/*.py[cod]
+backend/backend_api_python/reports/
+backend/logs/
+backend/mcp_server/.pytest_cache/
+backend/.agents/
+backend/.cursor/
+backend/.superpowers/
+backend/.github/
+
+# Editor and operating-system files.
+.DS_Store
+Thumbs.db

@@ -1,0 +1,16 @@
+graphify-out/
+.venv/
+venv/
+env/
+__pycache__/
+.pytest_cache/
+backend_api_python/.venv/
+backend_api_python/.test_deps/
+backend_api_python/logs/
+backend_api_python/data/
+logs/
+dist/
+build/
+coverage/
+*.min.js
+*.map

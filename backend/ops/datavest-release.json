@@ -1,0 +1,9 @@
+{
+  "product": "DataVest",
+  "releaseLine": "datavest-quant-v1",
+  "backendRepository": "QuantDinger",
+  "frontendRepository": "QuantDinger-Vue",
+  "backendUpstreamSha": "366ea33c276b5307ce8428da6dcca160532635ea",
+  "frontendUpstreamSha": "6f9ce97fe4730355c39a72610f5dbda3f05d3db7",
+  "attribution": "Powered by QuantDinger"
+}

@@ -1,0 +1,2 @@
+# Install only in the isolated OPENBB_DERIBIT_PYTHON environment.
+openbb-deribit==1.2.1

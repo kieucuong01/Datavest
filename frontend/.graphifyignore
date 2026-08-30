@@ -1,0 +1,10 @@
+graphify-out/
+node_modules/
+dist/
+coverage/
+.playwright-cli/
+.pnpm-store/
+test-results/
+playwright-report/
+*.min.js
+*.map

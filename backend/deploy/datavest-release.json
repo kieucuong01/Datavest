@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "product": "DataVest",
+  "poweredBy": "QuantDinger",
+  "releaseDate": "2026-08-25",
+  "tradingMode": "SIMULATED_ONLY",
+  "backend": {
+    "repository": "https://github.com/OpenByteInc/QuantDinger",
+    "upstreamCommit": "366ea33c276b5307ce8428da6dcca160532635ea",
+    "commit": "b3cfc40",
+    "fullCommit": "b3cfc40fd7f3ad09acdbdadee7725d472e7470b3"
+  },
+  "frontend": {
+    "repository": "https://github.com/OpenByteInc/QuantDinger-Vue",
+    "upstreamCommit": "6f9ce97fe4730355c39a72610f5dbda3f05d3db7",
+    "commit": "912cf88",
+    "fullCommit": "912cf88eb8879d342e53e4ac1507672e7ecbe58f"
+  },
+  "features": {
+    "smartInsights": true,
+    "portfolioOptimizer": true,
+    "liveTrading": false,
+    "paidMarketplace": false,
+    "mobile": false
+  }
+}

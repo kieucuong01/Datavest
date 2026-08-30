@@ -1,0 +1,67 @@
+# DataVest local/product override for the QuantDinger-first stack.
+# From this monorepo root:
+#   docker compose -f backend/docker-compose.yml -f backend/docker-compose.datavest.yml -f backend/docker-compose.production.yml up --build
+# Override DATAVEST_FRONTEND_SRC_PATH when the frontend is not at the default
+# sibling `frontend/` path in this monorepo.
+
+name: datavest
+
+services:
+  migration:
+    image: datavest-backend:${DATAVEST_RELEASE:-local}
+    container_name: datavest-migration
+
+  postgres:
+    container_name: datavest-postgres
+
+  redis:
+    container_name: datavest-redis
+
+  redis-jobs:
+    container_name: datavest-redis-jobs
+
+  backend:
+    image: datavest-backend:${DATAVEST_RELEASE:-local}
+    container_name: datavest-backend
+    environment:
+      SMART_INSIGHTS_AUTO_REFRESH: ${SMART_INSIGHTS_AUTO_REFRESH:-true}
+      SMART_INSIGHTS_AUTO_REFRESH_SOURCE_CODES: ${SMART_INSIGHTS_AUTO_REFRESH_SOURCE_CODES:-alternative-fng,bitinfocharts-top-addresses,blockchaincenter-altcoin-season,cbbi-public,coinmetrics-community,coinglass-liquidation-maxpain,coinglass-margin-borrow,coinshares-weekly,defillama-chains,defillama-stablecoins,farside-btc-etf,farside-eth-etf,farside-sol-etf,mempool-space}
+      DATAVEST_SMART_INSIGHTS_ENABLED: ${DATAVEST_SMART_INSIGHTS_ENABLED:-true}
+      DATAVEST_PORTFOLIO_OPTIMIZER_ENABLED: ${DATAVEST_PORTFOLIO_OPTIMIZER_ENABLED:-true}
+      DATAVEST_COMMUNITY_ENABLED: ${DATAVEST_COMMUNITY_ENABLED:-false}
+      STRATEGY_COMMANDS_ENABLED: "false"
+
+  scheduler-worker:
+    image: datavest-backend:${DATAVEST_RELEASE:-local}
+    container_name: datavest-scheduler
+    environment:
+      SMART_INSIGHTS_AUTO_REFRESH: ${SMART_INSIGHTS_AUTO_REFRESH:-true}
+      SMART_INSIGHTS_AUTO_REFRESH_SOURCE_CODES: ${SMART_INSIGHTS_AUTO_REFRESH_SOURCE_CODES:-alternative-fng,bitinfocharts-top-addresses,blockchaincenter-altcoin-season,cbbi-public,coinmetrics-community,coinglass-liquidation-maxpain,coinglass-margin-borrow,coinshares-weekly,defillama-chains,defillama-stablecoins,farside-btc-etf,farside-eth-etf,farside-sol-etf,mempool-space}
+      STRATEGY_COMMANDS_ENABLED: "false"
+
+  celery-worker:
+    image: datavest-backend:${DATAVEST_RELEASE:-local}
+    container_name: datavest-celery-worker
+    environment:
+      SMART_INSIGHTS_AUTO_REFRESH: ${SMART_INSIGHTS_AUTO_REFRESH:-true}
+      SMART_INSIGHTS_AUTO_REFRESH_SOURCE_CODES: ${SMART_INSIGHTS_AUTO_REFRESH_SOURCE_CODES:-alternative-fng,bitinfocharts-top-addresses,blockchaincenter-altcoin-season,cbbi-public,coinmetrics-community,coinglass-liquidation-maxpain,coinglass-margin-borrow,coinshares-weekly,defillama-chains,defillama-stablecoins,farside-btc-etf,farside-eth-etf,farside-sol-etf,mempool-space}
+      STRATEGY_COMMANDS_ENABLED: "false"
+
+  celery-beat:
+    image: datavest-backend:${DATAVEST_RELEASE:-local}
+    container_name: datavest-celery-beat
+    environment:
+      SMART_INSIGHTS_AUTO_REFRESH: ${SMART_INSIGHTS_AUTO_REFRESH:-true}
+      SMART_INSIGHTS_AUTO_REFRESH_SOURCE_CODES: ${SMART_INSIGHTS_AUTO_REFRESH_SOURCE_CODES:-alternative-fng,bitinfocharts-top-addresses,blockchaincenter-altcoin-season,cbbi-public,coinmetrics-community,coinglass-liquidation-maxpain,coinglass-margin-borrow,coinshares-weekly,defillama-chains,defillama-stablecoins,farside-btc-etf,farside-eth-etf,farside-sol-etf,mempool-space}
+      STRATEGY_COMMANDS_ENABLED: "false"
+
+  frontend:
+    image: datavest-frontend:${DATAVEST_RELEASE:-local}
+    pull_policy: build
+    container_name: datavest-frontend
+    build:
+      context: ${DATAVEST_FRONTEND_SRC_PATH:-../frontend}
+      dockerfile: Dockerfile
+      args:
+        APP_VERSION: ${APP_VERSION:-0.1.0-local}
+        GIT_TAG: ${DATAVEST_RELEASE:-local}

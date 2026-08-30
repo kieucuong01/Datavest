@@ -1,0 +1,41 @@
+.DS_Store
+.cache/
+.codex/
+.codex-logs/
+.agents/
+.local_tools/
+outputs/
+.pytest_cache/
+node_modules
+/dist
+# local env files
+.env
+.env.local
+.env.*.local
+
+# Log files
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+vite-dev*.log
+
+# Editor directories and files
+.idea
+.vscode
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw*
+package-lock.json
+
+# Shared Graphify workflow; keep other local agent data ignored.
+!.agents/
+.agents/*
+!.agents/skills/
+.agents/skills/*
+!.agents/skills/graphify/
+!.agents/skills/graphify/**
+
+# Generated locally and rebuilt with Graphify.
+graphify-out/

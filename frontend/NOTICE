@@ -1,0 +1,16 @@
+DataVest Quantitative Research Workspace
+
+This repository is a modified derivative of QuantDinger-Vue by OpenByteInc.
+Powered by QuantDinger.
+
+Upstream frontend reference:
+https://github.com/OpenByteInc/QuantDinger-Vue
+Pinned source commit: 6f9ce97fe4730355c39a72610f5dbda3f05d3db7
+
+Related upstream backend reference:
+https://github.com/OpenByteInc/QuantDinger
+Pinned source commit: 366ea33c276b5307ce8428da6dcca160532635ea
+
+DataVest modifications include product rebranding, removal of live execution and
+paid marketplace surfaces, and addition of Smart Insights and Portfolio Optimizer.
+The original LICENSE and copyright notices remain in this repository.

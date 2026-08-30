@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="236" height="56" viewBox="0 0 236 56" role="img" aria-labelledby="title">
+  <title id="title">DataVest</title>
+  <rect x="2" y="2" width="52" height="52" rx="13" fill="#e7eef7"/>
+  <path d="M14 39V25h6v14h-6Zm11 0V17h6v22h-6Zm11 0V11h6v28h-6Z" fill="#0f766e"/>
+  <path d="m14 18 9 6 8-8 11 7" fill="none" stroke="#14243a" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="68" y="36" fill="#f8fafc" font-family="Inter,Segoe UI,sans-serif" font-size="27" font-weight="750" letter-spacing="-.5">DataVest</text>
+</svg>
