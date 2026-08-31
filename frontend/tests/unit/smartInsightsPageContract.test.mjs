@@ -11,8 +11,8 @@ test('Smart Insights page removes the legacy header and portfolio changes card',
   assert.doesNotMatch(source, /portfolio-changes/u)
 })
 
-test('Smart Insights viewport uses the full-width workspace treatment', () => {
-  assert.match(source, /\.legacy-main\s*\{[^}]*width:\s*100%[^}]*max-width:\s*none[^}]*box-sizing:\s*border-box/isu)
+test('Smart Insights viewport matches the Mock Portfolio workspace treatment', () => {
+  assert.match(source, /\.legacy-main\s*\{[^}]*width:\s*100%[^}]*max-width:\s*1480px[^}]*box-sizing:\s*border-box/isu)
   assert.doesNotMatch(source, /@media[^{]*\{[^}]*\.legacy-main\s*\{\s*width:\s*calc\(100%\s*-\s*24px\)/isu)
 })
 

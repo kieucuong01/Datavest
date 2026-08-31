@@ -5,7 +5,22 @@ from __future__ import annotations
 import os
 
 from celery import Celery, Task
+from celery.schedules import crontab
 from app.config.redis_urls import celery_broker_url, celery_result_backend_url
+
+
+_CRYPTO_ETF_DAILY_SOURCES = (
+    (
+        "cryptoetf-btc-etf", "cryptoetf-eth-etf", "cryptoetf-sol-etf",
+        "cryptoetf-xrp-etf", "cryptoetf-hyp-etf", "cryptoetf-doge-etf",
+        "cryptoetf-link-etf", "cryptoetf-avax-etf", "cryptoetf-hbar-etf",
+        "cryptoetf-ltc-etf", "cryptoetf-bnb-etf", "cryptoetf-dot-etf",
+        "cryptoetf-sui-etf",
+    )
+    if os.getenv("CRYPTOETF_API_KEY", "").strip()
+    else ("xoomar-btc-etf", "xoomar-eth-etf", "farside-sol-etf")
+)
+_CRYPTO_DERIVATIVES_DAILY_SOURCES = ("bybit-derivatives", "binance-usdm-derivatives", "deribit-public-derivatives")
 
 
 class FlaskContextTask(Task):
@@ -58,6 +73,7 @@ celery_app.conf.update(
         "quantdinger.tasks.cleanup_runtime_metadata": {"queue": "maintenance"},
         "datavest.tasks.smart_insights_refresh": {"queue": "maintenance"},
         "datavest.tasks.enqueue_smart_insights_refresh": {"queue": "maintenance"},
+        "datavest.tasks.enqueue_smart_insights_refresh_for_sources": {"queue": "maintenance"},
     },
     beat_schedule={
         "reflection-cycle": {
@@ -83,6 +99,31 @@ celery_app.conf.update(
         "smart-insights-refresh": {
             "task": "datavest.tasks.enqueue_smart_insights_refresh",
             "schedule": max(900, int(os.getenv("SMART_INSIGHTS_REFRESH_INTERVAL_SEC", "21600"))),
+        },
+        "crypto-insights-daily-import": {
+            "task": "datavest.tasks.enqueue_smart_insights_refresh_for_sources",
+            "schedule": crontab(hour=9, minute=15),
+            "args": (("alternative-fng", *_CRYPTO_ETF_DAILY_SOURCES, "blockchaincenter-altcoin-season", "cbbi-public", "bitinfocharts-top-addresses", "coinmetrics-community"),),
+        },
+        "crypto-derivatives-daily-import": {
+            "task": "datavest.tasks.enqueue_smart_insights_refresh_for_sources",
+            "schedule": crontab(hour=0, minute=40),
+            "args": (_CRYPTO_DERIVATIVES_DAILY_SOURCES,),
+        },
+        "crypto-derivatives-daily-retry": {
+            "task": "datavest.tasks.enqueue_smart_insights_refresh_for_sources",
+            "schedule": crontab(hour=2, minute=15),
+            "args": (_CRYPTO_DERIVATIVES_DAILY_SOURCES,),
+        },
+        "crypto-insights-coinshares-import-mon": {
+            "task": "datavest.tasks.enqueue_smart_insights_refresh_for_sources",
+            "schedule": crontab(day_of_week="mon", hour=18, minute=15),
+            "args": (("coinshares-weekly",),),
+        },
+        "crypto-insights-coinshares-import-tue": {
+            "task": "datavest.tasks.enqueue_smart_insights_refresh_for_sources",
+            "schedule": crontab(day_of_week="tue", hour=18, minute=15),
+            "args": (("coinshares-weekly",),),
         },
     },
 )

@@ -59,6 +59,9 @@ CACHE_TTL = {
     "economic_calendar": 3600,
     "economic_calendar_v2": 3600,
     "economic_calendar_v3": 3600,
+    # Browser worker refreshes its own snapshot hourly. API cache stays short
+    # so a newly published snapshot is visible without an application restart.
+    "economic_calendar_v4": 60,
     # Macro sentiment (Fear&Greed, VIX, DXY...) — daily-ish cadence so 6h
     # is fine. SWR lets us return the previous payload while we refresh.
     "market_sentiment": 21600,

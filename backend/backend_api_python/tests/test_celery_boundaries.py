@@ -22,6 +22,8 @@ def test_celery_beat_owns_periodic_maintenance():
     assert schedule["market-catalog-sync"]["schedule"] == 86400
     assert schedule["smart-insights-refresh"]["task"] == "datavest.tasks.enqueue_smart_insights_refresh"
     assert schedule["smart-insights-refresh"]["schedule"] == 21600
+    assert schedule["crypto-derivatives-daily-import"]["task"] == "datavest.tasks.enqueue_smart_insights_refresh_for_sources"
+    assert schedule["crypto-derivatives-daily-retry"]["task"] == "datavest.tasks.enqueue_smart_insights_refresh_for_sources"
 
 
 def test_fast_analysis_dispatches_to_celery(monkeypatch):

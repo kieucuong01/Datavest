@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import hashlib
 from datetime import date
+from decimal import Decimal, InvalidOperation
 from typing import Any, Mapping
 from uuid import uuid4
 
@@ -29,6 +30,43 @@ def _iso(value: Any) -> Any:
 
 
 class SmartInsightsRepository:
+    def load_latest_large_address_balances(self) -> dict[str, Decimal]:
+        """Return the latest non-excluded BitInfoCharts balances by address.
+
+        The next crawler run uses these persisted snapshots for a daily cohort
+        delta.  It never reaches back to the provider to synthesize history.
+        """
+        with get_db_connection() as db:
+            cur = db.cursor()
+            cur.execute(
+                """
+                SELECT DISTINCT ON (o.value_json->'dimensions'->>'address')
+                       o.value_json
+                FROM observations o
+                JOIN data_sources s ON s.id = o.data_source_id
+                WHERE s.code = 'bitinfocharts-top-addresses'
+                  AND o.data_class = 'LIVE'
+                  AND o.value_json->>'metric' = 'crypto.large_address.address_balance_btc'
+                  AND COALESCE(o.value_json->'dimensions'->>'address', '') <> ''
+                ORDER BY o.value_json->'dimensions'->>'address',
+                         o.effective_at DESC, o.observed_at DESC, o.id DESC
+                """
+            )
+            rows = cur.fetchall() or []
+            cur.close()
+        balances: dict[str, Decimal] = {}
+        for row in rows:
+            value = _json_value(row["value_json"], {})
+            dimensions = value.get("dimensions") if isinstance(value, Mapping) else {}
+            address = str(dimensions.get("address") or "") if isinstance(dimensions, Mapping) else ""
+            try:
+                balance = Decimal(str(value.get("value"))) if isinstance(value, Mapping) else None
+            except (InvalidOperation, ValueError):
+                balance = None
+            if address and balance is not None and balance.is_finite() and balance >= 0:
+                balances[address] = balance
+        return balances
+
     def get_production_account_import(
         self, *, user_id: int, data_type: str
     ) -> dict[str, Any] | None:
@@ -75,11 +113,18 @@ class SmartInsightsRepository:
                 FROM observations o
                 JOIN data_sources s ON s.id = o.data_source_id
                 WHERE o.data_class = ?
-                  AND o.effective_at >= NOW() - INTERVAL '730 days'
+                  AND (
+                    o.effective_at >= NOW() - INTERVAL '730 days'
+                    OR (
+                      s.code = 'alternative-fng'
+                      AND o.effective_at >= NOW() - INTERVAL '4000 days'
+                    )
+                    OR s.code IN ('blockchaincenter-altcoin-season', 'cbbi-public')
+                  )
                   {as_of_filter}
                   AND (o.market = 'crypto' OR s.code = 'cryptocraft')
                 ORDER BY o.effective_at ASC, o.observed_at ASC, o.id ASC
-                LIMIT 20000
+                LIMIT 100000
                 """,
                 tuple(params),
             )

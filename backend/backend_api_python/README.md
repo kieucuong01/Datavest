@@ -35,6 +35,29 @@ From `backend_api_python`:
 
 Use `requirements.txt` for the main environment and `requirements-windows.txt` for Windows-specific constraints. Configuration comes from environment variables; do not commit secrets.
 
+## Investing economic calendar worker
+
+The dashboard reads a durable local snapshot. Refresh it in a separate process
+with Browser Use; the worker visits the rendered Vietnamese Investing calendar,
+clicks **Hôm qua**, **Hôm Nay**, **Tuần Này**, and **Tuần Tới**, and publishes a
+snapshot only after all four ranges are collected.
+
+```powershell
+python -m pip install -r calendar_worker/requirements.txt
+python -m calendar_worker.investing_calendar_browser --once
+python -m calendar_worker.investing_calendar_browser
+```
+
+Set `INVESTING_BROWSER_EXECUTABLE_PATH` when Chrome is not discovered automatically.
+Keep this worker as a single scheduled process on a VPS; it stores its output in
+`data/economic-calendar/investing-browser.json` for the API container to read.
+
+For the compose deployment, start the optional worker with:
+
+```powershell
+docker compose -f docker-compose.yml -f docker-compose.calendar.yml up -d --build economic-calendar-browser
+```
+
 ## Health and operations
 
 | Endpoint | Purpose |

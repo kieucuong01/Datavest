@@ -44,6 +44,7 @@ def test_economic_calendar_not_empty(monkeypatch):
                 }
             ]
 
+    monkeypatch.setenv("ECONOMIC_CALENDAR_PROVIDER", "legacy")
     monkeypatch.setenv("TRADING_ECONOMICS_CLIENT", "test_client")
     monkeypatch.setenv("TRADING_ECONOMICS_KEY", "test_key")
     monkeypatch.setattr("app.utils.config_loader.load_addon_config", lambda: {})

@@ -11,6 +11,14 @@ from .contracts import Observation
 from .repository import SmartInsightsRepository
 
 
+_CRYPTOETF_SNAPSHOT_SOURCES = (
+    "cryptoetf-btc-etf", "cryptoetf-eth-etf", "cryptoetf-sol-etf", "cryptoetf-xrp-etf",
+    "cryptoetf-hyp-etf", "cryptoetf-doge-etf", "cryptoetf-link-etf", "cryptoetf-avax-etf",
+    "cryptoetf-hbar-etf", "cryptoetf-ltc-etf", "cryptoetf-bnb-etf", "cryptoetf-dot-etf",
+    "cryptoetf-sui-etf",
+)
+
+
 class CollectorUnavailable(RuntimeError):
     pass
 
@@ -152,14 +160,13 @@ class RefreshCoordinator:
             raise RuntimeError("COLLECTOR_FAILED") from exc
 
 
-def default_collector_registry() -> dict[str, Collector]:
+def default_collector_registry(*, repository: SmartInsightsRepository | None = None) -> dict[str, Collector]:
     """Specialty collectors are registered without exposing provider secrets."""
     from .defillama import DefiLlamaStablecoinsCollector
     from .defillama import DefiLlamaChainsCollector
-    from .coinmetrics import CoinMetricsCollector
+    from .coinmetrics import CoinMetricsCollector, CoinMetricsPriceHistoryCollector
     from .legacy_browser import NodriverBrowserClient
     from .legacy_crawlers import CoinGlassMarginBrowserCollector, CoinGlassMaxPainBrowserCollector
-    from .bitinfocharts_browser import BitInfoChartsBrowserCollector
     from .coinshares_browser import CoinSharesBrowserCollector
     from .fred import FredCollector
     from .alternative_fng import AlternativeFearGreedCollector
@@ -167,6 +174,10 @@ def default_collector_registry() -> dict[str, Collector]:
     from .mempool import MempoolCollector
     from .cycle import AltcoinSeasonCollector, CbbiCollector
     from .openbb_deribit import OpenBBDeribitCollector
+    from .bybit_derivatives import BybitDerivativesCollector
+    from .binance_usdm_derivatives import BinanceUsdmDerivativesCollector
+    from .deribit_public_derivatives import DeribitPublicDerivativesCollector
+    from .snapshot_collectors import SnapshotObservationCollector
 
     def collect_fred_core() -> tuple[Observation, ...]:
         now = datetime.now(timezone.utc)
@@ -178,30 +189,46 @@ def default_collector_registry() -> dict[str, Collector]:
             rows.extend(collector.collect(series_id, start, end))
         return tuple(rows)
 
+    def collect_coinmetrics_core() -> tuple[Observation, ...]:
+        now = datetime.now(timezone.utc)
+        # The long BTC price series is compact (one row per day) and is kept
+        # separate from the wider 370-day on-chain collection. It lets cycle
+        # models use the same audited free provider rather than sample data.
+        return (
+            *CoinMetricsCollector().collect(now),
+            *CoinMetricsPriceHistoryCollector().collect(now),
+        )
+
     browser = NodriverBrowserClient(
         timeout_seconds=float(os.getenv("SMART_INSIGHTS_BROWSER_TIMEOUT_SEC", "60")),
         poll_interval_seconds=float(os.getenv("SMART_INSIGHTS_BROWSER_POLL_SEC", "1")),
     )
 
     return {
+        "bybit-derivatives": lambda: BybitDerivativesCollector().collect(datetime.now(timezone.utc)),
+        "binance-usdm-derivatives": lambda: BinanceUsdmDerivativesCollector().collect(datetime.now(timezone.utc)),
+        "deribit-public-derivatives": lambda: DeribitPublicDerivativesCollector().collect(datetime.now(timezone.utc)),
         "openbb-deribit": lambda: OpenBBDeribitCollector().collect(datetime.now(timezone.utc)),
         "fred": collect_fred_core,
         "defillama-stablecoins": lambda: DefiLlamaStablecoinsCollector().collect(
             datetime.now(timezone.utc)
         ),
         "defillama-chains": lambda: DefiLlamaChainsCollector().collect(datetime.now(timezone.utc)),
-        "coinmetrics-community": lambda: CoinMetricsCollector().collect(datetime.now(timezone.utc)),
+        "coinmetrics-community": collect_coinmetrics_core,
         "coinglass-margin-borrow": lambda: CoinGlassMarginBrowserCollector(browser=browser).collect(datetime.now(timezone.utc)),
         "coinglass-liquidation-maxpain": lambda: CoinGlassMaxPainBrowserCollector(browser=browser).collect(datetime.now(timezone.utc)),
-        "bitinfocharts-top-addresses": lambda: BitInfoChartsBrowserCollector(browser=browser).collect(datetime.now(timezone.utc)),
-        "coinshares-weekly": lambda: CoinSharesBrowserCollector(browser=browser).collect(datetime.now(timezone.utc)),
-        "alternative-fng": lambda: AlternativeFearGreedCollector().collect(datetime.now(timezone.utc)),
+        "bitinfocharts-top-addresses": SnapshotObservationCollector("bitinfocharts-top-addresses"),
+        "coinshares-weekly": SnapshotObservationCollector("coinshares-weekly"),
+        "alternative-fng": SnapshotObservationCollector("alternative-fng"),
         "mempool-space": lambda: MempoolCollector().collect(datetime.now(timezone.utc)),
-        "farside-btc-etf": lambda: FarsideEtfCollector("BTC").collect(datetime.now(timezone.utc)),
-        "farside-eth-etf": lambda: FarsideEtfCollector("ETH").collect(datetime.now(timezone.utc)),
-        "farside-sol-etf": lambda: FarsideEtfCollector("SOL").collect(datetime.now(timezone.utc)),
-        "cbbi-public": lambda: CbbiCollector().collect(datetime.now(timezone.utc)),
-        "blockchaincenter-altcoin-season": lambda: AltcoinSeasonCollector().collect(datetime.now(timezone.utc)),
+        "farside-btc-etf": SnapshotObservationCollector("farside-btc-etf"),
+        "farside-eth-etf": SnapshotObservationCollector("farside-eth-etf"),
+        "farside-sol-etf": SnapshotObservationCollector("farside-sol-etf"),
+        **{source: SnapshotObservationCollector(source) for source in _CRYPTOETF_SNAPSHOT_SOURCES},
+        "xoomar-btc-etf": SnapshotObservationCollector("xoomar-btc-etf"),
+        "xoomar-eth-etf": SnapshotObservationCollector("xoomar-eth-etf"),
+        "cbbi-public": SnapshotObservationCollector("cbbi-public"),
+        "blockchaincenter-altcoin-season": SnapshotObservationCollector("blockchaincenter-altcoin-season"),
     }
 
 
@@ -212,7 +239,7 @@ def execute_refresh(run_id: str) -> dict:
     materializer = SnapshotMaterializer(repository=repository)
     return RefreshCoordinator(
         repository=repository,
-        collector_registry=default_collector_registry(),
+        collector_registry=default_collector_registry(repository=repository),
         snapshot_publisher=materializer.publish_observations,
     ).execute(run_id)
 

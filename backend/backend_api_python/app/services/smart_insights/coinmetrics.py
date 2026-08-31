@@ -14,9 +14,21 @@ from .sources import source_for_code
 from .transport import RequestsTransport, Transport
 
 
+_ASSETS = {"btc": "BTC", "eth": "ETH"}
 _METRICS = {
-    "AdrActCnt": "crypto.onchain.active_addresses",
-    "CapMVRVCur": "crypto.onchain.mvrv",
+    "AdrActCnt": ("crypto.onchain.active_addresses", "addresses"),
+    "CapMVRVCur": ("crypto.onchain.mvrv", "ratio"),
+    "SplyCur": ("crypto.onchain.circulating_supply_native", "native"),
+    "SplyExNtv": ("crypto.onchain.exchange_reserve_native", "native"),
+    "FlowInExNtv": ("crypto.onchain.exchange_inflow_native", "native"),
+    "FlowOutExNtv": ("crypto.onchain.exchange_outflow_native", "native"),
+    "TxCnt": ("crypto.onchain.transaction_count", "count"),
+    "TxTfrCnt": ("crypto.onchain.transfer_count", "count"),
+    "FeeTotNtv": ("crypto.onchain.total_fees_native", "native"),
+    "HashRate": ("crypto.mining.hashrate_hs", "H/s"),
+    "IssTotNtv": ("crypto.mining.issuance_native", "native"),
+    "CapMrktCurUSD": ("crypto.market.market_cap_usd", "USD"),
+    "PriceUSD": ("crypto.market.price_usd", "USD"),
 }
 _ALLOWED_QUERY = {
     "assets",
@@ -46,11 +58,23 @@ def _timestamp(value: object) -> datetime:
 
 
 class CoinMetricsCollector:
-    """Fetch one bounded BTC daily page series and emit source-backed rows."""
+    """Fetch bounded Coin Metrics daily series and emit source-backed rows."""
 
-    def __init__(self, *, transport: Transport | None = None) -> None:
+    def __init__(
+        self,
+        *,
+        transport: Transport | None = None,
+        assets: dict[str, str] | None = None,
+        metrics: dict[str, tuple[str, str]] | None = None,
+        history_days: int = 370,
+    ) -> None:
+        if history_days < 1 or history_days > 6_500:
+            raise ValueError("history_days must be between 1 and 6500")
         self.source = source_for_code("coinmetrics-community")
         self.transport = transport or RequestsTransport()
+        self.assets = dict(assets or _ASSETS)
+        self.metrics = dict(metrics or _METRICS)
+        self.history_days = history_days
 
     def collect(self, as_of: datetime) -> tuple[Observation, ...]:
         if as_of.tzinfo is None or as_of.utcoffset() is None:
@@ -60,9 +84,9 @@ class CoinMetricsCollector:
         )
         query = urlencode(
             {
-                "assets": "btc",
-                "metrics": ",".join(_METRICS),
-                "start_time": (cutoff - timedelta(days=370)).date().isoformat(),
+                "assets": ",".join(self.assets),
+                "metrics": ",".join(self.metrics),
+                "start_time": (cutoff - timedelta(days=self.history_days)).date().isoformat(),
                 "end_time": cutoff.date().isoformat(),
                 "frequency": "1d",
                 "page_size": "10000",
@@ -71,7 +95,7 @@ class CoinMetricsCollector:
         )
         next_url: str | None = f"{self.source.urls[0]}?{query}"
         rows: list[tuple[datetime, dict[str, object]]] = []
-        last_time: datetime | None = None
+        last_time_by_asset: dict[str, datetime] = {}
 
         for _page_index in range(10):
             if next_url is None:
@@ -88,12 +112,14 @@ class CoinMetricsCollector:
             if not isinstance(payload, dict) or not isinstance(payload.get("data"), list):
                 raise CollectorUnavailable("SCHEMA_DRIFT")
             for raw in payload["data"]:
-                if not isinstance(raw, dict) or raw.get("asset") != "btc":
+                if not isinstance(raw, dict) or raw.get("asset") not in self.assets:
                     raise CollectorUnavailable("SCHEMA_DRIFT")
+                asset = str(raw["asset"])
                 effective_at = _timestamp(raw.get("time"))
+                last_time = last_time_by_asset.get(asset)
                 if last_time is not None and effective_at <= last_time:
                     raise CollectorUnavailable("PAGINATION_ORDER")
-                last_time = effective_at
+                last_time_by_asset[asset] = effective_at
                 rows.append((effective_at, raw))
                 if len(rows) > _MAX_ROWS:
                     raise CollectorUnavailable("RESPONSE_TOO_LARGE")
@@ -116,7 +142,8 @@ class CoinMetricsCollector:
                 hour=0, minute=0, second=0, microsecond=0
             ):
                 raise CollectorUnavailable("INVALID_TIMESTAMP")
-            for provider_metric, metric_code in _METRICS.items():
+            asset = str(raw["asset"])
+            for provider_metric, (metric_code, unit) in self.metrics.items():
                 raw_value = raw.get(provider_metric)
                 if raw_value is None:
                     continue
@@ -131,18 +158,44 @@ class CoinMetricsCollector:
                         source_code=self.source.code,
                         source_url=self.source.urls[0],
                         market=self.source.market,
-                        symbol="BTC",
+                        symbol=self.assets[asset],
                         effective_at=effective_at,
                         observed_at=as_of,
                         methodology_version=self.source.methodology_version,
                         value={
                             "metric": metric_code,
                             "value": str(value),
-                            "unit": "addresses" if provider_metric == "AdrActCnt" else "ratio",
+                            "unit": unit,
                             "dimensions": {
                                 "providerMetric": provider_metric,
                                 "frequency": "daily",
                             },
+                        },
+                        data_class="LIVE",
+                    )
+            )
+            inflow, outflow = raw.get("FlowInExNtv"), raw.get("FlowOutExNtv")
+            if inflow is not None and outflow is not None:
+                try:
+                    net_flow = Decimal(str(inflow)) - Decimal(str(outflow))
+                except InvalidOperation as exc:
+                    raise CollectorUnavailable("INVALID_VALUE") from exc
+                if not net_flow.is_finite():
+                    raise CollectorUnavailable("INVALID_VALUE")
+                observations.append(
+                    Observation.create(
+                        source_code=self.source.code,
+                        source_url=self.source.urls[0],
+                        market=self.source.market,
+                        symbol=self.assets[asset],
+                        effective_at=effective_at,
+                        observed_at=as_of,
+                        methodology_version=self.source.methodology_version,
+                        value={
+                            "metric": "crypto.onchain.exchange_netflow_native",
+                            "value": str(net_flow),
+                            "unit": "native",
+                            "dimensions": {"providerMetric": "FlowInExNtv-FlowOutExNtv", "frequency": "daily"},
                         },
                         data_class="LIVE",
                     )
@@ -165,4 +218,16 @@ class CoinMetricsCollector:
         )
 
 
-__all__ = ["CoinMetricsCollector"]
+class CoinMetricsPriceHistoryCollector(CoinMetricsCollector):
+    """Initial BTC daily price history for transparent local cycle models."""
+
+    def __init__(self, *, transport: Transport | None = None) -> None:
+        super().__init__(
+            transport=transport,
+            assets={"btc": "BTC"},
+            metrics={"PriceUSD": _METRICS["PriceUSD"]},
+            history_days=6_200,
+        )
+
+
+__all__ = ["CoinMetricsCollector", "CoinMetricsPriceHistoryCollector"]

@@ -90,12 +90,11 @@ export const asyncRouterMap = [
         hidden: true,
         meta: { title: 'menu.dashboard.analysis', keepAlive: false, icon: 'thunderbolt', permission: ['dashboard'] }
       },
-      // Legacy portfolio bookmarks now open the unified live workspace.
+      // User-facing paper portfolio workspace.
       {
         path: '/portfolio',
         name: 'Portfolio',
-        redirect: '/portfolio-optimizer',
-        hidden: true,
+        component: () => import('@/views/mock-portfolio'),
         meta: { title: 'menu.dashboard.portfolio', keepAlive: false, icon: 'fund', permission: ['dashboard'] }
       },
       // User profile. Admin-only items follow the menu divider.

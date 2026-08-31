@@ -70,9 +70,9 @@ def _pulse():
         },
         "etfFlows": {
             "status": "AVAILABLE",
-            "sourceCodes": ["farside-btc-etf"],
+            "sourceCodes": ["farside-btc-etf", "farside-eth-etf", "farside-sol-etf"],
             "summaries": [{"asset": "BTC", "latest": 501500000, "effectiveAt": "2026-08-25"}],
-            "series": [],
+            "series": [{"effectiveAt": "2026-08-24T00:00:00Z", "btc": 1200000, "eth": -250000, "sol": 80000, "total": 1030000}],
         },
         "cycleIndicators": {"status": "AVAILABLE", "value": 57},
         "largeAddressActivity": {"status": "AVAILABLE", "value": 3},
@@ -120,6 +120,11 @@ def test_imported_crypto_pulse_preserves_source_provenance_and_calendar():
     assert pulse["tabs"]["overview"]["fearGreed"]["status"] == "AVAILABLE"
     assert pulse["tabs"]["overview"]["fearGreed"]["latest"]["value"] == 66
     assert pulse["tabs"]["flows"]["etfFlows"]["summaries"][0]["asset"] == "BTC"
+    assert pulse["tabs"]["flows"]["etfFlows"]["series"] == [
+        {"effectiveAt": "2026-08-24T00:00:00Z", "value": 1200000, "symbol": "BTC", "source": "farside-btc-etf"},
+        {"effectiveAt": "2026-08-24T00:00:00Z", "value": -250000, "symbol": "ETH", "source": "farside-eth-etf"},
+        {"effectiveAt": "2026-08-24T00:00:00Z", "value": 80000, "symbol": "SOL", "source": "farside-sol-etf"},
+    ]
     assert pulse["tabs"]["cycle"]["status"] == "AVAILABLE"
     assert pulse["tabs"]["flows"]["fundFlows"]["summaries"][0]["asset"] == "BTC"
     assert pulse["tabs"]["sentimentDerivatives"]["derivatives"]["status"] == "AVAILABLE"
@@ -163,3 +168,101 @@ def test_imported_crypto_pulse_is_enriched_by_runtime_onchain_without_overwritin
     assert merged["tabs"]["onchain"]["metrics"][0]["metric"] == "crypto.chain.tvl_usd"
     assert merged["tabs"]["onchain"]["dataOrigin"] == "legacy-import+live-observations"
     assert merged["dataLineage"]["runtimeTabs"] == ["cycle", "onchain"]
+
+
+def test_runtime_fear_greed_history_replaces_short_legacy_series_for_range_controls():
+    imported = {
+        "tabs": {
+            "overview": {"status": "AVAILABLE", "sources": [], "fearGreed": {"status": "AVAILABLE", "sources": [{"source": "datavest-production-import"}], "series": [{"effectiveAt": "2026-08-01", "value": 30}]}},
+            "sentimentDerivatives": {"status": "AVAILABLE", "sources": [], "fearGreed": {"status": "AVAILABLE", "sources": [{"source": "datavest-production-import"}], "series": [{"effectiveAt": "2026-08-01", "value": 30}]}},
+        },
+        "calendar": {"status": "UNAVAILABLE", "events": [], "sources": []},
+    }
+    runtime_fear = {
+        "status": "AVAILABLE",
+        "sources": [{"source": "alternative-fng", "sourceUrl": "https://api.alternative.me/fng/?limit=0&format=json"}],
+        "series": [
+            {"effectiveAt": "2018-02-01T00:00:00+00:00", "value": 40, "source": "alternative-fng"},
+            {"effectiveAt": "2026-08-30T00:00:00+00:00", "value": 69, "source": "alternative-fng"},
+        ],
+        "latest": {"effectiveAt": "2026-08-30T00:00:00+00:00", "value": 69, "source": "alternative-fng"},
+    }
+    runtime = {
+        "generatedAt": "2026-08-30T00:00:00+00:00",
+        "status": "PARTIAL",
+        "tabs": {
+            "overview": {"status": "AVAILABLE", "sources": runtime_fear["sources"], "metrics": [], "fearGreed": runtime_fear},
+            "sentimentDerivatives": {"status": "AVAILABLE", "sources": runtime_fear["sources"], "metrics": [], "fearGreed": runtime_fear},
+        },
+        "calendar": {"status": "UNAVAILABLE", "events": [], "sources": []},
+    }
+
+    merged = merge_imported_crypto_market_pulse(imported, runtime)
+
+    for tab in ("overview", "sentimentDerivatives"):
+        assert merged["tabs"][tab]["fearGreed"]["series"] == runtime_fear["series"]
+        assert merged["tabs"][tab]["fearGreed"]["latest"] == runtime_fear["latest"]
+
+
+def test_runtime_etf_history_merges_legacy_assets_and_prefers_cryptoetf_on_overlap():
+    imported = {
+        "tabs": {
+            "overview": {
+                "status": "AVAILABLE",
+                "sources": [],
+                "etfFlows": {
+                    "status": "AVAILABLE",
+                    "sources": [{"source": "farside-btc-etf"}],
+                    "series": [
+                        {"effectiveAt": "2026-08-20T00:00:00+00:00", "value": 1, "symbol": "BTC", "source": "farside-btc-etf"},
+                        {"effectiveAt": "2026-08-20T00:00:00+00:00", "value": 2, "symbol": "ETH", "source": "farside-eth-etf"},
+                    ],
+                    "summaries": [{"asset": "BTC", "latest": 1}],
+                },
+            },
+            "flows": {
+                "status": "AVAILABLE",
+                "sources": [],
+                "etfFlows": {
+                    "status": "AVAILABLE",
+                    "sources": [{"source": "farside-btc-etf"}],
+                    "series": [
+                        {"effectiveAt": "2026-08-20T00:00:00+00:00", "value": 1, "symbol": "BTC", "source": "farside-btc-etf"},
+                        {"effectiveAt": "2026-08-20T00:00:00+00:00", "value": 2, "symbol": "ETH", "source": "farside-eth-etf"},
+                    ],
+                    "summaries": [{"asset": "BTC", "latest": 1}],
+                },
+                "fundFlows": {"status": "UNAVAILABLE", "sources": [], "series": []},
+            },
+        },
+        "calendar": {"status": "UNAVAILABLE", "events": [], "sources": []},
+    }
+    runtime_etf = {
+        "status": "AVAILABLE",
+        "sources": [{"source": "cryptoetf-btc-etf", "sourceUrl": "https://cryptoetf.today"}],
+        "series": [
+            {"effectiveAt": "2026-08-20T00:00:00+00:00", "value": 21040446.43, "symbol": "BTC", "source": "cryptoetf-btc-etf"},
+            {"effectiveAt": "2026-08-28T00:00:00+00:00", "value": 901.5, "symbol": "SOL", "source": "cryptoetf-sol-etf"},
+        ],
+        "summaries": [{"asset": "BTC", "latest": 21040446.43, "effectiveAt": "2026-08-20T00:00:00+00:00"}],
+    }
+    runtime = {
+        "generatedAt": "2026-08-30T00:00:00+00:00",
+        "status": "PARTIAL",
+        "tabs": {
+            "overview": {"status": "AVAILABLE", "sources": runtime_etf["sources"], "metrics": [], "etfFlows": runtime_etf},
+            "flows": {"status": "AVAILABLE", "sources": runtime_etf["sources"], "metrics": [], "etfFlows": runtime_etf, "fundFlows": {"status": "UNAVAILABLE", "sources": [], "series": []}},
+        },
+        "calendar": {"status": "UNAVAILABLE", "events": [], "sources": []},
+    }
+
+    merged = merge_imported_crypto_market_pulse(imported, runtime)
+
+    for tab in ("overview", "flows"):
+        series = merged["tabs"][tab]["etfFlows"]["series"]
+        assert series == [
+            runtime_etf["series"][0],
+            {"effectiveAt": "2026-08-20T00:00:00+00:00", "value": 2, "symbol": "ETH", "source": "farside-eth-etf"},
+            runtime_etf["series"][1],
+        ]
+        assert {item["asset"] for item in merged["tabs"][tab]["etfFlows"]["summaries"]} == {"BTC", "ETH", "SOL"}

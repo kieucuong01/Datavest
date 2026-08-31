@@ -151,7 +151,7 @@ def build_snapshot_draft(
                 explanation_model=None,
                 evidence_validated=True,
                 data_class=data_class,
-                evidence_ids=tuple(str(row["id"]) for row in rows),
+                evidence_ids=tuple(dict.fromkeys(str(row["id"]) for row in rows)),
             )
         )
     summary = {
@@ -172,7 +172,7 @@ def build_snapshot_draft(
         summary=summary,
         evidence_checksum=evidence_checksum,
         data_class=data_class,
-        evidence_ids=tuple(str(item["id"]) for item in ordered),
+        evidence_ids=tuple(dict.fromkeys(str(item["id"]) for item in ordered)),
         opinions=tuple(opinions),
     )
 

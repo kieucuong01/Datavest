@@ -1,6 +1,8 @@
 """Tests for the free-first economic calendar providers."""
 from __future__ import annotations
 
+from datetime import datetime, timezone
+
 from app.data_providers.economic_calendar import (
     _fetch_finnhub_calendar,
     _fetch_tradingeconomics_calendar,
@@ -8,6 +10,45 @@ from app.data_providers.economic_calendar import (
     _should_include_finnhub_row,
     get_economic_calendar,
 )
+from app.data_providers.investing_calendar_snapshot import (
+    get_investing_calendar_snapshot_payload,
+    write_investing_calendar_snapshot,
+)
+
+
+def test_default_economic_calendar_reads_investing_browser_snapshot(monkeypatch, tmp_path):
+    snapshot = tmp_path / "investing-browser.json"
+    write_investing_calendar_snapshot(
+        {
+            "fetched_at": datetime.now(timezone.utc).isoformat(),
+            "ranges": ["Hôm qua", "Hôm nay", "Tuần này", "Tuần tới"],
+            "events": [
+                {
+                    "name": "Giấy phép xây dựng",
+                    "country": "Việt Nam",
+                    "date": "2026-08-31",
+                    "time": "19:30",
+                    "importance": "high",
+                }
+            ],
+        },
+        snapshot,
+    )
+    monkeypatch.setenv("ECONOMIC_CALENDAR_PROVIDER", "investing_browser")
+    monkeypatch.setenv("INVESTING_CALENDAR_SNAPSHOT_PATH", str(snapshot))
+    monkeypatch.setenv("INVESTING_CALENDAR_STALE_AFTER_SECONDS", "7200")
+
+    payload = get_investing_calendar_snapshot_payload()
+    assert payload["status"] == "ok"
+    assert payload["source"] == "investing_browser"
+    assert payload["ranges"] == ["Hôm qua", "Hôm nay", "Tuần này", "Tuần tới"]
+    assert payload["events"][0]["country"] == "VN"
+    assert payload["events"][0]["name"] == "Giấy phép xây dựng"
+
+    events = get_economic_calendar()
+    assert len(events) == 1
+    assert events[0]["source"] == "investing_browser"
+
 
 
 def test_normalize_finnhub_event_maps_fields():
@@ -57,6 +98,7 @@ def test_normalize_finnhub_event_maps_gb_to_uk():
 
 
 def test_get_economic_calendar_without_api_key(monkeypatch):
+    monkeypatch.setenv("ECONOMIC_CALENDAR_PROVIDER", "legacy")
     monkeypatch.delenv("FINNHUB_API_KEY", raising=False)
     monkeypatch.setenv("FINNHUB_FREE_ONLY", "true")
     monkeypatch.setattr(
@@ -72,6 +114,7 @@ def test_get_economic_calendar_without_api_key(monkeypatch):
 
 
 def test_get_economic_calendar_fetches_from_tradingeconomics(monkeypatch):
+    monkeypatch.setenv("ECONOMIC_CALENDAR_PROVIDER", "legacy")
     class FakeResponse:
         status_code = 200
 
@@ -111,6 +154,7 @@ def test_get_economic_calendar_fetches_from_tradingeconomics(monkeypatch):
 
 
 def test_get_economic_calendar_fetches_from_finnhub(monkeypatch):
+    monkeypatch.setenv("ECONOMIC_CALENDAR_PROVIDER", "legacy")
     class FakeResponse:
         status_code = 200
 

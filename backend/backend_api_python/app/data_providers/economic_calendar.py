@@ -12,6 +12,7 @@ import requests
 
 from app.config.api_keys import APIKeys
 from app.config.data_sources import FinnhubConfig, TradingEconomicsConfig
+from app.data_providers.investing_calendar_snapshot import get_investing_calendar_snapshot_payload
 from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -178,6 +179,18 @@ def get_economic_calendar_payload() -> Dict[str, Any]:
     optionally try Trading Economics when credentials are configured, and only
     attempt Finnhub when FINNHUB_FREE_ONLY=false.
     """
+    provider = str(os.getenv("ECONOMIC_CALENDAR_PROVIDER", "investing_browser") or "").strip().lower()
+    if provider == "investing_browser":
+        return get_investing_calendar_snapshot_payload()
+    if provider != "legacy":
+        return {
+            "events": [],
+            "status": "invalid_config",
+            "source": "economic_calendar",
+            "config_key": "ECONOMIC_CALENDAR_PROVIDER",
+            "message": "ECONOMIC_CALENDAR_PROVIDER must be investing_browser or legacy.",
+        }
+
     finnhub_free_only_override = os.getenv("FINNHUB_FREE_ONLY")
     finnhub_api_key_override = os.getenv("FINNHUB_API_KEY")
     if TradingEconomicsConfig.CONFIGURED:

@@ -4,11 +4,23 @@ import test from 'node:test'
 
 import { MARKET_PULSE_TABS, buildPulsePanel, normalizePulseSeries } from '../../src/views/smart-insights/marketPulse.js'
 
-test('exposes seven evidence-backed tabs and no forecast surface', () => {
+test('merges BTC whale flow into the evidence-backed flows tab and keeps no forecast surface', () => {
   assert.deepEqual(MARKET_PULSE_TABS.map(tab => tab.key), [
-    'overview', 'flows', 'sentiment', 'derivatives', 'cycle', 'onchain', 'whales'
+    'overview', 'flows', 'sentiment', 'derivatives', 'cycle', 'onchain'
   ])
   assert.equal(JSON.stringify(MARKET_PULSE_TABS).match(/forecast|kronos|btcbottom/iu), null)
+})
+
+test('keeps the backend whale-flow contract with the flows panel', () => {
+  const whaleFlows = {
+    status: 'AVAILABLE',
+    insight: { tone: 'ACCUMULATION', confidence: 'MEDIUM' },
+    cohort: { latestChange: { value: 1250 } },
+    exchangePressure: { latestNetflow: { value: -800 } }
+  }
+  const panel = buildPulsePanel({ tabs: { flows: { status: 'AVAILABLE', whaleFlows, etfFlows: { series: [] } } } }, 'flows')
+  assert.equal(panel.whaleFlows.insight.tone, 'ACCUMULATION')
+  assert.equal(panel.whaleFlows.exchangePressure.latestNetflow.value, -800)
 })
 
 test('splits sentiment and derivative metrics from the shared backend tab', () => {
@@ -29,7 +41,7 @@ test('keeps one valid chart point visible', () => {
 test('market pulse component consumes every supported tab without forecast copy', () => {
   const source = fs.readFileSync(new URL('../../src/views/smart-insights/components/MarketPulseSection.vue', import.meta.url), 'utf8')
   const modelSource = fs.readFileSync(new URL('../../src/views/smart-insights/marketPulse.js', import.meta.url), 'utf8')
-  for (const key of ['overview', 'flows', 'sentiment', 'derivatives', 'cycle', 'onchain', 'whales']) {
+  for (const key of ['overview', 'flows', 'sentiment', 'derivatives', 'cycle', 'onchain']) {
     assert.match(modelSource, new RegExp(`['"]${key}['"]`, 'u'))
   }
   assert.match(source, /MARKET_PULSE_TABS|activeKey|tabs/u)

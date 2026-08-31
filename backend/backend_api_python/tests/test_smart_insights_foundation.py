@@ -28,6 +28,46 @@ def _authenticate(monkeypatch, *, user_id: int = 7, role: str = "user") -> dict[
     return {"Authorization": "Bearer research-jwt"}
 
 
+def test_pulse_repository_keeps_full_cycle_and_fear_greed_history_without_expanding_other_sources(monkeypatch):
+    from app.services.smart_insights import repository as repository_module
+    from app.services.smart_insights.repository import SmartInsightsRepository
+
+    class Cursor:
+        query = ""
+
+        def execute(self, query, _params):
+            self.query = query
+
+        def fetchall(self):
+            return []
+
+        def close(self):
+            return None
+
+    class Connection:
+        def __init__(self):
+            self.cursor_instance = Cursor()
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def cursor(self):
+            return self.cursor_instance
+
+    connection = Connection()
+    monkeypatch.setattr(repository_module, "get_db_connection", lambda: connection)
+
+    assert SmartInsightsRepository().list_pulse_observations(data_class="LIVE", as_of=None) == []
+    assert "INTERVAL '730 days'" in connection.cursor_instance.query
+    assert "s.code = 'alternative-fng'" in connection.cursor_instance.query
+    assert "INTERVAL '4000 days'" in connection.cursor_instance.query
+    assert "s.code IN ('blockchaincenter-altcoin-season', 'cbbi-public')" in connection.cursor_instance.query
+    assert "LIMIT 100000" in connection.cursor_instance.query
+
+
 def test_additive_migration_defines_required_provenance_tables_and_live_demo_gate():
     migration = (
         BACKEND_ROOT / "migrations" / "20260824_smart_insights_foundation.sql"

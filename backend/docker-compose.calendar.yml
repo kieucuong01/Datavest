@@ -1,0 +1,41 @@
+services:
+  crypto-insights-browser:
+    build:
+      context: ./backend_api_python
+      dockerfile: crypto_insights_worker/Dockerfile
+    image: ${CRYPTO_INSIGHTS_WORKER_IMAGE:-datavest-crypto-insights-browser:local}
+    container_name: datavest-crypto-insights-browser
+    restart: unless-stopped
+    env_file:
+      - ./backend_api_python/.env
+    environment:
+      TZ: Asia/Ho_Chi_Minh
+      CRYPTO_INSIGHTS_BROWSER_HEADLESS: "true"
+      CRYPTO_INSIGHTS_BROWSER_CDP_URL: ${CRYPTO_INSIGHTS_BROWSER_CDP_URL:-http://host.docker.internal:9222}
+      CRYPTO_INSIGHTS_BROWSER_PAGE_WAIT_SECONDS: ${CRYPTO_INSIGHTS_BROWSER_PAGE_WAIT_SECONDS:-4}
+      CRYPTO_INSIGHTS_BITINFO_WAIT_SECONDS: ${CRYPTO_INSIGHTS_BITINFO_WAIT_SECONDS:-45}
+      CRYPTO_INSIGHTS_BITINFO_DETAIL_WAIT_SECONDS: ${CRYPTO_INSIGHTS_BITINFO_DETAIL_WAIT_SECONDS:-15}
+      CRYPTO_INSIGHTS_BITINFO_DETAIL_LIMIT: ${CRYPTO_INSIGHTS_BITINFO_DETAIL_LIMIT:-12}
+    volumes:
+      - backend_data:/app/data
+    networks:
+      - quantdinger-network
+
+  economic-calendar-browser:
+    build:
+      context: ./backend_api_python
+      dockerfile: calendar_worker/Dockerfile
+    image: ${CALENDAR_WORKER_IMAGE:-quantdinger-economic-calendar-browser:local}
+    container_name: quantdinger-economic-calendar-browser
+    restart: unless-stopped
+    env_file:
+      - ./backend_api_python/.env
+    environment:
+      INVESTING_CALENDAR_URL: ${INVESTING_CALENDAR_URL:-https://vn.investing.com/economic-calendar/}
+      INVESTING_CALENDAR_INTERVAL_SECONDS: ${INVESTING_CALENDAR_INTERVAL_SECONDS:-3600}
+      INVESTING_BROWSER_PAGE_WAIT_SECONDS: ${INVESTING_BROWSER_PAGE_WAIT_SECONDS:-4}
+      INVESTING_BROWSER_HEADLESS: "true"
+    volumes:
+      - backend_data:/app/data
+    networks:
+      - quantdinger-network

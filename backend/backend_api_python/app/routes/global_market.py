@@ -115,7 +115,7 @@ def economic_calendar():
     try:
         force = request.args.get("force", "").lower() in ("true", "1")
         payload = cached_or_compute(
-            "economic_calendar_v3", get_economic_calendar_payload, force=force
+            "economic_calendar_v4", get_economic_calendar_payload, ttl=60, force=force
         )
         if isinstance(payload, list):
             data = payload
@@ -129,6 +129,7 @@ def economic_calendar():
                 "message": payload.get("message") or "",
                 "fallback_from": payload.get("fallback_from") or "",
                 "fallback_reason": payload.get("fallback_reason") or "",
+                "last_success_at": payload.get("last_success_at") or "",
                 "insight_version": "macro_event_context_v1",
             }
         else:

@@ -70,6 +70,19 @@ async def _fetch_nodriver(
     timeout_seconds: float,
     poll_interval_seconds: float,
 ) -> tuple[str, str]:
+    results = await _fetch_nodriver_many(
+        (url,), ready=ready, timeout_seconds=timeout_seconds, poll_interval_seconds=poll_interval_seconds
+    )
+    return results[0]
+
+
+async def _fetch_nodriver_many(
+    urls: tuple[str, ...],
+    *,
+    ready: ReadyPredicate,
+    timeout_seconds: float,
+    poll_interval_seconds: float,
+) -> tuple[tuple[str, str], ...]:
     try:
         import nodriver
     except Exception as exc:  # pragma: no cover - dependency/runtime boundary
@@ -93,23 +106,26 @@ async def _fetch_nodriver(
             raise CollectorUnavailable("BROWSER_LAUNCH_FAILED") from exc
         process = getattr(browser, "_process", None)
         page = await browser.get("about:blank")
-        page = await page.get(url)
-        deadline = time.monotonic() + timeout_seconds
-        while True:
+        documents: list[tuple[str, str]] = []
+        for url in urls:
+            page = await page.get(url)
+            deadline = time.monotonic() + timeout_seconds
+            while True:
+                try:
+                    html = await page.get_content()
+                except Exception:
+                    html = ""
+                if isinstance(html, str) and html.strip() and ready(html):
+                    break
+                if time.monotonic() >= deadline:
+                    raise CollectorUnavailable("SCHEMA_DRIFT")
+                await asyncio.sleep(poll_interval_seconds)
             try:
-                html = await page.get_content()
+                final_url = await page.evaluate("window.location.href", return_by_value=True)
             except Exception:
-                html = ""
-            if isinstance(html, str) and html.strip() and ready(html):
-                break
-            if time.monotonic() >= deadline:
-                raise CollectorUnavailable("SCHEMA_DRIFT")
-            await asyncio.sleep(poll_interval_seconds)
-        try:
-            final_url = await page.evaluate("window.location.href", return_by_value=True)
-        except Exception:
-            final_url = ""
-        return html, final_url if isinstance(final_url, str) else ""
+                final_url = ""
+            documents.append((html, final_url if isinstance(final_url, str) else ""))
+        return tuple(documents)
     finally:
         await _close_browser(browser, process)
 
@@ -172,6 +188,55 @@ class NodriverBrowserClient:
         if len(html.encode("utf-8")) > self._max_html_bytes:
             raise CollectorUnavailable("RESPONSE_TOO_LARGE")
         return BrowserDocument(html=html, final_url=final_url, observed_at=self._clock())
+
+    def fetch_many(
+        self,
+        source: SourceDefinition,
+        urls: tuple[str, ...],
+        *,
+        ready: ReadyPredicate,
+    ) -> tuple[BrowserDocument, ...]:
+        """Fetch a small allow-listed batch in one browser process.
+
+        This is used for a fixed top-address cohort only; it deliberately does
+        not expose a generic bulk scraping primitive.
+        """
+        if not urls or len(urls) > 20 or len(set(urls)) != len(urls):
+            raise CollectorUnavailable("INVALID_BATCH")
+        for url in urls:
+            parsed = urlsplit(url)
+            if parsed.scheme != "https" or parsed.hostname not in _source_hosts(source):
+                raise CollectorUnavailable("URL_NOT_ALLOWLISTED")
+        if self._browser_fetch is not None:
+            return tuple(self.fetch(source, url, ready=ready) for url in urls)
+        try:
+            rows = asyncio.run(
+                asyncio.wait_for(
+                    _fetch_nodriver_many(
+                        urls,
+                        ready=ready,
+                        timeout_seconds=self._timeout_seconds,
+                        poll_interval_seconds=self._poll_interval_seconds,
+                    ),
+                    timeout=(self._timeout_seconds + 5) * len(urls),
+                )
+            )
+        except CollectorUnavailable:
+            raise
+        except (asyncio.TimeoutError, TimeoutError) as exc:
+            raise CollectorUnavailable("TIMEOUT") from exc
+        except Exception as exc:
+            raise CollectorUnavailable("BROWSER_FETCH_FAILED") from exc
+        documents: list[BrowserDocument] = []
+        for requested_url, (html, final_url) in zip(urls, rows, strict=True):
+            if final_url != requested_url:
+                raise CollectorUnavailable("REDIRECT_REJECTED")
+            if not isinstance(html, str) or not html.strip() or not ready(html):
+                raise CollectorUnavailable("SCHEMA_DRIFT")
+            if len(html.encode("utf-8")) > self._max_html_bytes:
+                raise CollectorUnavailable("RESPONSE_TOO_LARGE")
+            documents.append(BrowserDocument(html=html, final_url=final_url, observed_at=self._clock()))
+        return tuple(documents)
 
 
 def observation(

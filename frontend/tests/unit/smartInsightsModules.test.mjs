@@ -182,9 +182,97 @@ test('Smart Insights renders imported production fields and real chart primitive
   assert.match(opinions, /row\.opinion\.score/u)
   assert.match(opinions, /evidenceValidated/u)
   assert.doesNotMatch(opinions, /portfolioWeightPct/u)
-  assert.match(chart, /<svg/u)
+  assert.match(chart, /from 'echarts'/u)
   assert.match(component, /MarketPulseSection/u)
   assert.doesNotMatch(`${component}${chart}`, /gauge-placeholder|large-chart-placeholder/u)
+})
+
+test('Smart Insights routes the flows tab to the multi-asset Flow Terminal instead of CoinShares', async () => {
+  const pulse = readFileSync(path.join(repositoryRoot, 'src/views/smart-insights/components/MarketPulseSection.vue'), 'utf8')
+  const flowTerminal = readFileSync(path.join(repositoryRoot, 'src/views/smart-insights/components/FlowTerminal.vue'), 'utf8')
+
+  assert.match(pulse, /FlowTerminal/u)
+  assert.doesNotMatch(pulse, /coinshares-fund-flow/u)
+  assert.match(flowTerminal, /assetOptions/u)
+  assert.match(flowTerminal, /tooltip:\s*\{/u)
+  assert.match(flowTerminal, /cumulative \? 'line' : 'bar'/u)
+  assert.match(flowTerminal, /tableRows/u)
+})
+
+test('Smart Insights routes Cycle to a source-backed Altseason and CBBI terminal', () => {
+  const pulse = readFileSync(path.join(repositoryRoot, 'src/views/smart-insights/components/MarketPulseSection.vue'), 'utf8')
+  const cycleTerminalPath = path.join(repositoryRoot, 'src/views/smart-insights/components/CycleTerminal.vue')
+
+  assert.equal(existsSync(cycleTerminalPath), true)
+  const cycleTerminal = readFileSync(cycleTerminalPath, 'utf8')
+  assert.match(pulse, /CycleTerminal/u)
+  assert.match(cycleTerminal, /altcoin_season\.index/u)
+  assert.match(cycleTerminal, /cbbi\.component/u)
+  assert.match(cycleTerminal, /markArea/u)
+  assert.match(cycleTerminal, /tooltip:\s*\{/u)
+  assert.match(cycleTerminal, /rangeOptions/u)
+  assert.match(cycleTerminal, /cbbi-main-card/u)
+  assert.match(cycleTerminal, /cbbi-component-grid/u)
+  assert.match(cycleTerminal, /cbbiComponentOptions/u)
+  assert.match(cycleTerminal, /renderComponentCharts/u)
+  assert.match(cycleTerminal, /price-cycle-models/u)
+  assert.match(cycleTerminal, /2-Year MA/u)
+  assert.match(cycleTerminal, /200WMA/u)
+  assert.match(cycleTerminal, /Power Law \/ Rainbow/u)
+  assert.match(cycleTerminal, /Halving → Peak context/u)
+  assert.match(cycleTerminal, /not a buy\/sell signal/u)
+  assert.match(cycleTerminal, /full-width-card/u)
+  assert.match(cycleTerminal, /altcoin-summary-row/u)
+  assert.match(cycleTerminal, /grid-template-columns: repeat\(2/u)
+  assert.match(cycleTerminal, /\.cycle-terminal\s*\{[^}]*width:\s*100%[^}]*max-width:\s*none/u)
+  assert.match(cycleTerminal, /\.cycle-grid\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)/u)
+  assert.match(cycleTerminal, /grid-column:\s*auto/u)
+})
+
+test('Smart Insights renders separate BTC, ETH, and SOL ETF charts', () => {
+  const pulse = readFileSync(path.join(repositoryRoot, 'src/views/smart-insights/components/MarketPulseSection.vue'), 'utf8')
+
+  assert.match(pulse, /for \(const asset of \['BTC', 'ETH', 'SOL'\]\)/u)
+  assert.match(pulse, /key: `etf-flow-\$\{asset\}`/u)
+  assert.match(pulse, /point\.symbol/u)
+})
+
+test('Smart Insights gives Fear & Greed its own gauge, historical values, and range chart', () => {
+  const pulse = readFileSync(path.join(repositoryRoot, 'src/views/smart-insights/components/MarketPulseSection.vue'), 'utf8')
+  const fearGreed = readFileSync(path.join(repositoryRoot, 'src/views/smart-insights/components/FearGreedPanel.vue'), 'utf8')
+
+  assert.match(pulse, /FearGreedPanel/u)
+  assert.match(fearGreed, /type: 'gauge'/u)
+  assert.match(fearGreed, /Historical/u)
+  assert.match(fearGreed, /rangeOptions/u)
+  assert.match(fearGreed, /tooltip:\s*\{/u)
+})
+
+test('Smart Insights routes On-chain to the four-group source-backed terminal', () => {
+  const pulse = readFileSync(path.join(repositoryRoot, 'src/views/smart-insights/components/MarketPulseSection.vue'), 'utf8')
+  const terminalPath = path.join(repositoryRoot, 'src/views/smart-insights/components/OnchainTerminal.vue')
+
+  assert.equal(existsSync(terminalPath), true)
+  const terminal = readFileSync(terminalPath, 'utf8')
+  assert.match(pulse, /OnchainTerminal/u)
+  assert.match(terminal, /valuation/u)
+  assert.match(terminal, /holders/u)
+  assert.match(terminal, /liquidity/u)
+  assert.match(terminal, /network/u)
+  assert.match(terminal, /tooltip:\s*\{/u)
+  assert.match(terminal, /Nguồn chưa kết nối/u)
+  assert.doesNotMatch(terminal, /crypto\.cycle\.cbbi/u)
+})
+
+test('Smart Insights ETF charts support ECharts hover tooltips, flow modes, and range controls', () => {
+  const chart = readFileSync(path.join(repositoryRoot, 'src/views/smart-insights/components/PulseTrendChart.vue'), 'utf8')
+
+  assert.match(chart, /tooltip:\s*\{/u)
+  assert.match(chart, /rangeOptions/u)
+  assert.match(chart, /cumulative/u)
+  assert.match(chart, /ResizeObserver/u)
+  assert.match(chart, /if \(!this\.interactive\) return this\.\$t\('smartInsights\.latestValue'\)/u)
+  assert.doesNotMatch(chart, /<svg/u)
 })
 
 test('Smart Insights exposes imported portfolio impact when the production briefing supplies it', async () => {

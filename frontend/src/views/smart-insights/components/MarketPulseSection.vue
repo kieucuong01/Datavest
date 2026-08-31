@@ -20,7 +20,12 @@
         {{ tabLabel(tab) }}
       </button>
     </div>
-    <section class="legacy-card pulse-summary">
+    <flow-terminal v-if="activeKey === 'flows' && panel.etfFlows" :flow="panel.etfFlows" />
+    <whale-flow-monitor v-if="activeKey === 'flows' && panel.whaleFlows" :whale-flow="panel.whaleFlows" />
+    <derivatives-terminal v-if="activeKey === 'derivatives'" :derivatives="panel" />
+    <cycle-terminal v-if="activeKey === 'cycle'" :cycle="panel" />
+    <onchain-terminal v-if="activeKey === 'onchain'" :onchain="panel" />
+    <section v-if="activeKey !== 'flows' && activeKey !== 'derivatives' && activeKey !== 'cycle' && activeKey !== 'onchain'" class="legacy-card pulse-summary">
       <div class="card-heading compact-heading">
         <div><h3>{{ tabLabel(activeTab) }}</h3><p>{{ $t('smartInsights.sourceBackedOnly') }}</p></div>
         <a-tag>{{ statusLabel(panel.status) }}</a-tag>
@@ -29,14 +34,15 @@
         <article v-for="tile in summaryTiles" :key="tile.label" class="pulse-tile"><span>{{ tile.label }}</span><strong>{{ tile.value }}</strong><small>{{ tile.meta }}</small></article>
       </div>
     </section>
-    <div v-if="panel.metrics.length" class="pulse-metric-grid">
+    <div v-if="activeKey !== 'flows' && activeKey !== 'derivatives' && activeKey !== 'cycle' && activeKey !== 'onchain' && panel.metrics.length" class="pulse-metric-grid">
       <article v-for="metric in panel.metrics.slice(0, 6)" :key="metricKey(metric)" class="pulse-metric">
         <small>{{ metricLabel(metric) }}</small>
         <strong>{{ formatMetric(metric.value, metric.unit) }}</strong>
         <a-button v-if="metric.evidenceId" type="link" size="small" @click="$emit('open-evidence', metric.evidenceId)">{{ $t('smartInsights.evidence') }}</a-button>
       </article>
     </div>
-    <div v-if="chartCards.length" class="pulse-chart-grid">
+    <fear-greed-panel v-if="fearGreed" :fear="fearGreed" />
+    <div v-if="activeKey !== 'flows' && activeKey !== 'derivatives' && activeKey !== 'cycle' && activeKey !== 'onchain' && chartCards.length" class="pulse-chart-grid">
       <pulse-trend-chart
         v-for="chart in chartCards"
         :key="chart.key"
@@ -44,19 +50,27 @@
         :series="chart.series"
         :status="chart.status"
         :unit="chart.unit"
+        :variant="chart.variant"
+        :interactive="chart.interactive"
       />
     </div>
-    <div v-else class="pulse-empty"><a-icon type="database" /><span>{{ $t('smartInsights.noHistory') }}</span></div>
+    <div v-if="activeKey !== 'flows' && activeKey !== 'derivatives' && activeKey !== 'cycle' && activeKey !== 'onchain' && !chartCards.length" class="pulse-empty"><a-icon type="database" /><span>{{ $t('smartInsights.noHistory') }}</span></div>
   </section>
 </template>
 
 <script>
 import { MARKET_PULSE_TABS, buildPulsePanel, pulseTabLabel } from '../marketPulse'
+import FearGreedPanel from './FearGreedPanel'
 import PulseTrendChart from './PulseTrendChart'
+import FlowTerminal from './FlowTerminal'
+import CycleTerminal from './CycleTerminal'
+import OnchainTerminal from './OnchainTerminal'
+import DerivativesTerminal from './DerivativesTerminal'
+import WhaleFlowMonitor from './WhaleFlowMonitor'
 
 export default {
   name: 'MarketPulseSection',
-  components: { PulseTrendChart },
+  components: { FearGreedPanel, PulseTrendChart, FlowTerminal, CycleTerminal, OnchainTerminal, DerivativesTerminal, WhaleFlowMonitor },
   props: {
     pulse: { type: Object, default: () => ({}) },
     locale: { type: String, default: 'vi' }
@@ -65,6 +79,11 @@ export default {
   computed: {
     activeTab () { return this.tabs.find(tab => tab.key === this.activeKey) || this.tabs[0] },
     panel () { return buildPulsePanel(this.pulse, this.activeKey) },
+    fearGreed () {
+      if (this.activeKey !== 'overview' && this.activeKey !== 'sentiment') return null
+      const fear = this.panel.fearGreed
+      return fear && Array.isArray(fear.series) && fear.series.length ? fear : null
+    },
     summaryTiles () {
       return [
         { label: this.$t('smartInsights.metrics'), value: this.panel.metrics.length, meta: this.$t('smartInsights.observations') },
@@ -74,17 +93,34 @@ export default {
     },
     chartCards () {
       const cards = []
+      const directMetrics = new Set()
       if (this.activeKey === 'overview' || this.activeKey === 'sentiment') {
         const fear = this.panel.fearGreed
-        if (fear) cards.push({ key: 'fear-greed', title: this.$t('smartInsights.fearGreedTitle'), series: fear.series || [], status: fear.status, unit: '' })
+        if (fear) {
+          directMetrics.add('crypto.fear_greed.index')
+        }
       }
-      if (this.activeKey === 'overview' || this.activeKey === 'flows') {
+      if (this.activeKey === 'overview') {
         const flow = this.panel.etfFlows
-        if (flow) cards.push({ key: 'etf-flow', title: this.$t('smartInsights.flowTitle'), series: flow.series || [], status: flow.status, unit: 'USD' })
+        if (flow) {
+          directMetrics.add('crypto.etf.net_flow_usd')
+          for (const asset of ['BTC', 'ETH', 'SOL']) {
+            const series = (flow.series || []).filter(point => String(point.symbol || '').toUpperCase() === asset)
+            cards.push({
+              key: `etf-flow-${asset}`,
+              title: `${asset} · ${this.$t('smartInsights.flowTitle')}`,
+              series,
+              status: series.length ? flow.status : 'UNAVAILABLE',
+              unit: 'USD',
+              variant: 'bar',
+              interactive: true
+            })
+          }
+        }
       }
       const limit = cards.length ? 4 : 6
-      this.panel.seriesGroups.slice(0, limit).forEach(group => {
-        cards.push({ key: group.key, title: this.metricLabel({ metric: group.key.split(':')[0] }), series: group.points, status: this.panel.status, unit: '' })
+      this.panel.seriesGroups.filter(group => !directMetrics.has(group.key.split(':')[0])).slice(0, limit).forEach(group => {
+        cards.push({ key: group.key, title: this.metricLabel({ metric: group.key.split(':')[0] }), series: group.points, status: this.panel.status, unit: '', variant: 'line' })
       })
       return cards
     }
@@ -115,7 +151,9 @@ export default {
         aum_usd: this.$t('smartInsights.metricAum'),
         address_balance_btc: this.$t('smartInsights.metricAddressBalance'),
         balance_change_btc: this.$t('smartInsights.metricBalanceChange'),
-        cbbi: this.$t('smartInsights.metricCbbi')
+        cbbi: this.$t('smartInsights.metricCbbi'),
+        altcoin_season: this.$t('smartInsights.altcoinSeason'),
+        confidence: this.$t('smartInsights.metricCbbi')
       }
       return labels[key] || (this.$i18n && this.$i18n.locale === 'vi-VN' ? `${this.$t('smartInsights.metricLabel')}: ${key.replace(/[_-]+/gu, ' ')}` : key.replace(/[_-]+/gu, ' '))
     },
@@ -131,27 +169,27 @@ export default {
 <style lang="less" scoped>
 .market-pulse { margin-top: 28px; }
 .section-title-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; }
-.section-title-row h2 { margin: 0; color: var(--ink); font-size: 17px; }
+.section-title-row h2 { margin: 0; color: var(--ink); font-size: 19px; }
 .section-title-row h2 .ant-tag { vertical-align: 2px; color: #18a575; border-color: #b7ead6; background: #ecfbf4; }
-.section-title-row p { margin: 3px 0 0; color: var(--muted); font-size: 12px; }
+.section-title-row p { margin: 4px 0 0; color: var(--muted); font-size: 14px; }
 .pulse-tabs { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 12px; }
-.pulse-tabs button { padding: 7px 12px; border: 1px solid var(--line); border-radius: 7px; color: var(--muted); background: var(--card); font-size: 12px; transition: .2s ease; }
+.pulse-tabs button { min-height: 36px; padding: 7px 13px; border: 1px solid var(--line); border-radius: 7px; color: var(--muted); background: var(--card); font-size: 14px; transition: .2s ease; }
 .pulse-tabs button.active, .pulse-tabs button:hover { color: var(--blue); border-color: var(--primary-color-ring, var(--blue-ring)); background: var(--soft-blue); }
 .pulse-tabs button:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
 .pulse-summary { margin-top: 14px; }
 .legacy-card { overflow: hidden; border: 1px solid var(--line); border-radius: 12px; background: var(--card); box-shadow: 0 3px 12px var(--blue-ring); }
 .card-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 17px; border-bottom: 1px solid var(--line); background: linear-gradient(var(--soft-blue), var(--card)); }
 .compact-heading { padding-top: 13px; padding-bottom: 13px; }
-.card-heading h3 { margin: 0; color: var(--ink); font-size: 15px; }
-.card-heading p { margin: 3px 0 0; color: var(--muted); font-size: 12px; }
+.card-heading h3 { margin: 0; color: var(--ink); font-size: 17px; }
+.card-heading p { margin: 3px 0 0; color: var(--muted); font-size: 13px; }
 .card-heading .ant-tag { margin: 0; font-size: 11px; }
 .pulse-tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 9px; padding: 12px 15px 15px; }
 .pulse-tile { display: grid; gap: 5px; min-height: 72px; padding: 12px; border: 1px solid var(--line); border-radius: 9px; background: var(--page-bg); }
-.pulse-tile span, .pulse-tile small, .pulse-metric small { color: var(--muted); font-size: 11px; }
-.pulse-tile strong { color: var(--ink); font-size: 19px; }
+.pulse-tile span, .pulse-tile small, .pulse-metric small { color: var(--muted); font-size: 13px; }
+.pulse-tile strong { color: var(--ink); font-size: 21px; }
 .pulse-metric-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 9px; margin-top: 12px; }
 .pulse-metric { display: grid; gap: 6px; padding: 12px; border: 1px solid var(--line); border-radius: 9px; background: var(--card); }
-.pulse-metric strong { color: var(--ink); font-size: 18px; font-variant-numeric: tabular-nums; }
+.pulse-metric strong { color: var(--ink); font-size: 20px; font-variant-numeric: tabular-nums; }
 .pulse-metric .ant-btn { padding: 0; justify-self: start; font-size: 11px; }
 .pulse-chart-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 12px; }
 .pulse-empty { display: flex; align-items: center; justify-content: center; gap: 7px; min-height: 160px; margin-top: 12px; color: var(--muted); font-size: 12px; }

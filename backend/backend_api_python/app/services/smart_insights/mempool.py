@@ -36,11 +36,21 @@ class MempoolCollector:
         except (UnicodeDecodeError, json.JSONDecodeError) as exc:
             raise CollectorUnavailable("INVALID_RESPONSE") from exc
 
+    def _text_decimal(self, url: str) -> Decimal:
+        response = self.transport.fetch(url, timeout_seconds=30, max_bytes=1_000)
+        if response.status != 200 or response.url != url:
+            raise CollectorUnavailable("INVALID_RESPONSE")
+        try:
+            value = response.body.decode("utf-8").strip()
+        except UnicodeDecodeError as exc:
+            raise CollectorUnavailable("INVALID_RESPONSE") from exc
+        return _decimal(value)
+
     def collect(self, as_of: datetime) -> tuple[Observation, ...]:
         if as_of.tzinfo is None or as_of.utcoffset() is None:
             raise ValueError("as_of must be timezone-aware")
         observed_at = as_of.astimezone(timezone.utc)
-        fees_url, mempool_url, hashrate_url = self.source.urls
+        fees_url, mempool_url, hashrate_url, height_url = self.source.urls
         fees, mempool, hashrate = self._json(fees_url), self._json(mempool_url), self._json(hashrate_url)
         if not isinstance(fees, dict) or not isinstance(mempool, dict) or not isinstance(hashrate, dict):
             raise CollectorUnavailable("SCHEMA_DRIFT")
@@ -70,6 +80,7 @@ class MempoolCollector:
         except (TypeError, ValueError, OverflowError, OSError) as exc:
             raise CollectorUnavailable("INVALID_TIMESTAMP") from exc
         values.append(("crypto.mining.hashrate_hs", _decimal(latest[1]), "H/s", effective_at, hashrate_url))
+        values.append(("crypto.chain.block_height", self._text_decimal(height_url), "count", observed_at, height_url))
         return tuple(
             Observation.create(
                 source_code=self.source.code,

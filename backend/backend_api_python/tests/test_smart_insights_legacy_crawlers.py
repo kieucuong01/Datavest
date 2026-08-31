@@ -53,18 +53,31 @@ def test_bitinfocharts_browser_collector_normalizes_the_top_100_table() -> None:
         + "".join(rows)
         + "</table>"
     )
+    detail_html = """
+        <main>
+          <p>Balance: 1,500 BTC</p>
+          <p>Received: 2,000 BTC (12 ins) first: 2020-01-01 last: 2026-08-25</p>
+          <p>Sent: 500 BTC (3 outs) first: 2020-01-02 last: 2026-08-24</p>
+          <p>Unspent outputs: 7</p>
+        </main>
+    """
 
     class FakeBrowser:
         def fetch(self, source, url, *, ready):
             assert source.code == "bitinfocharts-top-addresses"
-            assert ready(html)
-            return BrowserDocument(html=html, final_url=url, observed_at=NOW)
+            page = html if url.endswith("top-100-richest-bitcoin-addresses.html") else detail_html
+            assert ready(page)
+            return BrowserDocument(html=page, final_url=url, observed_at=NOW)
 
     observations = BitInfoChartsBrowserCollector(browser=FakeBrowser()).collect(NOW)
 
-    assert len(observations) == 107
     assert observations[0].warnings == ("HEURISTIC_ADDRESS_COHORT",)
     assert any(row.value["metric"] == "crypto.large_address.excluded_balance_btc" for row in observations)
+    detail_rows = [row for row in observations if row.value["metric"] == "crypto.large_address.address_received_total_btc"]
+    assert len(detail_rows) == 12
+    assert detail_rows[0].value["value"] == "2000"
+    assert detail_rows[0].value["dimensions"]["detail_scope"] == "top12_non_excluded"
+    assert any(row.value["metric"] == "crypto.large_address.address_last_activity_age_days" for row in observations)
 
 
 def test_coinshares_ocr_reconstruction_keeps_the_old_table_contract() -> None:

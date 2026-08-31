@@ -51,4 +51,20 @@ def enqueue_smart_insights_refresh() -> dict:
     return {"queued": True, "runId": run_id, "sourceCount": len(source_codes)}
 
 
-__all__ = ["enqueue_smart_insights_refresh", "run_smart_insights_refresh"]
+@celery_app.task(name="datavest.tasks.enqueue_smart_insights_refresh_for_sources")
+def enqueue_smart_insights_refresh_for_sources(source_codes: tuple[str, ...]) -> dict:
+    """Queue a narrow persisted-snapshot import after the browser worker finishes."""
+    normalized = tuple(dict.fromkeys(str(code).strip().lower() for code in source_codes if str(code).strip()))
+    if not normalized:
+        return {"skipped": True, "reason": "no_sources"}
+    from app.services.smart_insights.repository import SmartInsightsRepository
+
+    repository = SmartInsightsRepository()
+    run_id = repository.create_refresh_request(
+        requested_by_user_id=None, market="crypto", source_codes=normalized
+    )
+    run_smart_insights_refresh.delay(run_id)
+    return {"queued": True, "runId": run_id, "sourceCount": len(normalized)}
+
+
+__all__ = ["enqueue_smart_insights_refresh", "enqueue_smart_insights_refresh_for_sources", "run_smart_insights_refresh"]

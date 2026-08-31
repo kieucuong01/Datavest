@@ -6,6 +6,7 @@ raw API.  These helpers map only the fields that the Smart Insights UI needs.
 
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Any, Mapping
 
 
@@ -234,6 +235,43 @@ def _component(value: Any, *, generated_at: str, default_source: str) -> dict[st
     return result
 
 
+_ETF_ASSETS = ("BTC", "ETH", "SOL", "XRP", "HYPE", "DOGE", "LINK", "AVAX", "HBAR", "LTC", "BNB", "DOT", "SUI")
+
+
+def _etf_source_for_asset(asset: str, source_codes: list[str]) -> str:
+    token = f"-{asset.lower()}-"
+    return next((code for code in source_codes if token in code.lower()), source_codes[0] if source_codes else "datavest-production-import")
+
+
+def _normalized_imported_etf_series(raw_series: Any, source_codes: list[str]) -> list[dict[str, Any]]:
+    """Expand legacy matrix rows into one source-labelled point per ETF asset."""
+    result: list[dict[str, Any]] = []
+    for row in _items(raw_series):
+        effective_at = str(row.get("effectiveAt") or row.get("date") or "").strip()
+        if not effective_at:
+            continue
+        symbol = str(row.get("symbol") or "").strip().upper()
+        value = _number(row.get("value"))
+        if symbol in _ETF_ASSETS and value is not None:
+            result.append({
+                "effectiveAt": effective_at,
+                "value": value,
+                "symbol": symbol,
+                "source": str(row.get("source") or _etf_source_for_asset(symbol, source_codes)),
+            })
+            continue
+        for asset in _ETF_ASSETS:
+            value = _number(row.get(asset.lower()))
+            if value is not None:
+                result.append({
+                    "effectiveAt": effective_at,
+                    "value": value,
+                    "symbol": asset,
+                    "source": _etf_source_for_asset(asset, source_codes),
+                })
+    return result
+
+
 def build_imported_crypto_market_pulse(
     pulse_payload: Mapping[str, Any],
     calendar_payload: Mapping[str, Any],
@@ -253,10 +291,10 @@ def build_imported_crypto_market_pulse(
         str(fear_raw.get("sourceUrl") or ""),
         generated_at,
     )
+    flow_codes = [str(code) for code in (etf_raw.get("sourceCodes") or []) if isinstance(code, str) and code.strip()]
     flow_sources = [
         _source_card(str(code), "", generated_at)
-        for code in (etf_raw.get("sourceCodes") or [])
-        if isinstance(code, str) and code.strip()
+        for code in flow_codes
     ] or [_source_card("datavest-production-import", "", generated_at)]
     fear = {
         "status": _availability(
@@ -273,7 +311,7 @@ def build_imported_crypto_market_pulse(
             has_content=bool(_items(etf_raw.get("summaries")) or _items(etf_raw.get("series"))),
         ),
         "sources": flow_sources if etf_raw else [],
-        "series": _items(etf_raw.get("series")),
+        "series": _normalized_imported_etf_series(etf_raw.get("series"), flow_codes),
         "summaries": _items(etf_raw.get("summaries")),
     }
     fund = _component(fund_raw, generated_at=generated_at, default_source="datavest-production-import")
@@ -347,6 +385,73 @@ def _merge_sources(imported: Any, runtime: Any) -> list[dict[str, Any]]:
     return result
 
 
+def _prefer_runtime_history(imported: Any, runtime: Any) -> dict[str, Any]:
+    """Keep legacy metadata but render chart history from validated observations."""
+    merged = _merge_missing(_mapping(imported), _mapping(runtime))
+    runtime_component = _mapping(runtime)
+    if _items(runtime_component.get("series")):
+        merged["series"] = _items(runtime_component.get("series"))
+        merged["summaries"] = _items(runtime_component.get("summaries"))
+        if _mapping(runtime_component.get("latest")):
+            merged["latest"] = _mapping(runtime_component.get("latest"))
+        merged["status"] = str(runtime_component.get("status") or merged.get("status") or "AVAILABLE")
+    merged["sources"] = _merge_sources(_mapping(imported).get("sources"), runtime_component.get("sources"))
+    return merged
+
+
+def _etf_day(value: Any) -> str:
+    text = str(value or "").strip()
+    if not text:
+        return ""
+    try:
+        return datetime.fromisoformat(text.replace("Z", "+00:00")).date().isoformat()
+    except ValueError:
+        return text[:10]
+
+
+def _etf_source_rank(source: Any) -> int:
+    normalized = str(source or "").lower()
+    if normalized.startswith("cryptoetf-"):
+        return 0
+    if normalized.startswith("farside-"):
+        return 1
+    if normalized.startswith("xoomar-"):
+        return 2
+    return 3
+
+
+def _merge_etf_history(imported: Any, runtime: Any) -> dict[str, Any]:
+    """Keep all validated ETF history, preferring the designated provider per day."""
+    imported_component = _mapping(imported)
+    runtime_component = _mapping(runtime)
+    merged = _merge_missing(imported_component, runtime_component)
+    selected: dict[tuple[str, str], dict[str, Any]] = {}
+    for item in [*_items(imported_component.get("series")), *_items(runtime_component.get("series"))]:
+        symbol = str(item.get("symbol") or "").upper()
+        effective_at = str(item.get("effectiveAt") or "").strip()
+        value = _number(item.get("value"))
+        if symbol not in _ETF_ASSETS or not effective_at or value is None:
+            continue
+        point = {"effectiveAt": effective_at, "value": value, "symbol": symbol, "source": str(item.get("source") or "datavest-production-import")}
+        key = (symbol, _etf_day(effective_at))
+        previous = selected.get(key)
+        if previous is None or _etf_source_rank(point["source"]) <= _etf_source_rank(previous["source"]):
+            selected[key] = point
+    series = sorted(selected.values(), key=lambda item: (item["effectiveAt"], item["symbol"]))
+    summaries = []
+    for asset in _ETF_ASSETS:
+        points = [item for item in series if item["symbol"] == asset]
+        if points:
+            latest = max(points, key=lambda item: item["effectiveAt"])
+            summaries.append({"asset": asset, "latest": latest["value"], "effectiveAt": latest["effectiveAt"]})
+    if series:
+        merged["series"] = series
+        merged["summaries"] = summaries
+        merged["status"] = str(runtime_component.get("status") or imported_component.get("status") or "AVAILABLE")
+    merged["sources"] = _merge_sources(imported_component.get("sources"), runtime_component.get("sources"))
+    return merged
+
+
 def merge_imported_crypto_market_pulse(
     imported: Mapping[str, Any], runtime: Mapping[str, Any]
 ) -> dict[str, Any]:
@@ -375,6 +480,10 @@ def merge_imported_crypto_market_pulse(
             continue
         merged = _merge_missing(imported_tab, runtime_tab)
         merged["sources"] = _merge_sources(imported_tab.get("sources"), runtime_tab.get("sources"))
+        for component in ("fearGreed", "etfFlows", "fundFlows"):
+            if _items(_mapping(runtime_tab.get(component)).get("series")):
+                merger = _merge_etf_history if component == "etfFlows" else _prefer_runtime_history
+                merged[component] = merger(imported_tab.get(component), runtime_tab.get(component))
         if imported_tab.get("status") == "UNAVAILABLE":
             merged["status"] = runtime_tab.get("status")
         if runtime_tab.get("status") != "UNAVAILABLE":

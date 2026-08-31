@@ -18,9 +18,11 @@ test('Smart Insights primary accents resolve from the runtime setting color', ()
   assert.match(smartInsightsPage, /--soft-blue:\s*var\(--primary-color-soft/u)
   assert.match(smartInsightsPage, /var\(--blue(?:-active|-hover)?/u)
   assert.match(marketPulse, /border-color:\s*var\(--primary-color-ring/u)
-  assert.match(pulseChart, /stroke:\s*var\(--blue/u)
+  assert.match(pulseChart, /primaryColor \(\) \{ return \(this\.\$store && this\.\$store\.state\.app\.color\)/u)
+  assert.match(pulseChart, /lineStyle:\s*\{[^}]*color:\s*this\.primaryColor/u)
+  assert.match(pulseChart, /primaryColor \(\) \{ this\.scheduleRender\(\) \}/u)
   assert.doesNotMatch(smartInsightsPage, /--blue:\s*#174ca8/u)
-  assert.doesNotMatch(pulseChart, /stroke:\s*#2c65be/u)
+  assert.doesNotMatch(pulseChart, /color:\s*'#2b6de0'/u)
 })
 
 test('top navigation uses a fixed flex renderer instead of Ant Menu overflow dots', () => {

@@ -4,8 +4,7 @@ export const MARKET_PULSE_TABS = [
   { key: 'sentiment', vi: 'Tâm lý', en: 'Sentiment' },
   { key: 'derivatives', vi: 'Phái sinh', en: 'Derivatives' },
   { key: 'cycle', vi: 'Chu kỳ', en: 'Cycle' },
-  { key: 'onchain', vi: 'Chuỗi khối', en: 'On-chain' },
-  { key: 'whales', vi: 'Cá voi BTC', en: 'BTC Whales' }
+  { key: 'onchain', vi: 'Chuỗi khối', en: 'On-chain' }
 ]
 
 function finite (value) {
@@ -56,9 +55,14 @@ function tabModel (key, tab, options = {}) {
     metrics: options.metrics || metricsFrom(tab),
     series,
     seriesGroups: groupSeries(series),
+    groups: Array.isArray(tab.groups) ? tab.groups : [],
     fearGreed: options.fearGreed || tab.fearGreed || null,
     etfFlows: options.etfFlows || tab.etfFlows || null,
+    whaleFlows: options.whaleFlows || tab.whaleFlows || null,
     fundFlows: options.fundFlows || tab.fundFlows || null,
+    halving: options.halving || tab.halving || null,
+    priceHistory: options.priceHistory || tab.priceHistory || null,
+    derivatives: options.derivatives || tab.derivatives || null,
     latest: series.length ? series[series.length - 1] : null
   }
 }
@@ -69,20 +73,22 @@ export function buildPulsePanel (pulse = {}, key = 'overview') {
   if (key === 'overview') {
     const tab = tabs.overview || {}
     const etf = tab.etfFlows || {}
+    const fund = tab.fundFlows || {}
     return tabModel(key, tab, {
       fearGreed: tab.fearGreed || null,
       etfFlows: etf,
-      series: combinedSeries((tab.fearGreed || {}).series, etf.series)
+      fundFlows: fund,
+      series: combinedSeries((tab.fearGreed || {}).series, etf.series, fund.series)
     })
   }
   if (key === 'flows') {
     const tab = tabs.flows || {}
     const etf = tab.etfFlows || {}
-    const fund = tab.fundFlows || {}
+    const whaleFlows = tab.whaleFlows || null
     return tabModel(key, tab, {
       etfFlows: etf,
-      fundFlows: fund,
-      series: combinedSeries(etf.series, fund.series)
+      whaleFlows,
+      series: combinedSeries(etf.series, whaleFlows && whaleFlows.series)
     })
   }
   if (key === 'sentiment') {
@@ -99,7 +105,8 @@ export function buildPulsePanel (pulse = {}, key = 'overview') {
     const derivativeSeries = (shared.series || []).filter(item => metricMatches(item && item.metric, /derivative|funding|margin|liquidation|open[_ ]?interest/iu))
     return tabModel(key, shared, {
       metrics,
-      series: derivativeSeries
+      series: derivativeSeries,
+      derivatives: shared.derivatives || null
     })
   }
   const tab = tabs[key] || {}

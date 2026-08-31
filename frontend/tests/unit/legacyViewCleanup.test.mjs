@@ -7,8 +7,8 @@ const frontendRoot = fileURLToPath(new URL('../..', import.meta.url))
 const routerSource = readFileSync(new URL('../../src/config/router.config.js', import.meta.url), 'utf8')
 const noticeSource = readFileSync(new URL('../../src/components/NoticeIcon/NoticeIcon.vue', import.meta.url), 'utf8')
 
-test('legacy portfolio links resolve to the portfolio optimizer', () => {
-  assert.match(routerSource, /path: '\/portfolio'[\s\S]*?redirect: '\/portfolio-optimizer'/)
+test('portfolio route opens the user-facing mock portfolio', () => {
+  assert.match(routerSource, /path: '\/portfolio'[\s\S]*?component: \(\) => import\('@\/views\/mock-portfolio'\)/)
   assert.doesNotMatch(routerSource, /import\('@\/views\/portfolio'\)/)
   assert.match(noticeSource, /goToPortfolio \(\)[\s\S]*?path: '\/portfolio-optimizer'/)
 })

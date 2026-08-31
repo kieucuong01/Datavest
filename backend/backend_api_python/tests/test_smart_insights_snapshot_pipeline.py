@@ -50,6 +50,23 @@ def test_live_snapshot_is_order_stable_and_links_asset_evidence():
     assert set(opinion.evidence_ids) == {"obs-a", "obs-b"}
 
 
+def test_snapshot_deduplicates_repeated_evidence_ids_before_linking():
+    from app.services.smart_insights.snapshot_pipeline import build_snapshot_draft
+
+    draft = build_snapshot_draft(
+        [
+            _evidence("obs-a", metric="crypto.derivatives.perpetual.funding_annualized"),
+            _evidence("obs-a", metric="crypto.derivatives.perpetual.open_interest_usd"),
+        ],
+        market="crypto",
+        mode="live",
+        as_of=AS_OF,
+    )
+
+    assert draft.opinions[0].evidence_ids == ("obs-a",)
+    assert draft.evidence_ids == ("obs-a",)
+
+
 def test_live_snapshot_rejects_demo_before_persistence():
     from app.services.smart_insights.contracts import EvidencePolicyError
     from app.services.smart_insights.snapshot_pipeline import build_snapshot_draft

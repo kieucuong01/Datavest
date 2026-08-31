@@ -13,7 +13,7 @@ def test_registry_matches_documented_production_activation_set():
         UNQUALIFIED_SOURCE_REASONS,
     )
 
-    assert len(PRODUCTION_VERIFIED_SOURCE_CODES) == 22
+    assert len(PRODUCTION_VERIFIED_SOURCE_CODES) == 25
     assert PRODUCTION_VERIFIED_SOURCE_CODES <= set(SOURCES)
     assert set(UNQUALIFIED_SOURCE_REASONS) == {
         "mempool-btc-large-addresses",
@@ -30,21 +30,39 @@ def test_only_verified_sources_are_default_enabled_and_runtime_status_is_explici
     assert {source.code for source in SOURCES.values() if source.enabled_by_default}
     assert {source.code for source in SOURCES.values() if source.activation_mode == "RUNTIME"} == {
         "alternative-fng",
+        "binance-usdm-derivatives",
         "bitinfocharts-top-addresses",
         "blockchaincenter-altcoin-season",
+        "bybit-derivatives",
         "cbbi-public",
         "coinmetrics-community",
         "coinglass-liquidation-maxpain",
         "coinglass-margin-borrow",
         "coinshares-weekly",
+        "cryptoetf-btc-etf",
+        "cryptoetf-eth-etf",
+        "cryptoetf-sol-etf",
+        "cryptoetf-xrp-etf",
+        "cryptoetf-hyp-etf",
+        "cryptoetf-doge-etf",
+        "cryptoetf-link-etf",
+        "cryptoetf-avax-etf",
+        "cryptoetf-hbar-etf",
+        "cryptoetf-ltc-etf",
+        "cryptoetf-bnb-etf",
+        "cryptoetf-dot-etf",
+        "cryptoetf-sui-etf",
         "defillama-chains",
         "defillama-stablecoins",
+        "deribit-public-derivatives",
         "farside-btc-etf",
         "farside-eth-etf",
         "farside-sol-etf",
         "mempool-space",
         "openbb-deribit",
         "fred",
+        "xoomar-btc-etf",
+        "xoomar-eth-etf",
     }
     assert all(
         source.disabled_reason
