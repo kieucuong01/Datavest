@@ -10,6 +10,8 @@ from __future__ import annotations
 import asyncio
 from dataclasses import dataclass
 from datetime import datetime, timezone
+import os
+from pathlib import Path
 from tempfile import TemporaryDirectory
 import time
 from typing import Any, Callable
@@ -28,6 +30,19 @@ class BrowserDocument:
 
 
 ReadyPredicate = Callable[[str], bool]
+
+
+def _browser_executable() -> str:
+    candidates = (
+        os.getenv("CHROME_BIN", "").strip(),
+        "/usr/bin/chromium",
+        "/usr/bin/google-chrome",
+        "/usr/bin/google-chrome-stable",
+    )
+    for candidate in candidates:
+        if candidate and Path(candidate).is_file():
+            return candidate
+    raise CollectorUnavailable("BROWSER_UNAVAILABLE")
 
 
 def _source_hosts(source: SourceDefinition) -> set[str]:
@@ -94,7 +109,7 @@ async def _fetch_nodriver_many(
         try:
             browser = await nodriver.start(
                 headless=True,
-                browser_executable_path="/usr/bin/chromium",
+                browser_executable_path=_browser_executable(),
                 browser_args=[
                     "--disable-dev-shm-usage",
                     "--disable-gpu",

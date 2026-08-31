@@ -6,6 +6,16 @@ from datetime import datetime, timezone
 NOW = datetime(2026, 8, 26, 12, 0, tzinfo=timezone.utc)
 
 
+def test_browser_runtime_prefers_the_configured_chrome_binary(tmp_path, monkeypatch) -> None:
+    from app.services.smart_insights.legacy_browser import _browser_executable
+
+    executable = tmp_path / "google-chrome"
+    executable.touch()
+    monkeypatch.setenv("CHROME_BIN", str(executable))
+
+    assert _browser_executable() == str(executable)
+
+
 def test_legacy_dynamic_crypto_sources_are_runtime_collectors() -> None:
     from app.services.smart_insights.collectors import default_collector_registry
     from app.services.smart_insights.sources import source_for_code
