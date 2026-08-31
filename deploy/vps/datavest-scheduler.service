@@ -1,0 +1,27 @@
+[Unit]
+Description=DataVest scheduler
+After=network-online.target postgresql.service redis-server.service datavest-api.service
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/datavest/current/backend
+EnvironmentFile=/opt/datavest/shared/.env
+Environment=PYTHONUNBUFFERED=1
+Environment=OPENBLAS_NUM_THREADS=1
+Environment=OMP_NUM_THREADS=1
+ExecStart=/opt/datavest/current/.venv/bin/python -m app.commands.scheduler
+Restart=on-failure
+RestartSec=8
+TimeoutStopSec=45
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/datavest/shared
+RestrictSUIDSGID=true
+LockPersonality=true
+MemoryMax=350M
+TasksMax=160
+
+[Install]
+WantedBy=default.target

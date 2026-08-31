@@ -1,0 +1,28 @@
+[Unit]
+Description=DataVest API
+After=network-online.target postgresql.service redis-server.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/datavest/current/backend
+EnvironmentFile=/opt/datavest/shared/.env
+Environment=PYTHONUNBUFFERED=1
+Environment=PROMETHEUS_MULTIPROC_DIR=/opt/datavest/shared/prometheus
+ExecStart=/opt/datavest/current/.venv/bin/gunicorn -c gunicorn_config.py run:app
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=45
+KillSignal=SIGQUIT
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/datavest/shared
+RestrictSUIDSGID=true
+LockPersonality=true
+MemoryMax=700M
+TasksMax=256
+
+[Install]
+WantedBy=default.target

@@ -1,0 +1,95 @@
+name: Deploy DataVest to VPS
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: datavest-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    environment: production
+    steps:
+      - name: Check out exact release
+        uses: actions/checkout@v4
+
+      - name: Install pinned pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.33.4
+
+      - name: Use Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: pnpm install --frozen-lockfile
+
+      - name: Build frontend
+        working-directory: frontend
+        env:
+          GIT_TAG: ${{ github.sha }}
+          APP_VERSION: 0.1.0-${{ github.sha }}
+        run: pnpm build
+
+      - name: Verify deployment boundaries
+        run: |
+          test -f frontend/dist/index.html
+          test -f backend/backend_api_python/requirements.lock
+          grep -q 'STRATEGY_COMMANDS_ENABLED.*false' deploy/vps/configure_env.py
+          grep -q 'DATAVEST_COMMUNITY_ENABLED.*false' deploy/vps/configure_env.py
+          ! git grep -nE 'BEGIN (RSA|OPENSSH) PRIVATE KEY'
+          test -z "$(git ls-files | grep -E '(^|/)\.env($|\.)' | grep -vE '\.example$' || true)"
+
+      - name: Package immutable release
+        run: |
+          mkdir -p package/backend package/frontend
+          rsync -a --delete \
+            --exclude='.env' --exclude='.venv' --exclude='tests' \
+            --exclude='__pycache__' --exclude='.pytest_cache' \
+            backend/backend_api_python/ package/backend/
+          rsync -a frontend/dist/ package/frontend/dist/
+          printf '%s\n' "$GITHUB_SHA" > package/RELEASE_SHA
+          archive="datavest-release-${GITHUB_SHA::12}.tar.gz"
+          tar -C package -czf "$archive" .
+          sha256sum "$archive" > "$archive.sha256"
+
+      - name: Configure locked SSH host
+        env:
+          SSH_KEY: ${{ secrets.DATAVEST_VPS_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.DATAVEST_VPS_KNOWN_HOSTS }}
+        run: |
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/datavest_ci
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/datavest_ci ~/.ssh/known_hosts
+
+      - name: Upload and activate release
+        env:
+          VPS_HOST: ${{ secrets.DATAVEST_VPS_HOST }}
+          VPS_PORT: ${{ secrets.DATAVEST_VPS_PORT }}
+          VPS_USER: ${{ secrets.DATAVEST_VPS_USER }}
+        run: |
+          archive="datavest-release-${GITHUB_SHA::12}.tar.gz"
+          ssh_args=(-i ~/.ssh/datavest_ci -p "$VPS_PORT" -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes)
+          scp_args=(-i ~/.ssh/datavest_ci -P "$VPS_PORT" -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes)
+          scp "${scp_args[@]}" "$archive" "$archive.sha256" "$VPS_USER@$VPS_HOST:/opt/datavest/incoming/"
+          ssh "${ssh_args[@]}" "$VPS_USER@$VPS_HOST" \
+            "/usr/local/bin/deploy-datavest /opt/datavest/incoming/$archive $GITHUB_SHA"
+
+      - name: Public HTTPS smoke
+        run: |
+          curl --fail --show-error --silent --retry 8 --retry-delay 5 https://datavest.vn/health
+          curl --fail --show-error --silent --retry 8 --retry-delay 5 https://datavest.vn/api/health/ready

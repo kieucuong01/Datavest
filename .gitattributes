@@ -1,0 +1,3 @@
+deploy/vps/*.sh text eol=lf
+deploy/vps/*.yml text eol=lf
+.github/workflows/*.yml text eol=lf
