@@ -48,8 +48,9 @@ Use a clean checkout at the exact pushed commit:
 powershell -ExecutionPolicy Bypass -File scripts/deploy-vps.ps1
 ```
 
-The wrapper refuses a dirty tree. It performs the same build/package/upload and
-remote activation as GitHub Actions.
+The wrapper refuses changes to tracked files, packages the exact `HEAD` commit,
+and ignores untracked local notes or generated Graphify output. It performs the
+same build/package/upload and remote activation as GitHub Actions.
 
 ## Common operations
 

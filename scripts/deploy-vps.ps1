@@ -13,8 +13,8 @@ foreach ($name in 'DATAVEST_VPS_HOST','DATAVEST_VPS_PORT','DATAVEST_VPS_USER','D
 }
 $keyPath = Join-Path $repo $settings.DATAVEST_SSH_KEY
 $sha = (git -c "safe.directory=$repo" -C $repo rev-parse HEAD).Trim()
-if ((git -c "safe.directory=$repo" -C $repo status --porcelain).Count -gt 0) {
-    throw "Working tree is dirty. Commit and push the exact release first."
+if ((git -c "safe.directory=$repo" -C $repo status --porcelain --untracked-files=no).Count -gt 0) {
+    throw "Tracked files are dirty. Commit and push the exact release first."
 }
 
 $short = $sha.Substring(0, 12)
