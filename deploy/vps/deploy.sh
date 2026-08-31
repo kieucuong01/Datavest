@@ -22,7 +22,7 @@ sha="$2"
 [[ "$(basename -- "$archive")" == "datavest-release-${sha:0:12}.tar.gz" ]] || { echo 'deploy_status=archive_name_mismatch' >&2; exit 2; }
 [[ -f "$archive.sha256" && ! -L "$archive" && ! -L "$archive.sha256" ]] || { echo 'deploy_status=archive_invalid' >&2; exit 2; }
 
-exec 9>/run/lock/datavest-deploy.lock
+exec 9>"$shared/deploy.lock"
 flock -n 9 || { echo 'deploy_status=already_running' >&2; exit 1; }
 cd "$incoming"
 sha256sum --check "$(basename -- "$archive").sha256" >/dev/null

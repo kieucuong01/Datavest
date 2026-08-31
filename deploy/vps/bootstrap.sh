@@ -25,7 +25,7 @@ install -d -m 0750 -o datavest-deploy -g datavest-deploy \
 install -d -m 0700 -o datavest-deploy -g datavest-deploy /home/datavest-deploy/.ssh
 install -m 0600 -o datavest-deploy -g datavest-deploy "$public_key_file" /home/datavest-deploy/.ssh/authorized_keys
 
-install -m 0755 -o root -g root "$script_dir/deploy.sh" /usr/local/bin/deploy-datavest
+install -m 0755 -o datavest-deploy -g datavest-deploy "$script_dir/deploy.sh" /opt/datavest/shared/deploy.sh
 install -m 0755 -o root -g root "$script_dir/env_exec.py" /usr/local/bin/datavest-env-exec
 install -m 0755 -o root -g root "$script_dir/configure_env.py" /usr/local/bin/configure-datavest-env
 /usr/local/bin/configure-datavest-env /dev/null /opt/datavest/shared/.env

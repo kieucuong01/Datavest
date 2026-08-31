@@ -85,9 +85,9 @@ jobs:
           archive="datavest-release-${GITHUB_SHA::12}.tar.gz"
           ssh_args=(-i ~/.ssh/datavest_ci -p "$VPS_PORT" -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes)
           scp_args=(-i ~/.ssh/datavest_ci -P "$VPS_PORT" -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes)
-          scp "${scp_args[@]}" "$archive" "$archive.sha256" "$VPS_USER@$VPS_HOST:/opt/datavest/incoming/"
+          scp "${scp_args[@]}" "$archive" "$archive.sha256" deploy/vps/deploy.sh "$VPS_USER@$VPS_HOST:/opt/datavest/incoming/"
           ssh "${ssh_args[@]}" "$VPS_USER@$VPS_HOST" \
-            "/usr/local/bin/deploy-datavest /opt/datavest/incoming/$archive $GITHUB_SHA"
+            "install -m 0755 /opt/datavest/incoming/deploy.sh /opt/datavest/shared/deploy.sh && /opt/datavest/shared/deploy.sh /opt/datavest/incoming/$archive $GITHUB_SHA"
 
       - name: Public HTTPS smoke
         run: |
