@@ -73,6 +73,13 @@ chmod 600 "$backup"
 
 touch "$release/.ready"
 fi
+
+# Nginx runs outside the deploy user's group. Expose only the immutable
+# frontend bundle while keeping backend/runtime files private.
+chmod 0755 "$release"
+find "$release/frontend" -type d -exec chmod 0755 {} +
+find "$release/frontend" -type f -exec chmod 0644 {} +
+
 ln -sfn "$release" "$root/current.new"
 mv -Tf "$root/current.new" "$root/current"
 if [[ -n "$old_release" && "$old_release" != "$release" ]]; then
@@ -105,6 +112,7 @@ for _ in {1..36}; do
 done
 curl -fsS --max-time 10 http://127.0.0.1:5100/api/health/ready >/dev/null
 curl -fsS --max-time 10 http://127.0.0.1/health -H 'Host: datavest.vn' >/dev/null
+curl -kfsS --max-time 10 https://127.0.0.1/ -H 'Host: datavest.vn' >/dev/null
 user_systemctl --no-pager --full status datavest-api datavest-celery datavest-scheduler | sed -n '1,45p'
 
 trap - ERR
