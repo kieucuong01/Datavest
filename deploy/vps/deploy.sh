@@ -31,7 +31,8 @@ release="$releases/$sha"
 staging="$releases/.staging-$sha"
 old_release=""
 [[ -L "$root/current" ]] && old_release="$(readlink -f "$root/current")"
-if [[ ! -d "$release" ]]; then
+if [[ ! -f "$release/.ready" ]]; then
+rm -rf -- "$release"
 rm -rf -- "$staging"
 install -d -m 0750 "$staging"
 
@@ -55,21 +56,22 @@ PY
 rm -rf -- "$staging/backend/data" "$staging/backend/logs"
 ln -s /opt/datavest/shared/data "$staging/backend/data"
 ln -s /opt/datavest/shared/logs "$staging/backend/logs"
+mv -- "$staging" "$release"
 
-python3 -m venv "$staging/.venv"
-"$staging/.venv/bin/python" -m pip install --disable-pip-version-check --upgrade 'pip>=26.1.2,<27'
-"$staging/.venv/bin/pip" install --disable-pip-version-check --prefer-binary -r "$staging/backend/requirements.lock"
+python3 -m venv "$release/.venv"
+"$release/.venv/bin/python" -m pip install --disable-pip-version-check --upgrade 'pip>=26.1.2,<27'
+"$release/.venv/bin/pip" install --disable-pip-version-check --prefer-binary -r "$release/backend/requirements.lock"
 
 install -d -m 0700 "$backups"
 backup="$backups/datavest-$(date -u +%Y%m%dT%H%M%SZ)-${sha:0:12}.sql.gz"
-/usr/local/bin/datavest-env-exec --cwd "$staging/backend" "$env_file" \
+/usr/local/bin/datavest-env-exec --cwd "$release/backend" "$env_file" \
   /usr/bin/pg_dump -h 127.0.0.1 -U datavest -d datavest --no-owner --no-privileges | gzip -9 > "$backup"
 chmod 600 "$backup"
 
-/usr/local/bin/datavest-env-exec --cwd "$staging/backend" "$env_file" \
-  /usr/bin/env SKIP_AUTO_MIGRATE=false "$staging/.venv/bin/python" -m app.commands.migrate
+/usr/local/bin/datavest-env-exec --cwd "$release/backend" "$env_file" \
+  /usr/bin/env SKIP_AUTO_MIGRATE=false "$release/.venv/bin/python" -m app.commands.migrate
 
-mv -- "$staging" "$release"
+touch "$release/.ready"
 fi
 ln -sfn "$release" "$root/current.new"
 mv -Tf "$root/current.new" "$root/current"
