@@ -49,6 +49,7 @@ unit_dir=/home/datavest-deploy/.config/systemd/user
 install -d -m 0755 -o datavest-deploy -g datavest-deploy "$unit_dir"
 install -m 0644 -o datavest-deploy -g datavest-deploy "$script_dir/datavest-api.service" "$unit_dir/datavest-api.service"
 install -m 0644 -o datavest-deploy -g datavest-deploy "$script_dir/datavest-celery.service" "$unit_dir/datavest-celery.service"
+install -m 0644 -o datavest-deploy -g datavest-deploy "$script_dir/datavest-beat.service" "$unit_dir/datavest-beat.service"
 install -m 0644 -o datavest-deploy -g datavest-deploy "$script_dir/datavest-scheduler.service" "$unit_dir/datavest-scheduler.service"
 
 mkdir -p /var/www/datavest-acme

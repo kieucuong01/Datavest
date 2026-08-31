@@ -1,0 +1,27 @@
+[Unit]
+Description=DataVest Celery Beat scheduler
+After=network-online.target postgresql.service redis-server.service datavest-celery.service
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/datavest/current/backend
+EnvironmentFile=/opt/datavest/shared/.env
+Environment=PYTHONUNBUFFERED=1
+Environment=OPENBLAS_NUM_THREADS=1
+Environment=OMP_NUM_THREADS=1
+ExecStart=/opt/datavest/current/.venv/bin/celery -A app.celery_app:celery_app beat --loglevel=WARNING --schedule=/opt/datavest/shared/data/celerybeat-schedule
+Restart=on-failure
+RestartSec=8
+TimeoutStopSec=30
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/datavest/shared
+RestrictSUIDSGID=true
+LockPersonality=true
+MemoryMax=220M
+TasksMax=96
+
+[Install]
+WantedBy=default.target

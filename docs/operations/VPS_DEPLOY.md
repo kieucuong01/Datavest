@@ -1,7 +1,7 @@
 # DataVest VPS deployment
 
 DataVest runs directly on the shared VPS to minimize RAM and disk usage. Nginx
-serves the built Vue files, Gunicorn/Celery/scheduler run as bounded systemd
+serves the built Vue files, Gunicorn/Celery/Celery Beat/scheduler run as bounded systemd
 services, and DataVest uses its own PostgreSQL database plus isolated Redis
 namespace/database numbers. Tử Vi and Radar BDS services are not restarted by
 this deployment.
@@ -54,8 +54,8 @@ remote activation as GitHub Actions.
 ## Common operations
 
 ```bash
-systemctl --user status datavest-api datavest-celery datavest-scheduler
-journalctl --user -u datavest-api -u datavest-celery -u datavest-scheduler -n 200 --no-pager
+systemctl --user status datavest-api datavest-celery datavest-beat datavest-scheduler
+journalctl --user -u datavest-api -u datavest-celery -u datavest-beat -u datavest-scheduler -n 200 --no-pager
 curl -fsS http://127.0.0.1:5100/api/health/ready
 curl -fsS https://datavest.vn/api/health/ready
 readlink -f /opt/datavest/current

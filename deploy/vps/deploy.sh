@@ -92,7 +92,7 @@ rollback() {
   if [[ -n "$old_release" && -d "$old_release" ]]; then
     ln -sfn "$old_release" "$root/current.new"
     mv -Tf "$root/current.new" "$root/current"
-    user_systemctl restart datavest-api datavest-celery datavest-scheduler || true
+    user_systemctl restart datavest-api datavest-celery datavest-beat datavest-scheduler || true
   fi
   echo 'deploy_status=failed' >&2
   exit "$status"
@@ -100,8 +100,8 @@ rollback() {
 trap rollback ERR
 
 user_systemctl daemon-reload
-user_systemctl enable datavest-api datavest-celery datavest-scheduler >/dev/null
-user_systemctl restart datavest-api datavest-celery datavest-scheduler
+user_systemctl enable datavest-api datavest-celery datavest-beat datavest-scheduler >/dev/null
+user_systemctl restart datavest-api datavest-celery datavest-beat datavest-scheduler
 
 for _ in {1..36}; do
   if curl -fsS --max-time 5 http://127.0.0.1:5100/api/health/ready >/dev/null && \
@@ -113,7 +113,7 @@ done
 curl -fsS --max-time 10 http://127.0.0.1:5100/api/health/ready >/dev/null
 curl -fsS --max-time 10 http://127.0.0.1/health -H 'Host: datavest.vn' >/dev/null
 curl -kfsS --max-time 10 https://127.0.0.1/ -H 'Host: datavest.vn' >/dev/null
-user_systemctl --no-pager --full status datavest-api datavest-celery datavest-scheduler | sed -n '1,45p'
+user_systemctl --no-pager --full status datavest-api datavest-celery datavest-beat datavest-scheduler | sed -n '1,60p'
 
 trap - ERR
 printf '%s\n' "$sha" > "$shared/current-release"
