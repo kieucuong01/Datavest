@@ -1,5 +1,5 @@
 <template>
-  <section class="asset-opinions legacy-card" aria-labelledby="asset-opinions-title">
+  <section class="asset-opinions legacy-card" aria-labelledby="asset-opinions-title" :aria-busy="loading ? 'true' : 'false'">
     <div class="card-heading">
       <div class="heading-with-icon">
         <span class="section-icon brain-icon">✣</span>
@@ -15,7 +15,10 @@
       </div>
     </div>
 
-    <div v-if="rows.length" class="opinion-table">
+    <div v-if="loading" class="opinion-loading" aria-live="polite">
+      <a-skeleton active :paragraph="{ rows: 4 }" />
+    </div>
+    <div v-else-if="rows.length" class="opinion-table">
       <div class="opinion-table-head">
         <span>{{ $t('smartInsights.asset') }}</span>
         <span>{{ $t('smartInsights.stance') }}</span>
@@ -115,6 +118,7 @@ export default {
 .heading-actions { display: flex; align-items: center; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
 .heading-actions .ant-tag { margin: 0; font-size: 11px; }
 .watchlist-link, .table-empty a { color: var(--blue); font-size: 12px; text-decoration: none; }
+.opinion-loading { min-height: 170px; padding: 20px 18px; }
 .opinion-table { width: 100%; }
 .opinion-table-head, .opinion-row { display: grid; grid-template-columns: 1.1fr 1.8fr .6fr 1fr; align-items: center; gap: 12px; padding: 0 12px; }
 .opinion-table-head { min-height: 34px; color: var(--muted); border-bottom: 1px solid var(--line); background: var(--card); font-size: 11px; }

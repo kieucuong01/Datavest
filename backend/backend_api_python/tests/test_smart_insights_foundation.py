@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+from copy import deepcopy
 from datetime import datetime, timezone
+from datetime import timedelta
 from pathlib import Path
 
 import pytest
@@ -66,6 +68,83 @@ def test_pulse_repository_keeps_full_cycle_and_fear_greed_history_without_expand
     assert "INTERVAL '4000 days'" in connection.cursor_instance.query
     assert "s.code IN ('blockchaincenter-altcoin-season', 'cbbi-public')" in connection.cursor_instance.query
     assert "LIMIT 100000" in connection.cursor_instance.query
+
+
+def test_compact_pulse_repository_deduplicates_and_samples_series_in_postgres(monkeypatch):
+    from app.services.smart_insights import repository as repository_module
+    from app.services.smart_insights.repository import SmartInsightsRepository
+
+    class Cursor:
+        query = ""
+
+        def execute(self, query, _params):
+            self.query = query
+
+        def fetchall(self):
+            return []
+
+        def close(self):
+            return None
+
+    class Connection:
+        def __init__(self):
+            self.cursor_instance = Cursor()
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def cursor(self):
+            return self.cursor_instance
+
+    connection = Connection()
+    monkeypatch.setattr(repository_module, "get_db_connection", lambda: connection)
+
+    assert SmartInsightsRepository().list_pulse_observations(
+        data_class="LIVE", as_of=None, compact=True
+    ) == []
+    query = connection.cursor_instance.query
+    assert "duplicate_rank" in query
+    assert "recent_rank <= 365" in query
+    assert "NTILE(120)" in query
+    assert "history_sample_rank = 1" in query
+    assert "LIMIT 100000" not in query
+
+
+def test_compact_pulse_service_caches_the_user_read_model(monkeypatch):
+    from app.services.smart_insights import service as service_module
+    from app.services.smart_insights.service import SmartInsightsService
+
+    repository_calls = []
+
+    class Repository:
+        def list_pulse_observations(self, *, data_class, as_of, compact=False):
+            repository_calls.append((data_class, as_of, compact))
+            return []
+
+    cache = {}
+
+    def fake_guarded_cached(key, compute, **kwargs):
+        assert kwargs["ttl_sec"] == 300
+        assert kwargs["stale_ttl_sec"] == 1800
+        if key not in cache:
+            cache[key] = compute()
+        return deepcopy(cache[key])
+
+    monkeypatch.setattr(service_module, "guarded_cached", fake_guarded_cached)
+    smart_insights = SmartInsightsService(repository=Repository())
+
+    first = smart_insights.get_crypto_market_pulse(
+        user_id=7, as_of=None, mode="live", compact=True
+    )
+    second = smart_insights.get_crypto_market_pulse(
+        user_id=7, as_of=None, mode="live", compact=True
+    )
+
+    assert first == second
+    assert repository_calls == [("LIVE", None, True)]
 
 
 def test_additive_migration_defines_required_provenance_tables_and_live_demo_gate():
@@ -202,6 +281,86 @@ def test_overview_passes_user_scope_and_explicit_mode(client, monkeypatch):
         "mode": "demo",
     }
     assert response.get_json()["data"]["mode"] == "demo"
+
+
+def test_compact_overview_keeps_only_the_evidence_rendered_by_the_workspace(client, monkeypatch):
+    from app.routes import smart_insights as routes
+
+    payload = {
+        "status": "COMPLETE",
+        "opinions": [
+            {
+                "id": "opinion-1",
+                "evidence": [
+                    {"id": f"opinion-evidence-{index}", "role": "CONTEXT"}
+                    for index in range(12)
+                ],
+            }
+        ],
+        "evidence": [
+            {"id": f"snapshot-evidence-{index}", "role": "CONTEXT"}
+            for index in range(15)
+        ],
+    }
+
+    class Service:
+        def get_overview(self, **_kwargs):
+            return deepcopy(payload)
+
+    monkeypatch.setattr(routes, "get_smart_insights_service", lambda: Service())
+    headers = _authenticate(monkeypatch)
+
+    full = client.get("/api/smart-insights/overview", headers=headers).get_json()["data"]
+    compact = client.get(
+        "/api/smart-insights/overview?compact=1", headers=headers
+    ).get_json()["data"]
+
+    assert len(full["opinions"][0]["evidence"]) == 12
+    assert len(full["evidence"]) == 15
+    assert [item["id"] for item in compact["opinions"][0]["evidence"]] == [
+        f"opinion-evidence-{index}" for index in range(8)
+    ]
+    assert compact["opinions"][0]["evidenceCount"] == 12
+    assert [item["id"] for item in compact["evidence"]] == [
+        f"snapshot-evidence-{index}" for index in range(8)
+    ]
+    assert compact["evidenceCount"] == 15
+
+
+def test_compact_pulse_preserves_recent_daily_history_and_samples_older_points(client, monkeypatch):
+    from app.routes import smart_insights as routes
+
+    start = datetime(2024, 1, 1, tzinfo=timezone.utc)
+    series = [
+        {
+            "metric": "crypto.cycle.cbbi.component",
+            "symbol": "BTC",
+            "source": "cbbi-public",
+            "effectiveAt": (start + timedelta(days=index)).isoformat(),
+            "value": index,
+        }
+        for index in range(700)
+    ]
+    payload = {"status": "AVAILABLE", "tabs": {"cycle": {"series": series}}}
+
+    class Service:
+        def get_crypto_market_pulse(self, **_kwargs):
+            return deepcopy(payload)
+
+    monkeypatch.setattr(routes, "get_smart_insights_service", lambda: Service())
+    headers = _authenticate(monkeypatch)
+
+    full = client.get(
+        "/api/smart-insights/crypto-market-pulse", headers=headers
+    ).get_json()["data"]["tabs"]["cycle"]["series"]
+    compact = client.get(
+        "/api/smart-insights/crypto-market-pulse?compact=1", headers=headers
+    ).get_json()["data"]["tabs"]["cycle"]["series"]
+
+    assert len(full) == 700
+    assert len(compact) == 485
+    assert compact[0]["value"] == 0
+    assert [item["value"] for item in compact[-365:]] == list(range(335, 700))
 
 
 def test_refresh_is_admin_only_and_queues_audited_request(client, monkeypatch):

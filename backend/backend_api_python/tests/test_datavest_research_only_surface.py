@@ -252,7 +252,14 @@ def test_agent_scope_validation_and_policy_keep_only_safe_scopes():
 
 
 def _compose_services(path: Path) -> dict:
-    loaded = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    class ComposeLoader(yaml.SafeLoader):
+        pass
+
+    ComposeLoader.add_constructor(
+        "!reset",
+        lambda loader, node: loader.construct_sequence(node),
+    )
+    loaded = yaml.load(path.read_text(encoding="utf-8"), Loader=ComposeLoader) or {}
     return loaded.get("services") or {}
 
 

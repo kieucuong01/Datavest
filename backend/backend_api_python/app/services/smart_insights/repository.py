@@ -94,7 +94,7 @@ class SmartInsightsRepository:
         }
 
     def list_pulse_observations(
-        self, *, data_class: str, as_of: str | None
+        self, *, data_class: str, as_of: str | None, compact: bool = False
     ) -> list[dict[str, Any]]:
         """Return bounded, provenance-complete evidence for the pulse read model."""
         params: list[Any] = [data_class]
@@ -102,6 +102,10 @@ class SmartInsightsRepository:
         if as_of:
             as_of_filter = "AND o.effective_at < (?::date + INTERVAL '1 day')"
             params.append(as_of)
+        if compact:
+            return self._list_compact_pulse_observations(
+                params=tuple(params), as_of_filter=as_of_filter
+            )
         with get_db_connection() as db:
             cur = db.cursor()
             cur.execute(
@@ -127,6 +131,103 @@ class SmartInsightsRepository:
                 LIMIT 100000
                 """,
                 tuple(params),
+            )
+            rows = cur.fetchall() or []
+            cur.close()
+        return [self._evidence_row(row) for row in rows]
+
+    def _list_compact_pulse_observations(
+        self, *, params: tuple[Any, ...], as_of_filter: str
+    ) -> list[dict[str, Any]]:
+        """Deduplicate and sample chart history before JSON rows leave Postgres."""
+        series_key = """
+            source_code,
+            COALESCE(value_json->>'metric', ''),
+            COALESCE(symbol, ''),
+            COALESCE(value_json->'dimensions'->>'fund', ''),
+            COALESCE(value_json->'dimensions'->>'dimension', ''),
+            COALESCE(value_json->'dimensions'->>'label', ''),
+            COALESCE(value_json->'dimensions'->>'address', ''),
+            COALESCE(value_json->'dimensions'->>'rank', ''),
+            COALESCE(value_json->'dimensions'->>'entity_category', '')
+        """
+        selected_columns = """
+            id, market, symbol, effective_at, published_at, observed_at,
+            source_url, methodology_version, value_json, warnings_json,
+            checksum, data_class, source_code
+        """
+        with get_db_connection() as db:
+            cur = db.cursor()
+            cur.execute(
+                f"""
+                WITH filtered AS (
+                    SELECT o.id, o.market, o.symbol, o.effective_at, o.published_at,
+                           o.observed_at, o.source_url, o.methodology_version,
+                           o.value_json, o.warnings_json, o.checksum, o.data_class,
+                           s.code AS source_code,
+                           ROW_NUMBER() OVER (
+                               PARTITION BY s.code,
+                                            COALESCE(o.value_json->>'metric', ''),
+                                            COALESCE(o.symbol, ''),
+                                            COALESCE(o.value_json->'dimensions'->>'fund', ''),
+                                            COALESCE(o.value_json->'dimensions'->>'dimension', ''),
+                                            COALESCE(o.value_json->'dimensions'->>'label', ''),
+                                            COALESCE(o.value_json->'dimensions'->>'address', ''),
+                                            COALESCE(o.value_json->'dimensions'->>'rank', ''),
+                                            COALESCE(o.value_json->'dimensions'->>'entity_category', ''),
+                                            o.effective_at
+                               ORDER BY o.observed_at DESC, o.id DESC
+                           ) AS duplicate_rank
+                    FROM observations o
+                    JOIN data_sources s ON s.id = o.data_source_id
+                    WHERE o.data_class = ?
+                      AND (
+                        o.effective_at >= NOW() - INTERVAL '730 days'
+                        OR (
+                          s.code = 'alternative-fng'
+                          AND o.effective_at >= NOW() - INTERVAL '4000 days'
+                        )
+                        OR s.code IN ('blockchaincenter-altcoin-season', 'cbbi-public')
+                      )
+                      {as_of_filter}
+                      AND (o.market = 'crypto' OR s.code = 'cryptocraft')
+                ),
+                deduplicated AS (
+                    SELECT *,
+                           ROW_NUMBER() OVER (
+                               PARTITION BY {series_key}
+                               ORDER BY effective_at DESC, observed_at DESC, id DESC
+                           ) AS recent_rank
+                    FROM filtered
+                    WHERE duplicate_rank = 1
+                ),
+                historical_buckets AS (
+                    SELECT *,
+                           NTILE(120) OVER (
+                               PARTITION BY {series_key}
+                               ORDER BY effective_at ASC, observed_at ASC, id ASC
+                           ) AS history_bucket
+                    FROM deduplicated
+                    WHERE recent_rank > 365
+                ),
+                historical_samples AS (
+                    SELECT *,
+                           ROW_NUMBER() OVER (
+                               PARTITION BY {series_key}, history_bucket
+                               ORDER BY effective_at DESC, observed_at DESC, id DESC
+                           ) AS history_sample_rank
+                    FROM historical_buckets
+                )
+                SELECT {selected_columns}
+                FROM deduplicated
+                WHERE recent_rank <= 365
+                UNION ALL
+                SELECT {selected_columns}
+                FROM historical_samples
+                WHERE history_sample_rank = 1
+                ORDER BY effective_at ASC, observed_at ASC, id ASC
+                """,
+                params,
             )
             rows = cur.fetchall() or []
             cur.close()

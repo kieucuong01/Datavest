@@ -7,6 +7,10 @@ from flask import g, jsonify, request
 from app.observability.features import observe_feature_operation
 from app.openapi.blueprint import HumanBlueprint as Blueprint
 from app.services.smart_insights import get_smart_insights_service
+from app.services.smart_insights.response_compaction import (
+    compact_overview_response,
+    compact_pulse_response,
+)
 from app.utils.auth import admin_required, login_required
 from app.utils.logger import get_logger
 
@@ -27,6 +31,10 @@ def _user_id() -> int:
     return int(getattr(g, "user_id", 0) or 0)
 
 
+def _compact_requested() -> bool:
+    return str(request.args.get("compact") or "").strip().lower() in {"1", "true", "yes"}
+
+
 @smart_insights_blp.route("/overview", methods=["GET"])
 @observe_feature_operation("smart_insights", "overview")
 @login_required
@@ -39,6 +47,8 @@ def overview():
             market=request.args.get("market"),
             mode=request.args.get("mode"),
         )
+        if _compact_requested():
+            data = compact_overview_response(data)
         return _ok(data)
     except ValueError as exc:
         return _fail(str(exc), 400)
@@ -116,13 +126,18 @@ def live_assets():
 def crypto_market_pulse():
     """Get all legacy Crypto Pulse tabs from persisted, source-backed evidence."""
     try:
-        return _ok(
-            get_smart_insights_service().get_crypto_market_pulse(
-                user_id=_user_id(),
-                as_of=request.args.get("as_of"),
-                mode=request.args.get("mode"),
-            )
-        )
+        compact = _compact_requested()
+        service_kwargs = {
+            "user_id": _user_id(),
+            "as_of": request.args.get("as_of"),
+            "mode": request.args.get("mode"),
+        }
+        if compact:
+            service_kwargs["compact"] = True
+        data = get_smart_insights_service().get_crypto_market_pulse(**service_kwargs)
+        if compact:
+            data = compact_pulse_response(data)
+        return _ok(data)
     except ValueError as exc:
         return _fail(str(exc), 400)
     except Exception:

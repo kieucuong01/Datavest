@@ -6,7 +6,13 @@
       <section class="analysis-controls" :aria-label="$t('smartInsights.analysisControls')">
         <div class="date-control">
           <label>{{ $t('smartInsights.analysisDate') }}</label>
-          <a-select v-model="asOf" allow-clear size="small" @change="loadAll">
+          <a-select
+            v-model="asOf"
+            allow-clear
+            size="small"
+            :loading="datesLoading"
+            :disabled="datesLoading"
+            @change="loadAll">
             <a-select-option v-for="item in dates" :key="item" :value="item">{{ formatDate(item) }}</a-select-option>
           </a-select>
         </div>
@@ -24,7 +30,9 @@
       <a-alert v-if="mode === 'demo'" class="legacy-alert" type="warning" show-icon :message="$t('smartInsights.demoWarning')" />
       <a-alert v-if="errorMessage" class="legacy-alert" type="error" show-icon :message="errorMessage" />
 
-      <a-skeleton v-if="loading" class="legacy-loading" active :paragraph="{ rows: 14 }" />
+      <section v-if="overviewLoading && !overview" class="initial-overview-loading" aria-busy="true" aria-live="polite">
+        <a-skeleton active :paragraph="{ rows: 5 }" />
+      </section>
       <template v-else>
         <section class="daily-hero">
           <div class="hero-copy">
@@ -65,31 +73,32 @@
             :description="alert.message"
           />
         </section>
-
-        <asset-opinions-section
-          :rows="opinionRows"
-          :mode="mode"
-          :loading="loading"
-          @refresh="loadAll"
-          @open-analysis="openAssetAnalysis"
-          @open-evidence="openEvidence"
-        />
-
-        <market-pulse-section
-          :pulse="cryptoPulse || {}"
-          :locale="$i18n && $i18n.locale"
-          @open-evidence="openEvidence"
-        />
-
-        <economic-calendar-table
-          class="crypto-calendar"
-          :events="calendarEvents"
-          :filter="calendarFilter"
-          :loading="calendarLoading"
-          :error="calendarError"
-          @filter-change="calendarFilter = $event"
-        />
       </template>
+
+      <asset-opinions-section
+        :rows="opinionRows"
+        :mode="mode"
+        :loading="opinionsLoading || overviewLoading"
+        @refresh="loadAll"
+        @open-analysis="openAssetAnalysis"
+        @open-evidence="openEvidence"
+      />
+
+      <market-pulse-section
+        :pulse="cryptoPulse || {}"
+        :locale="$i18n && $i18n.locale"
+        :loading="pulseLoading"
+        @open-evidence="openEvidence"
+      />
+
+      <economic-calendar-table
+        class="crypto-calendar"
+        :events="calendarEvents"
+        :filter="calendarFilter"
+        :loading="calendarLoading"
+        :error="calendarError"
+        @filter-change="calendarFilter = $event"
+      />
     </main>
 
     <footer class="legacy-footer">
@@ -189,14 +198,16 @@
       :wrap-class-name="isDarkTheme ? 'insights-drawer theme-dark' : 'insights-drawer'"
       @close="healthVisible = false"
     >
-      <a-table
-        row-key="code"
-        size="small"
-        :pagination="false"
-        :columns="healthColumns"
-        :data-source="health"
-        :scroll="{ x: 700 }"
-      />
+      <a-spin :spinning="healthLoading">
+        <a-table
+          row-key="code"
+          size="small"
+          :pagination="false"
+          :columns="healthColumns"
+          :data-source="health"
+          :scroll="{ x: 700 }"
+        />
+      </a-spin>
     </a-drawer>
   </div>
 </template>
@@ -208,6 +219,7 @@ import { getMonitors } from '@/api/portfolio'
 import { getEconomicCalendar } from '@/api/global-market'
 import { getSmartInsightsCryptoPulse, getSmartInsightsDataHealth, getSmartInsightsDates, getSmartInsightsEvidence, getSmartInsightsOverview } from '@/api/smart-insights'
 import { noticeMessageHtml } from '@/utils/noticeFormat'
+import { runSectionLoaders } from './loadingCoordinator'
 import { buildOverviewModules, UNAVAILABLE } from './overviewModules'
 import { buildWatchlistOpinionRows } from './watchlistOpinions'
 import { buildScheduledAnalysisIndex, scheduledAnalysisResult } from './scheduledAnalysis'
@@ -244,7 +256,11 @@ export default {
       evidence: null,
       selectedOpinionRow: null,
       analysisEvidence: [],
-      loading: false,
+      datesLoading: false,
+      overviewLoading: false,
+      opinionsLoading: false,
+      pulseLoading: false,
+      healthLoading: false,
       evidenceLoading: false,
       analysisEvidenceLoading: false,
       evidenceVisible: false,
@@ -315,22 +331,31 @@ export default {
   },
   methods: {
     async loadAll () {
-      this.loading = true
       this.errorMessage = ''
-      try {
-        await this.loadDates()
-        await Promise.all([this.loadOverview(), this.loadHealth(), this.loadPulse(), this.loadCalendar(), this.loadWatchlist(), this.loadScheduledAnalyses()])
-      } catch (error) {
-        this.errorMessage = this.friendlyError(error, 'smartInsights.unavailable')
-      } finally {
-        this.loading = false
+      const results = await runSectionLoaders({
+        dates: this.loadDates,
+        overview: this.loadOverview,
+        opinions: () => Promise.all([this.loadWatchlist(), this.loadScheduledAnalyses()]),
+        pulse: this.loadPulse,
+        calendar: this.loadCalendar
+      }, this.setSectionLoading)
+      const failed = results.find(result => result.status === 'rejected')
+      if (failed) {
+        this.errorMessage = this.friendlyError(failed.reason, 'smartInsights.unavailable')
       }
     },
     async reloadOverview () { this.asOf = undefined; await this.loadAll() },
-    async loadOverview () { const response = await getSmartInsightsOverview({ market: this.market, mode: this.mode, as_of: this.asOf }); this.overview = response.data },
+    setSectionLoading (section, active) {
+      const fields = { dates: 'datesLoading', overview: 'overviewLoading', opinions: 'opinionsLoading', pulse: 'pulseLoading', calendar: 'calendarLoading' }
+      if (fields[section]) this[fields[section]] = active
+    },
+    async loadOverview () { const response = await getSmartInsightsOverview({ market: this.market, mode: this.mode, as_of: this.asOf, compact: 1 }); this.overview = response.data },
     async loadDates () { const response = await getSmartInsightsDates({ market: this.market, mode: this.mode }); this.dates = (response.data && response.data.dates) || []; if (!this.asOf && this.dates.length) this.asOf = this.dates[0] },
-    async loadHealth () { const response = await getSmartInsightsDataHealth(); this.health = (response.data && response.data.sources) || [] },
-    async loadPulse () { const response = await getSmartInsightsCryptoPulse({ mode: this.mode, as_of: this.asOf }); this.cryptoPulse = response.data },
+    async loadHealth () {
+      this.healthLoading = true
+      try { const response = await getSmartInsightsDataHealth(); this.health = (response.data && response.data.sources) || [] } finally { this.healthLoading = false }
+    },
+    async loadPulse () { const response = await getSmartInsightsCryptoPulse({ mode: this.mode, as_of: this.asOf, compact: 1 }); this.cryptoPulse = response.data },
     async loadCalendar (force = false) {
       this.calendarLoading = true
       this.calendarError = ''
@@ -457,7 +482,7 @@ export default {
 .analysis-evidence-desc { margin: 5px 0 10px; color: var(--muted); font-size: 12px; }.analysis-evidence-list { display: grid; gap: 8px; }.analysis-evidence-item { padding: 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--page-bg); }.analysis-evidence-item-head, .analysis-evidence-item-meta { display: flex; justify-content: space-between; gap: 10px; }.analysis-evidence-item-head strong { color: var(--ink); font-size: 13px; }.analysis-evidence-item-head span, .analysis-evidence-item-meta { color: var(--muted); font-size: 11px; }.analysis-evidence-item-meta { margin-top: 4px; flex-wrap: wrap; }.analysis-evidence-item a { display: block; overflow: hidden; margin-top: 7px; color: var(--blue); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }.analysis-evidence-item pre { max-height: 150px; margin: 8px 0 0; padding: 8px; overflow: auto; border-radius: 6px; color: var(--ink); background: var(--card); font-size: 11px; white-space: pre-wrap; word-break: break-word; }.analysis-empty { display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 7px; min-height: 90px; color: var(--muted); text-align: center; }.analysis-empty p { margin: 0; font-size: 13px; }.analysis-empty a { color: var(--blue); font-size: 13px; }.analysis-empty--compact { min-height: 48px; }
 .legacy-page { --page-bg: #f7f9fc; --ink: #17253d; --muted: #7b8798; --line: #e4eaf3; --card: #fff; --blue: var(--primary-color, #174ca8); --blue-hover: var(--primary-color-hover, #40a9ff); --blue-active: var(--primary-color-active, #096dd9); --blue-ring: var(--primary-color-ring, rgba(24,144,255,.22)); --soft-blue: var(--primary-color-soft, rgba(24,144,255,.1)); --soft-blue-strong: var(--primary-color-soft-strong, rgba(24,144,255,.18)); position: relative; min-height: calc(100vh - 64px); overflow: hidden; color: var(--ink); background: var(--page-bg); font-size: 15px; }
 .legacy-main, .footer-inner, .footer-bottom { width: 100%; max-width: 1120px; margin: 0 auto; }
-.legacy-main { width: 100%; max-width: 1480px; margin: 0 auto; box-sizing: border-box; padding: 24px 28px 48px; }.analysis-controls { display: flex; align-items: end; gap: 10px; min-height: 40px; margin-bottom: 17px; }.date-control { display: grid; grid-template-columns: auto 130px; align-items: center; gap: 8px; }.date-control label { color: var(--muted); font-size: 13px; font-weight: 600; }.date-control .ant-select { width: 130px; }.analysis-controls .ant-btn, .analysis-controls .ant-radio-button-wrapper, .date-control .ant-select-selection-selected-value { font-size: 13px; }.control-spacer { flex: 1; }.legacy-alert { margin-bottom: 12px; }
+.legacy-main { width: 100%; max-width: 1480px; margin: 0 auto; box-sizing: border-box; padding: 24px 28px 48px; }.analysis-controls { display: flex; align-items: end; gap: 10px; min-height: 40px; margin-bottom: 17px; }.date-control { display: grid; grid-template-columns: auto 130px; align-items: center; gap: 8px; }.date-control label { color: var(--muted); font-size: 13px; font-weight: 600; }.date-control .ant-select { width: 130px; }.analysis-controls .ant-btn, .analysis-controls .ant-radio-button-wrapper, .date-control .ant-select-selection-selected-value { font-size: 13px; }.control-spacer { flex: 1; }.legacy-alert { margin-bottom: 12px; }.initial-overview-loading { min-height: 184px; padding: 34px 38px; border: 1px solid var(--line); border-radius: 17px; background: var(--card); box-shadow: 0 8px 24px var(--blue-ring); }
 .daily-hero { display: flex; align-items: center; justify-content: space-between; min-height: 184px; padding: 30px 38px; overflow: hidden; border-radius: 17px; color: #fff; background: linear-gradient(115deg, var(--blue-active) 0%, var(--blue) 52%, var(--blue-hover) 122%); box-shadow: 0 14px 28px var(--blue-ring); }.hero-copy { position: relative; z-index: 1; min-width: 0; }.hero-kicker { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; color: rgba(255,255,255,.78); font-size: 12px; }.hero-badge, .hero-status { padding: 4px 9px; border: 1px solid rgba(255,255,255,.2); border-radius: 999px; background: rgba(255,255,255,.12); }.hero-badge { font-weight: 700; }.daily-hero h1 { max-width: 620px; margin: 0 0 9px; color: #fff; font-size: clamp(30px, 4vw, 42px); line-height: 1.08; letter-spacing: -.04em; }.daily-hero p { margin: 0; color: rgba(255,255,255,.82); font-size: 13px; }.hero-thesis { margin-top: 6px !important; color: rgba(255,255,255,.62) !important; }.hero-arrow { color: var(--blue-hover); }.hero-audio { display: flex; align-items: center; gap: 12px; min-width: 190px; padding: 11px 15px; border: 1px solid rgba(255,255,255,.18); border-radius: 12px; color: #fff; text-align: left; background: rgba(255,255,255,.1); opacity: .7; }.hero-audio strong, .hero-audio small { display: block; }.hero-audio strong { font-size: 13px; }.hero-audio small { margin-top: 3px; color: rgba(255,255,255,.62); font-size: 11px; }.play-button { display: grid; place-items: center; width: 38px; height: 38px; border-radius: 50%; color: var(--blue); background: rgba(255,255,255,.75); }
 .legacy-card { margin-top: 16px; overflow: hidden; border: 1px solid var(--line); border-radius: 12px; background: var(--card); box-shadow: 0 3px 12px var(--blue-ring); }.card-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 17px; border-bottom: 1px solid var(--line); background: linear-gradient(var(--soft-blue), var(--card)); }.heading-with-icon { display: flex; align-items: flex-start; gap: 9px; min-width: 0; }.section-icon { display: inline-grid; place-items: center; flex: 0 0 auto; width: 30px; height: 30px; border-radius: 8px; color: #fff; background: var(--blue); font-size: 17px; font-weight: 700; }.card-heading h2 { margin: 0; color: var(--ink); font-size: 16px; line-height: 1.3; }.card-heading p { margin: 3px 0 0; color: var(--muted); font-size: 12px; }.card-heading h2 .ant-tag { vertical-align: 2px; color: #18a575; border-color: #b7ead6; background: #ecfbf4; }
 .change-list { width: 100%; }.change-row { display: grid; grid-template-columns: 1.1fr 1fr 20px; align-items: center; gap: 12px; min-height: 52px; padding: 10px 16px; border-bottom: 1px solid var(--line); }.change-row:last-child { border-bottom: 0; }.change-row > div:first-child { display: grid; gap: 2px; }.change-row strong { font-size: 13px; }.change-row span, .change-row small { color: var(--muted); font-size: 12px; }.change-detail { display: flex; justify-content: space-between; gap: 10px; }.legacy-empty { display: flex; align-items: center; justify-content: center; gap: 9px; color: var(--muted); text-align: center; }.legacy-empty div { display: grid; gap: 4px; text-align: left; }.legacy-empty span, .legacy-empty strong { font-size: 13px; }.calendar-empty { min-height: 120px; flex-direction: column; }

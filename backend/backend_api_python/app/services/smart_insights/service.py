@@ -5,6 +5,8 @@ from __future__ import annotations
 from datetime import date
 from functools import lru_cache
 
+from app.utils.request_guard import cache_key, guarded_cached
+
 from .repository import SmartInsightsRepository
 
 
@@ -116,9 +118,51 @@ class SmartInsightsService:
         return {"sources": self.repository.data_health()}
 
     def get_crypto_market_pulse(
-        self, *, user_id: int, as_of: str | None, mode: str | None
+        self, *, user_id: int, as_of: str | None, mode: str | None,
+        compact: bool = False,
     ) -> dict:
         normalized_mode, data_class = _mode(mode)
+        normalized_as_of = _as_of(as_of)
+        if compact:
+            return guarded_cached(
+                cache_key(
+                    "smart-insights",
+                    "crypto-pulse",
+                    "compact-v1",
+                    int(user_id),
+                    normalized_mode,
+                    normalized_as_of or "latest",
+                ),
+                lambda: self._build_crypto_market_pulse(
+                    user_id=int(user_id),
+                    normalized_mode=normalized_mode,
+                    data_class=data_class,
+                    as_of=normalized_as_of,
+                    compact=True,
+                ),
+                ttl_sec=300,
+                stale_ttl_sec=1800,
+                timeout_sec=20,
+                namespace="smart-insights-pulse",
+                max_concurrent=2,
+            )
+        return self._build_crypto_market_pulse(
+            user_id=int(user_id),
+            normalized_mode=normalized_mode,
+            data_class=data_class,
+            as_of=normalized_as_of,
+            compact=False,
+        )
+
+    def _build_crypto_market_pulse(
+        self,
+        *,
+        user_id: int,
+        normalized_mode: str,
+        data_class: str,
+        as_of: str | None,
+        compact: bool,
+    ) -> dict:
         if data_class == "LIVE":
             imported_pulse = self._production_import(int(user_id), "crypto_pulse")
             if imported_pulse:
@@ -135,19 +179,27 @@ class SmartInsightsService:
                     checksum=imported_pulse["checksum"],
                     mode=normalized_mode,
                 )
+                repository_kwargs = {
+                    "data_class": data_class,
+                    "as_of": as_of,
+                }
+                if compact:
+                    repository_kwargs["compact"] = True
                 runtime = build_crypto_market_pulse(
-                    self.repository.list_pulse_observations(
-                        data_class=data_class, as_of=_as_of(as_of)
-                    ),
+                    self.repository.list_pulse_observations(**repository_kwargs),
                     mode=normalized_mode,
                 )
                 return merge_imported_crypto_market_pulse(imported, runtime)
         from .crypto_pulse import build_crypto_market_pulse
 
+        repository_kwargs = {
+            "data_class": data_class,
+            "as_of": as_of,
+        }
+        if compact:
+            repository_kwargs["compact"] = True
         return build_crypto_market_pulse(
-            self.repository.list_pulse_observations(
-                data_class=data_class, as_of=_as_of(as_of)
-            ),
+            self.repository.list_pulse_observations(**repository_kwargs),
             mode=normalized_mode,
         )
 

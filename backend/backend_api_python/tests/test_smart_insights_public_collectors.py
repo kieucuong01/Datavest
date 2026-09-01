@@ -105,6 +105,7 @@ def test_legacy_fear_greed_and_mempool_collectors_keep_source_backed_observation
                 "https://mempool.space/api/v1/fees/recommended": {"fastestFee": 12, "halfHourFee": 8, "hourFee": 5, "minimumFee": 1},
                 "https://mempool.space/api/mempool": {"count": 190234, "vsize": 20000000, "total_fee": 123456},
                 "https://mempool.space/api/v1/mining/hashrate/3y": {"hashrates": [[1786492800, 800000000000000000]], "difficulty": []},
+                "https://mempool.space/api/blocks/tip/height": 905432,
             }
             return Response(url, json.dumps(payloads[url]).encode("utf-8"))
 

@@ -1,5 +1,5 @@
 <template>
-  <section class="market-pulse" aria-labelledby="market-pulse-title">
+  <section class="market-pulse" aria-labelledby="market-pulse-title" :aria-busy="loading ? 'true' : 'false'">
     <div class="section-title-row">
       <div>
         <h2 id="market-pulse-title">{{ $t('smartInsights.marketRhythm') }} <a-tag>{{ $t('smartInsights.currentData') }}</a-tag></h2>
@@ -7,54 +7,59 @@
       </div>
       <a-tag :color="pulse.status === 'AVAILABLE' ? 'green' : 'orange'">{{ statusLabel(pulse.status) }}</a-tag>
     </div>
-    <div class="pulse-tabs" role="tablist">
-      <button
-        v-for="tab in tabs"
-        :key="tab.key"
-        type="button"
-        role="tab"
-        :aria-selected="activeKey === tab.key"
-        :class="{ active: activeKey === tab.key }"
-        @click="activeKey = tab.key"
-      >
-        {{ tabLabel(tab) }}
-      </button>
+    <div v-if="loading" class="pulse-loading" aria-live="polite">
+      <a-skeleton active :paragraph="{ rows: 8 }" />
     </div>
-    <flow-terminal v-if="activeKey === 'flows' && panel.etfFlows" :flow="panel.etfFlows" />
-    <whale-flow-monitor v-if="activeKey === 'flows' && panel.whaleFlows" :whale-flow="panel.whaleFlows" />
-    <derivatives-terminal v-if="activeKey === 'derivatives'" :derivatives="panel" />
-    <cycle-terminal v-if="activeKey === 'cycle'" :cycle="panel" />
-    <onchain-terminal v-if="activeKey === 'onchain'" :onchain="panel" />
-    <section v-if="activeKey !== 'flows' && activeKey !== 'derivatives' && activeKey !== 'cycle' && activeKey !== 'onchain'" class="legacy-card pulse-summary">
-      <div class="card-heading compact-heading">
-        <div><h3>{{ tabLabel(activeTab) }}</h3><p>{{ $t('smartInsights.sourceBackedOnly') }}</p></div>
-        <a-tag>{{ statusLabel(panel.status) }}</a-tag>
+    <template v-else>
+      <div class="pulse-tabs" role="tablist">
+        <button
+          v-for="tab in tabs"
+          :key="tab.key"
+          type="button"
+          role="tab"
+          :aria-selected="activeKey === tab.key"
+          :class="{ active: activeKey === tab.key }"
+          @click="activeKey = tab.key"
+        >
+          {{ tabLabel(tab) }}
+        </button>
       </div>
-      <div class="pulse-tiles">
-        <article v-for="tile in summaryTiles" :key="tile.label" class="pulse-tile"><span>{{ tile.label }}</span><strong>{{ tile.value }}</strong><small>{{ tile.meta }}</small></article>
+      <flow-terminal v-if="activeKey === 'flows' && panel.etfFlows" :flow="panel.etfFlows" />
+      <whale-flow-monitor v-if="activeKey === 'flows' && panel.whaleFlows" :whale-flow="panel.whaleFlows" />
+      <derivatives-terminal v-if="activeKey === 'derivatives'" :derivatives="panel" />
+      <cycle-terminal v-if="activeKey === 'cycle'" :cycle="panel" />
+      <onchain-terminal v-if="activeKey === 'onchain'" :onchain="panel" />
+      <section v-if="activeKey !== 'flows' && activeKey !== 'derivatives' && activeKey !== 'cycle' && activeKey !== 'onchain'" class="legacy-card pulse-summary">
+        <div class="card-heading compact-heading">
+          <div><h3>{{ tabLabel(activeTab) }}</h3><p>{{ $t('smartInsights.sourceBackedOnly') }}</p></div>
+          <a-tag>{{ statusLabel(panel.status) }}</a-tag>
+        </div>
+        <div class="pulse-tiles">
+          <article v-for="tile in summaryTiles" :key="tile.label" class="pulse-tile"><span>{{ tile.label }}</span><strong>{{ tile.value }}</strong><small>{{ tile.meta }}</small></article>
+        </div>
+      </section>
+      <div v-if="activeKey !== 'flows' && activeKey !== 'derivatives' && activeKey !== 'cycle' && activeKey !== 'onchain' && panel.metrics.length" class="pulse-metric-grid">
+        <article v-for="metric in panel.metrics.slice(0, 6)" :key="metricKey(metric)" class="pulse-metric">
+          <small>{{ metricLabel(metric) }}</small>
+          <strong>{{ formatMetric(metric.value, metric.unit) }}</strong>
+          <a-button v-if="metric.evidenceId" type="link" size="small" @click="$emit('open-evidence', metric.evidenceId)">{{ $t('smartInsights.evidence') }}</a-button>
+        </article>
       </div>
-    </section>
-    <div v-if="activeKey !== 'flows' && activeKey !== 'derivatives' && activeKey !== 'cycle' && activeKey !== 'onchain' && panel.metrics.length" class="pulse-metric-grid">
-      <article v-for="metric in panel.metrics.slice(0, 6)" :key="metricKey(metric)" class="pulse-metric">
-        <small>{{ metricLabel(metric) }}</small>
-        <strong>{{ formatMetric(metric.value, metric.unit) }}</strong>
-        <a-button v-if="metric.evidenceId" type="link" size="small" @click="$emit('open-evidence', metric.evidenceId)">{{ $t('smartInsights.evidence') }}</a-button>
-      </article>
-    </div>
-    <fear-greed-panel v-if="fearGreed" :fear="fearGreed" />
-    <div v-if="activeKey !== 'flows' && activeKey !== 'derivatives' && activeKey !== 'cycle' && activeKey !== 'onchain' && chartCards.length" class="pulse-chart-grid">
-      <pulse-trend-chart
-        v-for="chart in chartCards"
-        :key="chart.key"
-        :title="chart.title"
-        :series="chart.series"
-        :status="chart.status"
-        :unit="chart.unit"
-        :variant="chart.variant"
-        :interactive="chart.interactive"
-      />
-    </div>
-    <div v-if="activeKey !== 'flows' && activeKey !== 'derivatives' && activeKey !== 'cycle' && activeKey !== 'onchain' && !chartCards.length" class="pulse-empty"><a-icon type="database" /><span>{{ $t('smartInsights.noHistory') }}</span></div>
+      <fear-greed-panel v-if="fearGreed" :fear="fearGreed" />
+      <div v-if="activeKey !== 'flows' && activeKey !== 'derivatives' && activeKey !== 'cycle' && activeKey !== 'onchain' && chartCards.length" class="pulse-chart-grid">
+        <pulse-trend-chart
+          v-for="chart in chartCards"
+          :key="chart.key"
+          :title="chart.title"
+          :series="chart.series"
+          :status="chart.status"
+          :unit="chart.unit"
+          :variant="chart.variant"
+          :interactive="chart.interactive"
+        />
+      </div>
+      <div v-if="activeKey !== 'flows' && activeKey !== 'derivatives' && activeKey !== 'cycle' && activeKey !== 'onchain' && !chartCards.length" class="pulse-empty"><a-icon type="database" /><span>{{ $t('smartInsights.noHistory') }}</span></div>
+    </template>
   </section>
 </template>
 
@@ -73,7 +78,8 @@ export default {
   components: { FearGreedPanel, PulseTrendChart, FlowTerminal, CycleTerminal, OnchainTerminal, DerivativesTerminal, WhaleFlowMonitor },
   props: {
     pulse: { type: Object, default: () => ({}) },
-    locale: { type: String, default: 'vi' }
+    locale: { type: String, default: 'vi' },
+    loading: { type: Boolean, default: false }
   },
   data () { return { tabs: MARKET_PULSE_TABS, activeKey: 'overview' } },
   computed: {
@@ -168,6 +174,7 @@ export default {
 
 <style lang="less" scoped>
 .market-pulse { margin-top: 28px; }
+.pulse-loading { min-height: 320px; margin-top: 12px; padding: 22px; border: 1px solid var(--line); border-radius: 12px; background: var(--card); }
 .section-title-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; }
 .section-title-row h2 { margin: 0; color: var(--ink); font-size: 19px; }
 .section-title-row h2 .ant-tag { vertical-align: 2px; color: #18a575; border-color: #b7ead6; background: #ecfbf4; }

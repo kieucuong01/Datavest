@@ -1,3 +1,5 @@
 deploy/vps/*.sh text eol=lf
 deploy/vps/*.yml text eol=lf
 .github/workflows/*.yml text eol=lf
+backend/install.sh text eol=lf
+backend/backend_api_python/docker-entrypoint.sh text eol=lf
