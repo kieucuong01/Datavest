@@ -123,6 +123,10 @@ def _resolve_smart_insights_etf_api_sources_sql_path() -> Path:
     return Path(__file__).resolve().parent.parent.parent / 'migrations' / '20260830_smart_insights_etf_api_sources.sql'
 
 
+def _resolve_smart_insights_market_evidence_sql_path() -> Path:
+    return Path(__file__).resolve().parent.parent.parent / 'migrations' / '20260902_smart_insights_market_evidence.sql'
+
+
 def _resolve_portfolio_optimizer_sql_path() -> Path:
     return Path(__file__).resolve().parent.parent.parent / 'migrations' / '20260824_portfolio_optimizer.sql'
 
@@ -177,6 +181,9 @@ def _apply_init_sql(logger, *, strict: bool = False):
         smart_insights_etf_api_sources_sql = _resolve_smart_insights_etf_api_sources_sql_path()
         if smart_insights_etf_api_sources_sql.exists():
             sql_parts.append(smart_insights_etf_api_sources_sql.read_text(encoding='utf-8'))
+        smart_insights_market_evidence_sql = _resolve_smart_insights_market_evidence_sql_path()
+        if smart_insights_market_evidence_sql.exists():
+            sql_parts.append(smart_insights_market_evidence_sql.read_text(encoding='utf-8'))
         optimizer_sql = _resolve_portfolio_optimizer_sql_path()
         if optimizer_sql.exists():
             sql_parts.append(optimizer_sql.read_text(encoding='utf-8'))
@@ -209,6 +216,8 @@ def _apply_init_sql(logger, *, strict: bool = False):
             total_size += smart_insights_legacy_browser_sources_sql.stat().st_size
         if smart_insights_etf_api_sources_sql.exists():
             total_size += smart_insights_etf_api_sources_sql.stat().st_size
+        if smart_insights_market_evidence_sql.exists():
+            total_size += smart_insights_market_evidence_sql.stat().st_size
         if optimizer_sql.exists():
             total_size += optimizer_sql.stat().st_size
         if production_account_import_sql.exists():

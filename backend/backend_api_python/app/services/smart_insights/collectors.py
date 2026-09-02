@@ -188,6 +188,7 @@ def default_collector_registry(*, repository: SmartInsightsRepository | None = N
     from .bybit_derivatives import BybitDerivativesCollector
     from .binance_usdm_derivatives import BinanceUsdmDerivativesCollector
     from .deribit_public_derivatives import DeribitPublicDerivativesCollector
+    from .market_evidence import WatchlistMarketEvidenceCollector
     from .snapshot_collectors import SnapshotObservationCollector
 
     def collect_fred_core() -> tuple[Observation, ...]:
@@ -240,6 +241,13 @@ def default_collector_registry(*, repository: SmartInsightsRepository | None = N
         "xoomar-eth-etf": SnapshotObservationCollector("xoomar-eth-etf"),
         "cbbi-public": SnapshotObservationCollector("cbbi-public"),
         "blockchaincenter-altcoin-season": SnapshotObservationCollector("blockchaincenter-altcoin-season"),
+        "datavest-market-bars": lambda: WatchlistMarketEvidenceCollector(
+            instruments_loader=(
+                repository.list_distinct_supported_watchlist_instruments
+                if repository is not None
+                else SmartInsightsRepository().list_distinct_supported_watchlist_instruments
+            )
+        ).collect(),
     }
 
 

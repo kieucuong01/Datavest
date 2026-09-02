@@ -63,6 +63,7 @@ def test_only_verified_sources_are_default_enabled_and_runtime_status_is_explici
         "fred",
         "xoomar-btc-etf",
         "xoomar-eth-etf",
+        "datavest-market-bars",
     }
     assert all(
         source.disabled_reason

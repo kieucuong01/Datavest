@@ -80,6 +80,7 @@ _RUNTIME_ENABLED_SOURCE_CODES = frozenset({
     *_CRYPTOETF_SOURCE_CODES,
     "xoomar-btc-etf",
     "xoomar-eth-etf",
+    "datavest-market-bars",
 })
 _RUNTIME_CODES = frozenset({
     "alternative-fng",
@@ -104,6 +105,7 @@ _RUNTIME_CODES = frozenset({
     "openbb-deribit",
     "xoomar-btc-etf",
     "xoomar-eth-etf",
+    "datavest-market-bars",
 })
 
 
@@ -169,6 +171,7 @@ _SOURCE_ROWS = (
     _source("cryptocraft", "CryptoCraft Economic Calendar", "macro", "SCRAPING", ("https://www.cryptocraft.com/calendar?week=this", "https://www.cryptocraft.com/calendar?week=next"), "calendar", "cryptocraft-v1", 120, "https://www.cryptocraft.com/legal.php"),
     _source("defillama-chains", "DefiLlama Chains", "crypto", "API", ("https://api.llama.fi/v2/chains",), "daily", "defillama-chains-v1", 1440, "https://defillama.com/about"),
     _source("defillama-stablecoins", "DefiLlama Stablecoins", "crypto", "API", ("https://stablecoins.llama.fi/stablecoincharts/all",), "daily", "defillama-stablecoins-v1", 2880, "https://defillama.com/about"),
+    _source("datavest-market-bars", "DataVest Market Data Gateway", "all", "INTERNAL_ADAPTER", ("https://github.com/kieucuong01/Datavest",), "every-6-hours", "datavest-market-bars-v1", 720, "https://github.com/kieucuong01/Datavest"),
     _source("deribit-public-derivatives", "Deribit Public Derivatives Market Data", "crypto", "API", ("https://www.deribit.com/api/v2/",), "daily", "deribit-public-derivatives-v1", 2880, "https://www.deribit.com/pages/information/terms-of-service"),
     _source("eia-energy", "U.S. EIA Energy", "macro", "API", ("https://api.eia.gov/v2/",), "daily", "eia-energy-v1", 11520, "https://www.eia.gov/about/copyrights_reuse.php"),
     _source("farside-btc-etf", "Farside Bitcoin ETF Flows", "crypto", "SCRAPING", ("https://farside.co.uk/btc/",), "daily", "farside-btc-v1", 2880, "https://farside.co.uk/btc/"),

@@ -1,13 +1,18 @@
-# Graph Report - Datavest  (2026-08-31)
+# Graph Report - Datavest  (2026-09-02)
 
 ## Corpus Check
-- 854 files · ~1,352,628 words
+- 865 files · ~1,359,295 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 10344 nodes · 20998 edges · 614 communities (520 shown, 94 thin omitted)
-- Extraction: 97% EXTRACTED · 3% INFERRED · 0% AMBIGUOUS · INFERRED: 734 edges (avg confidence: 0.55)
+- 10451 nodes · 21195 edges · 607 communities (515 shown, 92 thin omitted)
+- Extraction: 96% EXTRACTED · 4% INFERRED · 0% AMBIGUOUS · INFERRED: 752 edges (avg confidence: 0.55)
 - Token cost: 0 input · 0 output
+
+## Graph Freshness
+- Built from commit: `1e95008c`
+- Run `git rev-parse HEAD` and compare to check if the graph is stale.
+- Run `graphify update .` after code changes (no API cost).
 
 ## Community Hubs (Navigation)
 - crypto_insights_worker/browser_snapshots.py
@@ -41,7 +46,6 @@
 - ProtectionEngine
 - portfolio_monitor.py
 - FastAnalysisService
-- FastAnalysisReport.vue
 - PortfolioResult.vue
 - profile/index.vue
 - data_sources.py
@@ -332,6 +336,7 @@
 - Smart Insights On-chain Design
 - Smart Insights Derivatives Terminal Design
 - compilerOptions
+- OverfitRiskGauge.vue
 - resolveIdeFullscreenMountNode
 - vite.config.js
 - MetaRedisConfig
@@ -514,18 +519,9 @@
 - generate-secret-key.sh script
 - scripts/README.md
 - comlink
-- crypto-js
 - frontend/AGENTS.md
 - build-docker.sh script
 - frontend/DATAVEST_MODIFICATIONS.md
-- klinecharts
-- md5
-- mockjs2
-- nprogress
-- pyodide
-- vuex
-- wangeditor
-- stylelint-order
 - GlobalSearch.jsx
 - app-mixin.js
 - device-mixin.js
@@ -534,8 +530,8 @@
 - quantdinger-mcp
 
 ## God Nodes (most connected - your core abstractions)
-1. `CollectorUnavailable` - 122 edges
-2. `Observation` - 122 edges
+1. `CollectorUnavailable` - 127 edges
+2. `Observation` - 126 edges
 3. `get_logger()` - 110 edges
 4. `LLMService` - 91 edges
 5. `compile_strategy_v2()` - 84 edges
@@ -560,71 +556,71 @@
 ## Import Cycles
 - None detected.
 
-## Communities (614 total, 94 thin omitted)
+## Communities (607 total, 92 thin omitted)
 
 ### Community 0 - "crypto_insights_worker/browser_snapshots.py"
 Cohesion: 0.05
-Nodes (98): load_snapshot(), _parse_time(), datetime, Path, RuntimeError, Validated, atomic local snapshots for Browser Use crypto collectors., A snapshot is missing, invalid, or too old to import., Validate first, then replace one source file atomically. (+90 more)
+Nodes (102): load_snapshot(), _parse_time(), datetime, Path, RuntimeError, Validated, atomic local snapshots for Browser Use crypto collectors., A snapshot is missing, invalid, or too old to import., Validate first, then replace one source file atomically. (+94 more)
 
 ### Community 1 - "RequestsTransport"
-Cohesion: 0.05
-Nodes (58): AlternativeFearGreedCollector, datetime, Transport, Alternative.me Fear & Greed collector with a strict JSON contract., Transport, Transport, CoinMetricsCollector, CoinMetricsPriceHistoryCollector (+50 more)
+Cohesion: 0.06
+Nodes (46): AlternativeFearGreedCollector, datetime, Transport, Alternative.me Fear & Greed collector with a strict JSON contract., Audited Smart Insights collector orchestration., AltcoinSeasonCollector, CbbiCollector, Transport (+38 more)
 
 ### Community 2 - "Any"
 Cohesion: 0.05
-Nodes (33): _backtest_time_iso(), _builtin_indicator_contract(), _execution_identity(), _fundamental_column(), _grid_order_identity(), _merge_pending(), MultiAssetSimulationBroker, _next_average_cost() (+25 more)
+Nodes (39): CompiledStrategyV2, _backtest_time_iso(), _builtin_indicator_contract(), _execution_identity(), _fundamental_column(), _grid_order_identity(), _is_intraday_frequency(), _merge_pending() (+31 more)
 
 ### Community 3 - "economic_calendar.py"
 Cohesion: 0.06
-Nodes (86): Trading Economics calendar configuration., TradingEconomicsConfig, _affected_asset_payload(), _akshare_impact_rules(), _asset_bias(), _asset_payload(), _bias_label(), _bias_label_en() (+78 more)
+Nodes (84): _affected_asset_payload(), _akshare_impact_rules(), _asset_bias(), _asset_payload(), _bias_label(), _bias_label_en(), _bias_label_vi(), _build_ai_calendar_insight() (+76 more)
 
 ### Community 4 - "CollectorUnavailable"
 Cohesion: 0.07
 Nodes (63): BitInfoChartsBrowserCollector, _btc(), _category(), _decimal(), _detail_ready(), _parse_detail(), _parse_rows(), datetime (+55 more)
 
 ### Community 5 - "envelope"
-Cohesion: 0.07
-Nodes (74): health(), Health and self-introspection endpoints (class R, but token-free for /health)., Public liveness probe. Does NOT require a token.      Useful for health checks, Return the calling token's identity and granted capabilities.      Lets agents, whoami(), clip_int(), envelope(), error() (+66 more)
+Cohesion: 0.08
+Nodes (66): issue_token(), Issue a new agent token for the calling admin's tenant., health(), Health and self-introspection endpoints (class R, but token-free for /health)., Public liveness probe. Does NOT require a token.      Useful for health checks, Return the calling token's identity and granted capabilities.      Lets agents, whoami(), clip_int() (+58 more)
 
 ### Community 6 - "routes/auth.py"
-Cohesion: 0.05
-Nodes (78): _build_frontend_login_redirect(), _build_userinfo(), change_password(), _get_client_ip(), _get_permissions(), get_security_config(), _get_user_agent(), get_user_info() (+70 more)
+Cohesion: 0.08
+Nodes (43): _build_userinfo(), _get_permissions(), get_user_info(), _is_single_user_mode(), _issue_login_token(), login(), logout(), Authentication API Routes  Handles login, logout, registration, password reset (+35 more)
 
 ### Community 7 - "normalize_supported_market"
-Cohesion: 0.04
-Nodes (68): get_price(), Get realtime price for a single symbol.      Query params:         market: Ma, add_alert(), add_monitor(), add_position(), delete_alert(), delete_monitor(), delete_position() (+60 more)
+Cohesion: 0.02
+Nodes (139): get_symbol_name(), Get display name for a symbol.          Args:         market: Market name, HumanBlueprint, Human-facing API blueprint with default OpenAPI response envelopes.  Routes th, flask-smorest Blueprint that documents standard human API envelopes., get_kline(), _guard_policy(), _latest_kline_ttl() (+131 more)
 
 ### Community 8 - "backtest-center/index.vue"
 Cohesion: 0.04
 Nodes (30): applyBacktestRangePolicy(), beforeDestroy(), curveRange(), ensureBacktestRangeAllowed(), executionColumns(), formatDate(), formatNumber(), formatPercent() (+22 more)
 
 ### Community 9 - "user.py"
-Cohesion: 0.04
-Nodes (68): change_password(), confirm_mfa_setup(), create_user(), delete_chart_template(), delete_user(), disable_mfa(), _ensure_chart_templates_column(), export_users() (+60 more)
+Cohesion: 0.05
+Nodes (48): change_password(), confirm_mfa_setup(), create_user(), delete_chart_template(), delete_user(), disable_mfa(), export_users(), get_chart_templates() (+40 more)
 
 ### Community 10 - "symbol_search.py"
-Cohesion: 0.07
-Nodes (57): canonical_crypto_symbol(), default_crypto_exchange_id(), MarketContext, normalize_exchange_id(), normalize_market_type(), Any, Canonical market-data identity shared by research, backtest, and live flows., _actual_price_source() (+49 more)
+Cohesion: 0.05
+Nodes (77): CCXTConfig, CCXT crypto market data configuration., get_all_symbols(), _get_db_connection(), get_hot_symbols(), _normalize_for_match(), Market symbols seed data and lookup functions.  Data is stored in PostgreSQL t, Get database connection, returns None if not available. (+69 more)
 
 ### Community 11 - "ai_chat.py"
 Cohesion: 0.07
-Nodes (64): get_macro_series_provider(), agent_preflight(), _alias_direct_candidates(), _alias_expanded_terms(), _append_symbol_candidate(), _bls_monthly_points(), _build_llm_messages(), _build_market_snapshot() (+56 more)
+Nodes (53): get_macro_series_provider(), agent_preflight(), ai_skill_delete(), _alias_direct_candidates(), _alias_expanded_terms(), _append_symbol_candidate(), _bls_monthly_points(), _build_market_snapshot() (+45 more)
 
 ### Community 12 - "smart-insights/index.vue"
 Cohesion: 0.05
-Nodes (43): analysisDateLabel(), displayChecksum(), formatDate(), friendlyError(), healthColumns(), insightModules(), lastRunLabel(), loadAll() (+35 more)
+Nodes (41): analysisDateLabel(), displayChecksum(), formatDate(), friendlyError(), healthColumns(), insightModules(), lastRunLabel(), loadAll() (+33 more)
 
 ### Community 13 - "factors/registry.py"
 Cohesion: 0.15
 Nodes (62): _adx(), _adx_components(), _amihud_illiquidity(), _aroon(), _atr(), _atr_pct(), _awesome_oscillator(), _bollinger() (+54 more)
 
 ### Community 14 - "strategy_v2/service.py"
-Cohesion: 0.08
-Nodes (40): fundamental_coverage(), fundamental_sync(), get_fundamental_data_service(), InstrumentSpec, StrategyManifest, _benchmark_for_manifest(), _build_benchmark_result(), _enforce_backtest_range() (+32 more)
+Cohesion: 0.10
+Nodes (33): fundamental_coverage(), fundamental_sync(), get_fundamental_data_service(), _build_benchmark_result(), _enforce_backtest_range(), _frame_provenance(), _instrument_member(), _member_key() (+25 more)
 
 ### Community 15 - "DerivativeBackfillRequest"
-Cohesion: 0.09
-Nodes (34): BinanceClient, BinancePublicClient, BinanceUsdmDerivativesCollector, BinanceUsdmDerivativesUnavailable, _decimal(), datetime, Protocol, Source-attributed Binance USD-M futures history collector. (+26 more)
+Cohesion: 0.10
+Nodes (31): BinanceClient, BinancePublicClient, BinanceUsdmDerivativesCollector, BinanceUsdmDerivativesUnavailable, _decimal(), datetime, Protocol, Transport (+23 more)
 
 ### Community 16 - "ai-analysis/index.vue"
 Cohesion: 0.03
@@ -632,27 +628,27 @@ Nodes (3): deleteHistoryItem(), loadHistoryList(), MARKET_CACHE
 
 ### Community 17 - "CopilotWorkbench.vue"
 Cohesion: 0.05
-Nodes (35): addWatchSymbol(), agentUsageAction(), agentUsageItems(), appendImageFiles(), appendStrategySuggestion(), askAboutEvent(), buildPreflightGuide(), displayCalendarEvents() (+27 more)
+Nodes (36): addWatchSymbol(), agentUsageAction(), agentUsageItems(), appendImageFiles(), buildPreflightGuide(), displayCalendarEvents(), escapeHtml(), eventPreview() (+28 more)
 
 ### Community 18 - "agent_auth.py"
-Cohesion: 0.06
-Nodes (49): create_backtest(), _parse_date(), Any, Async V2 backtest endpoints (class B).  Submit returns a job_id; the agent pol, Run the canonical Strategy API backtest from an agent job., Submit a backtest job. Returns 202 with `job_id` for polling., _run_backtest(), _token_has_restricted_allowlist() (+41 more)
+Cohesion: 0.07
+Nodes (42): create_backtest(), _parse_date(), Any, Async V2 backtest endpoints (class B).  Submit returns a job_id; the agent pol, Run the canonical Strategy API backtest from an agent job., Submit a backtest job. Returns 202 with `job_id` for polling., _run_backtest(), _token_has_restricted_allowlist() (+34 more)
 
 ### Community 19 - "CycleTerminal.vue"
 Cohesion: 0.06
 Nodes (32): altRange(), CBBI_LABELS, cbbiRange(), chartFor(), COMPONENT_COLORS, componentColor(), componentLatest(), componentSeries() (+24 more)
 
 ### Community 20 - "load_addon_config"
-Cohesion: 0.07
-Nodes (30): MetaAPIKeys, API key configuration. All third-party keys should be provided via environment, OpenAI direct API key, Google Gemini API key, Custom LLM API key (for OpenAI-compatible custom endpoints), Custom LLM API base URL (e.g., https://your-api.com/v1), Custom LLM model name, LiteLLM API key (optional, litellm reads provider env vars automatically) (+22 more)
+Cohesion: 0.08
+Nodes (26): MetaAPIKeys, API key configuration. All third-party keys should be provided via environment, OpenAI direct API key, Google Gemini API key, Custom LLM API key (for OpenAI-compatible custom endpoints), Custom LLM API base URL (e.g., https://your-api.com/v1), Custom LLM model name, LiteLLM API key (optional, litellm reads provider env vars automatically) (+18 more)
 
 ### Community 21 - "compile_strategy_v2"
 Cohesion: 0.07
 Nodes (54): compile_strategy_v2(), test_contract_accepts_canonical_history_and_order_calls(), test_contract_accepts_data_current_for_scalar_price(), test_contract_accepts_position_object_attributes(), test_contract_accepts_runtime_params_inside_handler(), test_contract_accepts_user_defined_helper_calls(), test_contract_rejects_chained_symbol_index_on_single_history_dataframe(), test_contract_rejects_context_passed_to_global_order_helper() (+46 more)
 
 ### Community 22 - "SearchResponse"
-Cohesion: 0.09
-Nodes (29): AlphaVantageConfig, GDELTConfig, GDELT DOC 2.0 global news fallback configuration., Self-hosted SearXNG metasearch configuration., Alpha Vantage NEWS_SENTIMENT configuration., SearXNGConfig, AlphaVantageNewsProvider, BingSearchProvider (+21 more)
+Cohesion: 0.04
+Nodes (53): AlphaVantageConfig, GDELTConfig, GDELT DOC 2.0 global news fallback configuration., Self-hosted SearXNG metasearch configuration., Alpha Vantage NEWS_SENTIMENT configuration., SearXNGConfig, AlphaVantageNewsProvider, BingSearchProvider (+45 more)
 
 ### Community 23 - "FlowTerminal.vue"
 Cohesion: 0.05
@@ -660,11 +656,11 @@ Nodes (32): clearSelected(), created(), data(), initTotalList(), loadData(), 'lo
 
 ### Community 24 - "server.py"
 Cohesion: 0.05
-Nodes (50): QuantDinger MCP server package., _apply_http_settings_from_env(), _get(), get_factor(), get_indicator(), get_job(), get_klines(), get_price() (+42 more)
+Nodes (50): QuantDinger MCP server package., _apply_http_settings_from_env(), _get(), get_factor(), get_indicator(), get_indicator_authoring_contract(), get_job(), get_klines() (+42 more)
 
 ### Community 25 - "contract.py"
 Cohesion: 0.10
-Nodes (37): AST, _api_call_identity(), _assigned_name_for_call(), _assigned_names(), _call_keywords(), _collect_static_api_values(), CompiledStrategyV2, _discover_dependencies() (+29 more)
+Nodes (36): AST, _api_call_identity(), _assigned_name_for_call(), _assigned_names(), _call_keywords(), _collect_static_api_values(), _discover_dependencies(), _DiscoveryLogger (+28 more)
 
 ### Community 26 - "EconomicCalendarTable.vue"
 Cohesion: 0.07
@@ -672,7 +668,7 @@ Nodes (33): filteredEvents(), groupedEvents(), normalizedEvents(), set(), update
 
 ### Community 27 - "indicator.py"
 Cohesion: 0.06
-Nodes (49): ai_generate(), code_quality_hints(), delete_indicator(), _extract_indicator_meta_from_code(), get_indicator_params(), get_indicator_version(), get_indicators(), _indicator_ai_text() (+41 more)
+Nodes (47): ai_generate(), code_quality_hints(), delete_indicator(), _extract_indicator_meta_from_code(), get_indicator_params(), get_indicator_version(), get_indicators(), _indicator_ai_text() (+39 more)
 
 ### Community 28 - "ProtectionEngine"
 Cohesion: 0.09
@@ -683,12 +679,8 @@ Cohesion: 0.07
 Nodes (49): Manually trigger a monitor to run immediately.          Supports two modes:, run_monitor_now(), _analyze_single_position(), _build_batch_html_report(), _build_batch_telegram_report(), _build_comprehensive_report(), _build_html_report(), _build_telegram_report() (+41 more)
 
 ### Community 30 - "FastAnalysisService"
-Cohesion: 0.06
-Nodes (29): fast_analyze(), FastAnalysisService, is_major_geopolitical_news_text(), Detect only clear war/conflict events for major-news handling., Any, 根据技术指标构建决策指导，帮助AI做出更合理的决策。         强调SELL信号是有效的做空机会。, 检查是否有重大新闻事件。         重大新闻包括：监管变化、重大合作、丑闻、重大政策、地缘政治事件等。         地缘类使用词边界与分级，避免, 检查是否有重大宏观事件。         重大宏观事件包括：VIX异常高、DXY大幅波动、利率政策变化等。 (+21 more)
-
-### Community 31 - "FastAnalysisReport.vue"
 Cohesion: 0.05
-Nodes (16): beforeDestroy(), cryptoSignals(), decisionDisplayText(), displaySummary(), fetchPerformance(), formatDecisionLabel(), formatOutlookTrend(), handler() (+8 more)
+Nodes (38): fast_analyze(), FastAnalysisService, build_trend_outlook_summary(), Any, Build the legacy API summary string for a multi-horizon trend outlook., Coerce LLM/string prices to float; invalid values return default., safe_float_price(), is_major_geopolitical_news_text() (+30 more)
 
 ### Community 32 - "PortfolioResult.vue"
 Cohesion: 0.06
@@ -699,40 +691,40 @@ Cohesion: 0.06
 Nodes (25): activeTab(), applyTabFromQuery(), copyReferralLink(), copyText(), DEFAULT_NOTIFICATION_CHANNELS, fallbackCopy(), handleConfirmMfaSetup(), handleDisableMfa() (+17 more)
 
 ### Community 34 - "data_sources.py"
-Cohesion: 0.06
-Nodes (20): _addon(), AkshareConfig, _config_float(), _config_int(), DataSourceConfig, MetaAkshareConfig, MetaAlphaVantageConfig, MetaCCXTConfig (+12 more)
+Cohesion: 0.10
+Nodes (9): _config_int(), MetaAkshareConfig, MetaDataSourceConfig, MetaFinnhubConfig, MetaGDELTConfig, MetaTiingoConfig, MetaYFinanceConfig, _timeout() (+1 more)
 
 ### Community 35 - "symbol_master_sync.py"
-Cohesion: 0.08
-Nodes (43): CCXTConfig, CCXT crypto market data configuration., apply_public_ccxt_endpoint_config(), Apply current public REST endpoints without mutating the caller config., _classify_asset(), _clean_symbol(), _clean_text(), _default_asset_class() (+35 more)
+Cohesion: 0.23
+Nodes (17): _clean_symbol(), _clean_text(), fetch_forex_symbols(), _fetch_nasdaq_trader_file(), _fetch_okx_public_symbol_rows(), fetch_us_stock_symbols(), fetch_vn_stock_symbols(), _get_okx_public_json() (+9 more)
 
 ### Community 36 - "services/indicator_signal_alerts.py"
-Cohesion: 0.10
-Nodes (26): ensure_indicator_signal_alert_schema(), _fmt_decimal(), _html_escape(), _json_dumps(), _json_loads(), _json_safe(), _normalize_channel(), _normalize_key() (+18 more)
+Cohesion: 0.11
+Nodes (23): ensure_indicator_signal_alert_schema(), _fmt_decimal(), _html_escape(), _json_dumps(), _json_loads(), _json_safe(), _normalize_channel(), _normalize_key() (+15 more)
 
 ### Community 37 - "routes/settings.py"
 Cohesion: 0.06
-Nodes (43): get_brand_config(), get_openrouter_balance(), get_public_config(), get_settings_schema(), get_settings_values(), Settings API — read and write .env configuration.  Admin-only endpoints for syst, Return a deep-ish copy of CONFIG_SCHEMA with ``is_advanced`` annotated on     ev, Return settings schema definition (admin only). (+35 more)
+Nodes (42): get_brand_config(), get_openrouter_balance(), get_public_config(), get_settings_schema(), get_settings_values(), Settings API — read and write .env configuration.  Admin-only endpoints for syst, Return a deep-ish copy of CONFIG_SCHEMA with ``is_advanced`` annotated on     ev, Return settings schema definition (admin only). (+34 more)
 
 ### Community 38 - "MfaService"
-Cohesion: 0.09
-Nodes (20): Config, Application configuration., Return the full log file path., _env_bool(), _env_int(), _hash_secret(), _mask_secret(), MfaService (+12 more)
+Cohesion: 0.10
+Nodes (16): _env_bool(), _env_int(), _hash_secret(), _mask_secret(), MfaService, Any, decrypt_secret_blob(), encrypt_secret_blob() (+8 more)
 
 ### Community 39 - "ai_skill_registry.py"
 Cohesion: 0.10
-Nodes (42): ai_skill_delete(), ai_skill_install(), ai_skill_prompt(), ai_skill_update(), Install a prompt-only skill manifest., Enable or disable an installed prompt skill., Delete an installed prompt skill., Render a skill prompt for the current UI context. (+34 more)
+Nodes (41): ai_skill_install(), ai_skill_prompt(), ai_skill_update(), Install a prompt-only skill manifest., Enable or disable an installed prompt skill., Render a skill prompt for the current UI context., _all_skill_entries(), build_skill_prompt() (+33 more)
 
 ### Community 40 - "services/universe.py"
-Cohesion: 0.11
-Nodes (31): _iso(), _json_value(), member_content_hash(), normalize_member(), normalize_members(), normalize_universe_code(), _optional_float(), _optional_int() (+23 more)
+Cohesion: 0.09
+Nodes (44): clone_universe(), create_universe(), create_universe_snapshot(), _failure(), get_universe(), get_universe_members(), list_universes(), Strategy universe APIs. (+36 more)
 
 ### Community 41 - "Login.vue"
 Cohesion: 0.07
 Nodes (29): expiresAt(), invalidate(), isFresh(), _k(), read(), write(), afterLoginSuccess(), applyLoginResult() (+21 more)
 
 ### Community 42 - "test_vietnamese_language_contract.py"
-Cohesion: 0.08
-Nodes (40): _agent_response_language_name(), ai_skills(), _build_system_prompt(), Return the public Copilot skill registry., get_strategy_review_report(), Strategy review report routes., Build an AI-assisted strategy review report from factual trade records., build_skill_prompt() (+32 more)
+Cohesion: 0.13
+Nodes (23): ai_skills(), Return the public Copilot skill registry., get_alert_message(), get_alert_title(), normalize_language(), Any, Localized text helpers for portfolio monitor alerts., Return a localized alert message. (+15 more)
 
 ### Community 43 - "init.sql"
 Cohesion: 0.08
@@ -743,64 +735,64 @@ Cohesion: 0.05
 Nodes (16): aiDebugAlertType(), aiDebugState(), aiDebugStateIcon(), aiDebugStateLabel(), aiDebugStateTagColor(), buildSignalAlertPayload(), extractSignalAlertOptions(), loadSignalAlertNotificationDefaults() (+8 more)
 
 ### Community 45 - "backend/README.md"
-Cohesion: 0.05
-Nodes (39): Agent API, Conventions, Local interactive docs, QuantDinger Web API (OpenAPI), Regenerate, View docs locally, API conventions, Backend architecture (+31 more)
+Cohesion: 0.06
+Nodes (33): API conventions, Backend architecture, Add a read-only market provider, Add a research workflow, Add an MCP tool, Backend extension guide, Module boundaries, Acknowledgements (+25 more)
 
 ### Community 46 - "SmartInsightsRepository"
-Cohesion: 0.08
-Nodes (20): execute_refresh(), classify_freshness(), datetime, Freshness classification for Smart Insights source health., _iso(), _json_value(), Any, Decimal (+12 more)
+Cohesion: 0.04
+Nodes (44): CollectorRepository, execute_refresh(), Protocol, RuntimeError, RefreshCoordinator, EvidenceGroundedExplainer, classify_freshness(), datetime (+36 more)
 
 ### Community 47 - "FactorLibraryModal.vue"
 Cohesion: 0.07
 Nodes (27): assetType(), beforeDestroy(), cancelPreload(), compatibleCount(), ensureVisibleSelection(), estimatedWarmup(), factorCall(), factorDescription() (+19 more)
 
 ### Community 48 - "data_sources/__init__.py"
-Cohesion: 0.06
-Nodes (29): CacheEntry, DataCache, generate_kline_cache_key(), get_kline_cache(), get_realtime_cache(), get_stock_info_cache(), Any, Set cached data.                  Args:             key: Cache key. (+21 more)
+Cohesion: 0.07
+Nodes (28): CacheEntry, DataCache, generate_kline_cache_key(), get_kline_cache(), get_realtime_cache(), get_stock_info_cache(), Any, Set cached data.                  Args:             key: Cache key. (+20 more)
 
 ### Community 49 - "utils/agent_jobs.py"
-Cohesion: 0.08
-Nodes (41): _execute(), execute_agent_job(), Celery execution for persistent Agent Gateway jobs., supports_kind(), _gc_job_state(), _get_executor(), get_job_for_worker(), _job_buffer() (+33 more)
+Cohesion: 0.06
+Nodes (51): list_user_jobs(), Job polling endpoints — read job status/result for the calling tenant.  Two fl, List recent jobs for this tenant (newest first)., SSE stream for a job's progress.      Frames:       ``event: progress``  ever, stream_user_job(), _execute(), execute_agent_job(), Celery execution for persistent Agent Gateway jobs. (+43 more)
 
 ### Community 50 - "db_postgres.py"
-Cohesion: 0.07
-Nodes (31): _acquire_conn_with_wait(), close_pool(), _env_int(), _env_optional_int(), _get_connection_pool(), _get_database_url(), get_pg_connection_sync(), _parse_database_url() (+23 more)
+Cohesion: 0.14
+Nodes (12): _pool_stats(), Cap per-process pool size so app pools cannot exceed PostgreSQL capacity., _resolve_effective_pool_limits(), _FakePool, _ProbeConn, _ProbeCursor, test_effective_pool_limits_auto_caps_small_postgres(), test_effective_pool_limits_auto_uses_default_when_capacity_allows() (+4 more)
 
 ### Community 51 - "global_market.py"
 Cohesion: 0.08
 Nodes (41): cached_or_compute(), clear_cache(), _cm(), _compute_and_store(), _get_lock(), invalidate(), Any, Lock (+33 more)
 
 ### Community 52 - "market.py"
-Cohesion: 0.08
-Nodes (39): get_symbol_name(), Get display name for a symbol.          Args:         market: Market name, add_watchlist(), _ensure_watchlist_table(), get_hot_symbols(), get_menu_footer_config(), get_watchlist(), Market API routes (local-only). Provides watchlist, market metadata, symbol sea (+31 more)
+Cohesion: 0.12
+Nodes (25): _ensure_chart_templates_column(), Back-compatible wrapper for older route-local callers., Send a test notification using saved notification settings., test_notification_settings(), delete_chart_template(), ensure_chart_templates_column(), _fetch_user_settings_row(), get_notification_settings() (+17 more)
 
 ### Community 53 - "global_market_data.py"
-Cohesion: 0.10
-Nodes (38): fetch_crypto_heatmap_coincap(), fetch_crypto_prices(), fetch_crypto_prices_ccxt(), fetch_crypto_prices_yfinance(), Any, Crypto price data fetchers with multi-source fallback., Fetch top crypto prices — try CCXT → yfinance → CoinGecko., Fetch crypto heatmap from CoinCap API (free, no key needed). (+30 more)
+Cohesion: 0.13
+Nodes (23): fetch_forex_pairs(), _fetch_td(), _fetch_tiingo(), _fetch_yf(), Any, Forex pair data fetchers with multi-source fallback., Fetch major forex pairs.  Priority: Twelve Data → yfinance → Tiingo., Fetch forex quotes from Twelve Data. (+15 more)
 
 ### Community 54 - "indicators.py"
-Cohesion: 0.09
-Nodes (37): get_indicator(), indicator_authoring_contract(), link_indicator(), Indicator workspace endpoints for external AI agents.  Read (R): contract, lis, Normalize ``indicator_config`` dict: auto-save embedded code + set indicator_id., Return starter template + required I/O contract for AI code generation., Fetch one indicator including ``code``., Sandbox-run indicator code without persisting. (+29 more)
+Cohesion: 0.13
+Nodes (25): get_indicator(), indicator_authoring_contract(), list_indicators(), Indicator workspace endpoints for external AI agents.  Read (R): contract, lis, Return starter template + required I/O contract for AI code generation., List tenant indicators (compact; no code body)., Fetch one indicator including ``code``., Save indicator into ``qd_indicator_codes`` (private; not community publish). (+17 more)
 
 ### Community 55 - "routes/fast_analysis.py"
 Cohesion: 0.09
-Nodes (34): analyze(), delete_history(), get_all_history(), get_history(), get_performance(), get_similar_patterns(), Fast Analysis API Routes  New high-performance analysis endpoints that replace, Get analysis history for a symbol.          GET /api/fast-analysis/history?mar (+26 more)
+Nodes (36): analyze(), delete_history(), get_all_history(), get_history(), get_performance(), get_similar_patterns(), Fast Analysis API Routes  New high-performance analysis endpoints that replace, Get analysis history for a symbol.          GET /api/fast-analysis/history?mar (+28 more)
 
 ### Community 56 - ".call_llm_api"
 Cohesion: 0.08
-Nodes (16): Any, ValueError, Normalize model name for the target provider.                  Frontend may se, Call LLM API with the specified or default provider.                  Args:, Stream LLM response deltas for providers with OpenAI-compatible streaming., Call LLM API (legacy method name for backward compatibility)., Safe LLM call with robust JSON parsing and fallback structure., Get base URL for the specified provider. (+8 more)
+Nodes (20): LLMProvider, Enum, ValueError, Normalize model name for the target provider.                  Frontend may se, Detect which provider a model belongs to based on its name.         Returns Non, Call LLM API with the specified or default provider.                  Args:, Stream LLM response deltas for providers with OpenAI-compatible streaming., Try alternative providers when current provider fails.          Priority: Deep (+12 more)
 
 ### Community 57 - "MarketDataCollector"
-Cohesion: 0.12
-Nodes (9): MarketDataCollector, Any, 获取实时价格 - 使用 kline_service (与自选列表一致), 获取K线数据 - 使用 DataSourceFactory (与K线模块一致), 市场数据采集器          职责：为AI分析提供完整、准确、及时的市场数据          数据层次：     1. 核心数据 (必须成功):, Construct an 'earnings' dict from structured financial_statements for CN/HK., 美股基本面 - Finnhub + yfinance         包括：基础财务指标 + 财报数据（资产负债表、利润表、现金流量表）, 获取财务报表数据（资产负债表、利润表、现金流量表）                  使用 yfinance 获取，包含最近几个季度的数据 (+1 more)
+Cohesion: 0.08
+Nodes (18): MarketDataCollector, NonBlockingThreadPoolExecutor, Any, ThreadPoolExecutor, 获取宏观经济数据 - 复用 global_market.py 的函数和缓存                  优势：         1. 数据与全球金融, 获取新闻和情绪数据                  策略（按优先级）：         1. 结构化API (Finnhub) - 美股首选, 从搜索引擎获取新闻                  使用增强的搜索服务 (Tavily/Google/Bing/SerpAPI), 获取全球重大事件新闻（地缘政治、战争、重大政策等）         这些事件会影响所有市场，特别是加密货币                  Return (+10 more)
 
 ### Community 58 - "SettingDrawer.vue"
 Cohesion: 0.07
 Nodes (14): getColorList(), updateColorWeak(), updateTheme(), changeColor(), colorList(), mounted(), onColorWeak(), buildThemeCss() (+6 more)
 
 ### Community 59 - "agent_token_service.py"
-Cohesion: 0.12
-Nodes (36): issue_token(), list_audit(), list_tokens(), Token administration.  Issuance is HUMAN-only — these endpoints require a regu, Issue a new agent token for the calling admin's tenant., revoke_token(), issue_my_token(), list_my_audit() (+28 more)
+Cohesion: 0.10
+Nodes (40): list_audit(), list_tokens(), Token administration.  Issuance is HUMAN-only — these endpoints require a regu, revoke_token(), issue_my_token(), list_my_audit(), list_my_tokens(), my_token_policy() (+32 more)
 
 ### Community 60 - "analyze_indicator_code_quality"
 Cohesion: 0.09
@@ -808,27 +800,27 @@ Nodes (38): analyze_indicator_code_quality(), _declared_param_names(), _future_d
 
 ### Community 61 - "SecurityService"
 Cohesion: 0.06
-Nodes (22): _is_placeholder_turnstile_value(), Any, Security Service - Handles Turnstile verification, rate limiting, and brute-forc, Verify Cloudflare Turnstile token.                  Returns:             (suc, Issue a short-lived local clearance after a valid Turnstile challenge., Verify the short-lived local clearance token., Accept either a fresh Turnstile token or a local short-lived clearance., Record a login attempt for rate limiting.                  Args: (+14 more)
+Nodes (21): _is_placeholder_turnstile_value(), Any, Verify Cloudflare Turnstile token.                  Returns:             (suc, Issue a short-lived local clearance after a valid Turnstile challenge., Verify the short-lived local clearance token., Accept either a fresh Turnstile token or a local short-lived clearance., Record a login attempt for rate limiting.                  Args:, Check if an identifier (IP or account) is blocked due to too many failed attempt (+13 more)
 
 ### Community 62 - "DerivativesTerminal.vue"
 Cohesion: 0.08
 Nodes (22): baseOption(), chartFor(), ensureAsset(), formatDate(), fundingClass(), handler(), hasOptions(), historyNote() (+14 more)
 
 ### Community 63 - "migrate_smart_insights.py"
-Cohesion: 0.14
-Nodes (37): ArgumentParser, DataClass, _aware(), _destination_has_checksum(), _dsn_identity(), _ensure_destination_source(), _event_observation(), _has_table() (+29 more)
+Cohesion: 0.15
+Nodes (35): ArgumentParser, _aware(), _destination_has_checksum(), _dsn_identity(), _ensure_destination_source(), _event_observation(), _has_table(), _insert_observation() (+27 more)
 
 ### Community 64 - "chat_message"
-Cohesion: 0.09
-Nodes (38): chat_message(), _create_session(), delete_chat_session(), delete_user_memory(), _detect_memory_candidates(), _ensure_tables(), get_chat_history(), get_chat_sessions() (+30 more)
+Cohesion: 0.07
+Nodes (47): agent_intent(), chat_message(), chat_message_stream(), _classify_agent_intent(), delete_chat_session(), delete_user_memory(), _detect_intent(), _enrich_context() (+39 more)
 
 ### Community 65 - "contracts.py"
-Cohesion: 0.08
-Nodes (27): _aware_utc(), _canonical_json(), datetime, ValueError, Source-backed Smart Insights contracts ported from DataVest.  The original DataV, _safe_https_url(), _decimal(), datetime (+19 more)
+Cohesion: 0.09
+Nodes (27): _aware_utc(), _canonical_json(), DataClass, datetime, ValueError, Source-backed Smart Insights contracts ported from DataVest.  The original DataV, _safe_https_url(), _decimal() (+19 more)
 
 ### Community 66 - "rate_limiter.py"
-Cohesion: 0.08
-Nodes (33): get_akshare_limiter(), get_eastmoney_limiter(), get_random_user_agent(), get_request_headers(), get_tencent_limiter(), _is_too_many_open_files(), BaseException, Exception (+25 more)
+Cohesion: 0.05
+Nodes (50): DataSourceFactory, Any, 获取K线数据的便捷方法                  Args:             market: 市场类型             symb, Pick a read-only data source with optional public-provider preference., 获取实时报价的便捷方法                  Args:             market: 市场类型             symb, 数据源工厂。     K 线 / 报价 使用哪个接口完全由调用方传入的 market（与自选分类一致）决定，不做根据 symbol 字符串的推断。, Log noisy market-data failures at most once per key per interval., Normalize a market or reject it outside the DataVest scope. (+42 more)
 
 ### Community 67 - "AnalysisMemory"
 Cohesion: 0.06
@@ -836,7 +828,7 @@ Nodes (22): AnalysisMemory, Any, Store an analysis result for future reference. 
 
 ### Community 69 - "app/__init__.py"
 Cohesion: 0.08
-Nodes (30): FlaskContextTask, _bootstrap_database(), _configure_cors(), create_app(), Flask, DataVest Python API Flask application factory, powered by QuantDinger., Create and configure the Flask application., init_http_observability() (+22 more)
+Nodes (31): _bootstrap_database(), _configure_cors(), create_app(), Flask, DataVest Python API Flask application factory, powered by QuantDinger., Create and configure the Flask application., JSON provider that normalizes NaN/Inf and datetime values., _safe_json_dumps() (+23 more)
 
 ### Community 70 - "OAuthService"
 Cohesion: 0.08
@@ -851,76 +843,76 @@ Cohesion: 0.15
 Nodes (32): _candidates(), get_factor_research_repository(), get_factor_research_run(), get_strategy_backtest(), get_strategy_backtest_repository(), get_strategy_backtest_service(), list_factor_research_runs(), list_strategy_backtests() (+24 more)
 
 ### Community 73 - "routes/kline.py"
-Cohesion: 0.09
-Nodes (32): get_kline(), _guard_policy(), _latest_kline_ttl(), K-line (OHLCV) API routes., Fetch OHLCV k-line bars.      Query params:         market: Market type (USSt, get_watchlist_prices(), Get realtime prices for the current user's watchlist., clear_notifications() (+24 more)
+Cohesion: 0.11
+Nodes (21): _acquire_conn_with_wait(), close_pool(), _env_int(), _env_optional_int(), _get_connection_pool(), _get_database_url(), get_pg_connection(), get_pg_connection_sync() (+13 more)
 
 ### Community 74 - "detect_market_and_symbol"
 Cohesion: 0.09
 Nodes (22): detect_market_and_symbol(), _lookup_table_match(), _normalize(), Detect (market_category, symbol) from a free-form user prompt for the AI tradin, Upper-case + collapse whitespace so lookups are stable., Try the explicit lookup tables in precedence order.      Forex first: gold is, Detect the explicit XAU/USD gold notation., Detect BTC/USDT / SOL-USDT style pairs not in the table. (+14 more)
 
 ### Community 75 - "SignalNotifier"
-Cohesion: 0.14
-Nodes (22): _adapt_payload_for_dialect(), _as_list(), _check_vendor_response(), _detect_webhook_dialect(), _dingtalk_signed_url(), _feishu_sign(), _fmt_float(), _load_user_timezone_for_strategy() (+14 more)
+Cohesion: 0.12
+Nodes (25): _adapt_payload_for_dialect(), _as_list(), _check_vendor_response(), _detect_webhook_dialect(), _dingtalk_signed_url(), _feishu_sign(), _fmt_float(), _load_user_timezone_for_strategy() (+17 more)
 
 ### Community 76 - "import_production_account.py"
 Cohesion: 0.16
 Nodes (35): AccountImportError, AccountImportPlan, apply_import(), _assert_no_secret_keys(), build_import_plan(), _build_records(), build_report(), _canonical_json() (+27 more)
 
 ### Community 77 - "safe_exec.py"
-Cohesion: 0.09
-Nodes (34): _attribute_access_chain(), _dangerous_pd_numpy_import(), _dangerous_pd_numpy_internal(), _fold_string_constant(), _is_operator_accessor_call(), _is_safe_import_name(), _make_safe_import(), Any (+26 more)
+Cohesion: 0.07
+Nodes (38): _attribute_access_chain(), _dangerous_pd_numpy_import(), _dangerous_pd_numpy_internal(), _fold_string_constant(), _is_operator_accessor_call(), _is_safe_import_name(), _make_safe_import(), Any (+30 more)
 
 ### Community 78 - "docs/README_CN.md"
 Cohesion: 0.06
-Nodes (28): Contributors, Process roles and tasks, Observability, AI Agent 与 MCP, P.S.——关于名字, QuantDinger 是什么, 主要请求链路, 仓库结构 (+20 more)
+Nodes (30): Contributors, Locked runtime, Preflight, Production Hardening, Redis tiers, AI Agent 与 MCP, P.S.——关于名字, QuantDinger 是什么 (+22 more)
 
 ### Community 79 - "mock-portfolio/index.vue"
 Cohesion: 0.08
 Nodes (19): analytics(), confirmDelete(), created(), data(), emptyForm(), emptySummary(), formatNumber(), loadData() (+11 more)
 
 ### Community 80 - "devDependencies"
-Cohesion: 0.06
-Nodes (35): babel-eslint, eslint, eslint-plugin-html, eslint-plugin-vue, devDependencies, babel-eslint, eslint, eslint-plugin-html (+27 more)
+Cohesion: 0.05
+Nodes (43): babel-eslint, eslint, eslint-plugin-html, eslint-plugin-import, eslint-plugin-node, eslint-plugin-promise, eslint-plugin-vue, devDependencies (+35 more)
 
 ### Community 81 - "BaseDataSource"
-Cohesion: 0.09
-Nodes (19): BaseDataSource, ABC, Any, Base market data source interfaces.  All market data adapters should normalize, Filter and limit K-line rows.                  Args:             klines: K-li, Log fetch result quality.          Delay checks:         - K-line time is a U, Base class for market data sources., Fetch K-line data.                  Args:             symbol: Trading pair or (+11 more)
+Cohesion: 0.18
+Nodes (15): CoinMetricsCollector, CoinMetricsPriceHistoryCollector, datetime, Transport, Coin Metrics Community API collector ported from the DataVest worker., Initial BTC daily price history for transparent local cycle models., Fetch bounded Coin Metrics daily series and emit source-backed rows., _timestamp() (+7 more)
 
 ### Community 82 - "production_account_view.py"
 Cohesion: 0.16
 Nodes (34): _availability(), build_imported_crypto_market_pulse(), build_imported_overview(), _checksum_id(), _component(), _etf_day(), _etf_source_for_asset(), _etf_source_rank() (+26 more)
 
 ### Community 83 - "StrategyV2BacktestRunner"
-Cohesion: 0.13
-Nodes (30): _is_intraday_frequency(), _parse_schedule_time(), StrategyV2BacktestRunner, test_v2_strategy_can_compute_builtin_factor_without_future_data(), _frame(), test_backtest_separates_executions_from_closed_trades_and_realized_metrics(), test_buy_limit_fills_at_limit_when_touched_inside_bar(), test_buy_limit_remains_resting_and_uses_favorable_gap_open() (+22 more)
+Cohesion: 0.16
+Nodes (26): StrategyV2BacktestRunner, test_v2_strategy_can_compute_builtin_factor_without_future_data(), _frame(), test_backtest_separates_executions_from_closed_trades_and_realized_metrics(), test_buy_limit_fills_at_limit_when_touched_inside_bar(), test_buy_limit_remains_resting_and_uses_favorable_gap_open(), test_closed_trade_breaks_out_open_and_close_commission(), test_crypto_lot_rounding_is_filled_without_a_tail_retry() (+18 more)
 
 ### Community 84 - "INDICATOR_DEV_GUIDE.md"
 Cohesion: 0.06
 Nodes (34): 10. TradingView/Pine capability mapping, 11. pandas and numpy type traps, 12. Avoid look-ahead and repainting, 13. Sandbox and safety rules, 14. Complete tutorial: dual EMA viewer, 15. Validation, debugging, and common errors, 16. Semantic checklist before strategy conversion, 17. Pre-publication checklist (+26 more)
 
 ### Community 85 - "universe-manager/index.vue"
-Cohesion: 0.10
-Nodes (20): text(), clone(), drawerTitle(), editUniverse(), latestSystemDate(), loadUniverses(), marketText(), memberPlaceholder() (+12 more)
+Cohesion: 0.06
+Nodes (28): fillExample(), installSkill(), loadAll(), loadSkills(), loadTools(), mounted(), removeSkill(), text() (+20 more)
 
 ### Community 86 - "logger.py"
-Cohesion: 0.09
-Nodes (20): FinnhubConfig, Finnhub data source configuration., CacheConfig, Database and cache configuration., Redis cache configuration., Return the Redis connection URL., RedisConfig, Configuration package exports. (+12 more)
+Cohesion: 0.03
+Nodes (91): APIKeys, API key configuration., AkshareConfig, BEAConfig, BLSConfig, DataSourceConfig, FinnhubConfig, FredConfig (+83 more)
 
 ### Community 87 - "utils/auth.py"
-Cohesion: 0.09
-Nodes (27): Application settings., get_current_user_role(), _get_user_auth_state(), _is_single_user_mode(), manager_required(), permission_required(), Authentication Utilities  JWT token generation, verification, and middleware d, Load the authoritative session and authorization state for a user. (+19 more)
+Cohesion: 0.07
+Nodes (39): Config, Application settings., Application configuration., Return the full log file path., _count(), Research-only dashboard summary., Return research, authoring, backtest, and manual-paper counts., summary() (+31 more)
 
 ### Community 88 - "OpenBBDeribitCollector"
-Cohesion: 0.13
-Nodes (20): _date(), _decimal(), OpenBBDeribitClient, OpenBBDeribitCollector, OpenBBDeribitSubprocessClient, OpenBBDeribitUnavailable, datetime, Path (+12 more)
+Cohesion: 0.11
+Nodes (24): default_collector_registry(), Specialty collectors are registered without exposing provider secrets., _date(), _decimal(), OpenBBDeribitClient, OpenBBDeribitCollector, OpenBBDeribitSubprocessClient, OpenBBDeribitUnavailable (+16 more)
 
 ### Community 89 - "strategy_v2/__init__.py"
-Cohesion: 0.10
-Nodes (23): canonical_source_metadata(), DiscoveryContext, is_strategy_v2_code(), _parse_many(), Compile source code and persist only the current runtime contract., Strategy API V2 public surface., infer_market(), InstrumentParseError (+15 more)
+Cohesion: 0.09
+Nodes (27): DiscoveryContext, is_strategy_v2_code(), _parse_many(), Point-in-time multi-asset data portal for Strategy API V2., driving_frequency(), frequency_seconds(), normalize_frequency(), Canonical Strategy API V2 frequency helpers. (+19 more)
 
 ### Community 90 - "test_safe_exec.py"
 Cohesion: 0.11
-Nodes (33): build_safe_builtins(), Build a restricted __builtins__ dict for sandboxed exec().      Only includes, Validate + execute user code in one call.      1. Runs validate_code_safety();, Validate code safety with regex and AST checks., safe_exec_with_validation(), validate_code_safety(), Sandbox static validation and known escape regression tests., test_allowed_module_cannot_expose_transitive_sys_module() (+25 more)
+Nodes (35): build_safe_builtins(), Build a restricted __builtins__ dict for sandboxed exec().      Only includes, Validate and execute Python code with sandbox namespace/timeout guards.      A, Validate + execute user code in one call.      1. Runs validate_code_safety();, Validate code safety with regex and AST checks., safe_exec_code(), safe_exec_with_validation(), validate_code_safety() (+27 more)
 
 ### Community 91 - "builder"
 Cohesion: 0.11
@@ -940,27 +932,27 @@ Nodes (23): EvidencePolicyError, Raised when evidence cannot enter a production 
 
 ### Community 95 - "StrategyReviewService"
 Cohesion: 0.18
-Nodes (10): _as_float(), _as_int(), _jsonify_row(), _jsonify_scalar(), Any, Build a strategy post-trade review from factual trade records first., Mirror the strategy performance tab's equity-curve KPI math., _round() (+2 more)
+Nodes (11): _as_float(), _as_int(), _jsonify_row(), _jsonify_scalar(), Any, Build a strategy post-trade review from factual trade records first., Mirror the strategy performance tab's equity-curve KPI math., _round() (+3 more)
 
 ### Community 97 - "StrategyEditor.vue"
 Cohesion: 0.08
 Nodes (12): activeParamTemplateDesc(), activeParamTemplateTitle(), emitTemplateParams(), getTemplateDesc(), getTemplateTitle(), handleBooleanParamChange(), handleNumericParamChange(), handleSelectParamChange() (+4 more)
 
 ### Community 98 - "data_sources/crypto.py"
-Cohesion: 0.10
-Nodes (27): _invalid_symbol_ttl_sec(), _PublicKlineUnavailable, RuntimeError, 加密货币数据源 使用 CCXT 获取数据, Signal an empty provider result so an unscoped source can fail over., Map QuantDinger exchange_id + market_type to a CCXT class id and options., # IMPORTANT: most exchanges cap fetch_ohlcv at 300–1000 candles per, resolve_public_ccxt_market() (+19 more)
+Cohesion: 0.21
+Nodes (12): Map QuantDinger exchange_id + market_type to a CCXT class id and options., resolve_public_ccxt_market(), main(), parse_args(), Any, Verify public OHLCV access for every supported crypto venue and product., verify(), test_public_kline_exchange_mapping() (+4 more)
 
 ### Community 99 - "MultiAssetDataPortal"
-Cohesion: 0.16
-Nodes (15): _as_list(), MultiAssetDataPortal, Any, DataFrame, DatetimeIndex, Timestamp, ValueError, Point-in-time multi-asset data portal for Strategy API V2. (+7 more)
+Cohesion: 0.19
+Nodes (8): _as_list(), MultiAssetDataPortal, Any, DataFrame, DatetimeIndex, Timestamp, ValueError, StrategyDataError
 
 ### Community 100 - "StrategyBacktestRepository"
-Cohesion: 0.14
-Nodes (14): _backfill_equity_curve(), FactorResearchRepository, _legacy_execution_ledger(), _normalize_backtest_result(), _number(), _order_status_counts(), Any, Persistence for Strategy API V2 backtest runs. (+6 more)
+Cohesion: 0.12
+Nodes (15): _backfill_equity_curve(), FactorResearchRepository, _legacy_execution_ledger(), _normalize_backtest_result(), _number(), _order_status_counts(), Any, Persistence for Strategy API V2 backtest runs. (+7 more)
 
 ### Community 101 - "dependencies"
-Cohesion: 0.06
-Nodes (31): @ant-design/colors, ant-design-vue, @ant-design-vue/pro-layout, @antv/data-set, axios, echarts, dependencies, @ant-design/colors (+23 more)
+Cohesion: 0.04
+Nodes (49): @ant-design/colors, ant-design-vue, @ant-design-vue/pro-layout, @antv/data-set, axios, comlink, crypto-js, echarts (+41 more)
 
 ### Community 102 - "ai_decision.py"
 Cohesion: 0.14
@@ -971,16 +963,16 @@ Cohesion: 0.10
 Nodes (19): Get permissions for a role, Hash password using bcrypt (preferred) or SHA256 (fallback), User management service, Return the current token version for a user; defaults to 1., Increment token version so older tokens become invalid., Change user password (requires old password verification, except for users with, Reset user password (admin operation, no old password required), Alias for reset_password - update user password without old password verificatio (+11 more)
 
 ### Community 104 - "PostgresCursor"
-Cohesion: 0.11
-Nodes (19): execute_sql(), get_pg_connection(), _is_connection_healthy(), is_postgres_available(), PostgresConnection, PostgresCursor, Any, Quick health check: make sure the connection is not closed and can     actually (+11 more)
+Cohesion: 0.13
+Nodes (17): execute_sql(), _is_connection_healthy(), is_postgres_available(), PostgresCursor, _probe_pg_connection_limit(), Any, Read PostgreSQL connection limits using a short-lived probe connection., Quick health check: make sure the connection is not closed and can     actually (+9 more)
 
 ### Community 105 - "WhaleFlowMonitor.vue"
 Cohesion: 0.08
 Nodes (6): accumulatingCount(), cohortSeries(), distributingCount(), exchangeSeries(), pointsFor(), whaleMetric()
 
 ### Community 106 - "login_required"
-Cohesion: 0.10
-Nodes (25): DataRequirement, MarketModule, Shared market module model types., Configuration needed or recommended for a market data capability., Canonical market capability declaration., _backend_env_path(), _enabled_from_env(), list_market_keys() (+17 more)
+Cohesion: 0.06
+Nodes (37): DataRequirement, MarketModule, Shared market module model types., Configuration needed or recommended for a market data capability., Canonical market capability declaration., _backend_env_path(), _enabled_from_env(), list_market_modules() (+29 more)
 
 ### Community 107 - "test_agent_strategy_sources.py"
 Cohesion: 0.10
@@ -991,16 +983,16 @@ Cohesion: 0.16
 Nodes (27): _apply_defaults(), _blend_bounds(), _compute_atr(), filter_grid_signals_under_waterfall(), _float(), inject_waterfall_close_signal(), _int(), prepare_bot_market_guards() (+19 more)
 
 ### Community 109 - "LLMService"
-Cohesion: 0.14
-Nodes (29): LLMService, LLM provider wrapper with multi-provider support., clear_config_cache(), Clear the configuration cache., _reset_config_cache(), test_atlascloud_env_mapping(), test_atlascloud_http_error_falls_back_to_plain_response_text(), test_atlascloud_http_error_preserves_provider_detail() (+21 more)
+Cohesion: 0.12
+Nodes (31): Test third-party API connectivity (admin only)., test_connection(), LLMService, LLM provider wrapper with multi-provider support., clear_config_cache(), Clear the configuration cache., _reset_config_cache(), test_atlascloud_env_mapping() (+23 more)
 
 ### Community 110 - "coinglass.py"
-Cohesion: 0.15
+Cohesion: 0.16
 Nodes (19): _aware_utc(), CoinGlassMarginCollector, CoinGlassMaxPainCollector, _compact_usd(), _matching_table(), _parse_grouped_side(), _parse_margin(), _parse_maxpain() (+11 more)
 
 ### Community 111 - "Observation"
-Cohesion: 0.17
-Nodes (17): Observation, _decimal(), DeribitClient, DeribitPublicClient, DeribitPublicDerivativesCollector, DeribitPublicUnavailable, _expiry_from_instrument(), datetime (+9 more)
+Cohesion: 0.12
+Nodes (19): _decimal(), DeribitClient, DeribitPublicClient, DeribitPublicDerivativesCollector, DeribitPublicUnavailable, _expiry_from_instrument(), datetime, Protocol (+11 more)
 
 ### Community 112 - "crypto_pulse.py"
 Cohesion: 0.25
@@ -1015,12 +1007,12 @@ Cohesion: 0.07
 Nodes (24): 1. Issue a token, 2. Call the gateway, 3. Author and test research code, 4. Paper and research tools, 5. Safety, Agent Gateway quickstart, Capability classes, Deployment (+16 more)
 
 ### Community 115 - "_config_str"
-Cohesion: 0.09
-Nodes (6): _config_str(), MetaBEAConfig, MetaBLSConfig, MetaFredConfig, MetaSearXNGConfig, MetaTradingEconomicsConfig
+Cohesion: 0.10
+Nodes (5): _config_str(), MetaAlphaVantageConfig, MetaBEAConfig, MetaSearXNGConfig, MetaTradingEconomicsConfig
 
 ### Community 116 - "startup.py"
-Cohesion: 0.12
-Nodes (24): Process runtime primitives., current_process_role(), ProcessRole, Enum, Explicit process roles for the backend deployment., Start the background monitor service., start_monitor_service(), _is_debug_reloader_parent() (+16 more)
+Cohesion: 0.10
+Nodes (27): Process runtime primitives., current_process_role(), ProcessRole, Enum, Explicit process roles for the backend deployment., Start the background monitor service., start_monitor_service(), _is_debug_reloader_parent() (+19 more)
 
 ### Community 117 - "build_inventory"
 Cohesion: 0.14
@@ -1031,36 +1023,36 @@ Cohesion: 0.10
 Nodes (17): Probe ``SELECT 1`` on every critical table.      Each probe runs in its own tr, _verify_table_access(), _FakeConn, _FakeConnCtx, _FakeCursor, Bootstrap-time DB behaviour: auto-migrate + permission probe.  These verify th, Happy path: file exists, cursor accepts every statement, conn.commit() runs., All failing tables must appear in a single banner, in the order we probe. (+9 more)
 
 ### Community 120 - "docs/README.md"
-Cohesion: 0.10
-Nodes (16): Concurrency model, Locked runtime, Preflight, Production Hardening, Redis tiers, API and AI agents, Architecture and contracts, Deployment and operations (+8 more)
+Cohesion: 0.09
+Nodes (18): Concurrency model, Process roles and tasks, Observability, 1. 最小示例, 2. 输入与输出, 3. 参数, 4. 信号语义, 5. Pine 迁移边界 (+10 more)
 
 ### Community 121 - "OAuth Third-Party Login Configuration Guide"
 Cohesion: 0.07
 Nodes (27): Cloudflare Turnstile Configuration, Deployment Configuration, FAQ, GitHub OAuth Configuration, Google OAuth Configuration, OAuth Third-Party Login Configuration Guide, Q: How to disable third-party login?, Q: How to disable user registration? (+19 more)
 
 ### Community 122 - "NoticeIcon.vue"
-Cohesion: 0.11
-Nodes (14): beforeDestroy(), clearNotifications(), displayMessageHtml(), fetchNotice(), fetchNotifications(), fetchUnreadCount(), handleNoticeClick(), handleVisibleChange() (+6 more)
+Cohesion: 0.06
+Nodes (27): beforeDestroy(), clearNotifications(), displayMessageHtml(), fetchNotice(), fetchNotifications(), fetchUnreadCount(), handleNoticeClick(), handleVisibleChange() (+19 more)
 
 ### Community 123 - "supportedMarkets.js"
 Cohesion: 0.14
 Nodes (20): CRYPTO_EXCHANGE_IDS, marketContextKey(), normalizeExchangeId(), normalizeMarketContext(), normalizeMarketType(), FALLBACK_MARKET_MODULES, loadEnabledMarketOptions(), toMarketOption() (+12 more)
 
 ### Community 124 - "_start_scheduler_services"
-Cohesion: 0.10
-Nodes (15): main(), Scheduler process entrypoint., Run scheduler services while keeping their durable health record fresh., run_scheduler_loop(), run_until_shutdown(), ShutdownSignal, Start long-lived schedulers that are not Celery tasks., _start_scheduler_services() (+7 more)
+Cohesion: 0.18
+Nodes (8): Run scheduler services while keeping their durable health record fresh., run_scheduler_loop(), _Connection, _Cursor, _heartbeat_module(), Scheduler heartbeat runtime contracts., test_scheduler_heartbeat_upserts_stable_worker_and_can_stop(), test_scheduler_loop_records_immediately_refreshes_within_health_window_and_stops()
 
 ### Community 125 - "CryptoDataSource"
-Cohesion: 0.16
-Nodes (11): CryptoDataSource, _is_symbol_not_found_error(), Any, Return an uncredentialed source for public market data and research., CCXT linear/swap symbols often need ``BASE/QUOTE:QUOTE`` (e.g. BTC/USDT:USDT)., 确保 markets 已加载（用于符号验证）, 规范化符号格式，返回 (normalized_symbol, base_currency)                  处理各种输入格式：, 在交易所的 markets 中查找有效的符号                  Args:             base: 基础货币（如 'PI', (+3 more)
+Cohesion: 0.22
+Nodes (8): CryptoDataSource, _invalid_symbol_ttl_sec(), _is_symbol_not_found_error(), Any, Return an uncredentialed source for public market data and research., CCXT linear/swap symbols often need ``BASE/QUOTE:QUOTE`` (e.g. BTC/USDT:USDT)., Get latest ticker for a crypto symbol via CCXT.          Accepts common format, 获取OHLCV数据（支持分页获取完整数据）
 
 ### Community 126 - "DataSourceFactory"
-Cohesion: 0.12
-Nodes (18): DataSourceFactory, Any, 获取K线数据的便捷方法                  Args:             market: 市场类型             symb, Pick a read-only data source with optional public-provider preference., 获取实时报价的便捷方法                  Args:             market: 市场类型             symb, 数据源工厂。     K 线 / 报价 使用哪个接口完全由调用方传入的 market（与自选分类一致）决定，不做根据 symbol 字符串的推断。, Log noisy market-data failures at most once per key per interval., Normalize a market or reject it outside the DataVest scope. (+10 more)
+Cohesion: 0.16
+Nodes (17): assert_indicator_code_size(), indicator_code_too_large(), Any, Agent Gateway security helpers for secret redaction and payload bounds., Return a copy with known credential fields masked., Mask credential-like fields before returning a strategy to an agent., redact_secrets(), redact_strategy_row() (+9 more)
 
 ### Community 127 - "ForexDataSource"
-Cohesion: 0.12
-Nodes (15): ForexDataSource, _get_td_api_key(), Any, 获取外汇实时报价         Priority: Twelve Data → Tiingo → yfinance, Fetch forex quote from Twelve Data /quote endpoint., Fetch forex quote from Tiingo (legacy fallback)., Fetch forex quote from yfinance (Tier 3 fallback)., 获取外汇K线数据         Priority: Twelve Data → Tiingo → yfinance (+7 more)
+Cohesion: 0.06
+Nodes (29): Return whether an API key is configured., ForexDataSource, _get_td_api_key(), normalize_forex_pair_symbol(), Any, 获取外汇实时报价         Priority: Twelve Data → Tiingo → yfinance, Fetch forex quote from Twelve Data /quote endpoint., Fetch forex quote from Tiingo (legacy fallback). (+21 more)
 
 ### Community 128 - "backtest_limits.py"
 Cohesion: 0.14
@@ -1079,36 +1071,32 @@ Cohesion: 0.16
 Nodes (20): env_set(), env_set_quoted(), has_edge_whitespace(), main(), need_command(), read_secret(), read_secret_from_terminal(), say() (+12 more)
 
 ### Community 132 - "locales/index.js"
-Cohesion: 0.09
-Nodes (19): vue-i18n, overrides, i18nRender(), loadedLanguages, loadLanguageAsync(), localeLoaders, mergeLocaleOverrides(), messages (+11 more)
+Cohesion: 0.07
+Nodes (23): vue-i18n, overrides, i18nRender(), loadedLanguages, loadLanguageAsync(), localeLoaders, mergeLocaleOverrides(), messages (+15 more)
 
 ### Community 133 - "ExchangeKlineWs"
 Cohesion: 0.12
 Nodes (10): BINANCE_TF, BITGET_TF, BYBIT_TF, EXCHANGE_WS, ExchangeKlineWs, GATE_TF, getInterval(), OKX_TF (+2 more)
 
 ### Community 134 - "sendMessage"
-Cohesion: 0.13
-Nodes (27): agentTargetFromPlan(), appendAgentNextActions(), appendMemoryActions(), buildExecutableStrategyPrompt(), buildNativeStrategyGenerationPrompt(), cleanMarkdownCodeBlocks(), clearPendingAgentTask(), clearThinkingMessage() (+19 more)
+Cohesion: 0.12
+Nodes (28): agentTargetFromPlan(), appendAgentNextActions(), appendMemoryActions(), buildExecutableStrategyPrompt(), buildNativeStrategyGenerationPrompt(), cleanMarkdownCodeBlocks(), clearPendingAgentTask(), clearThinkingMessage() (+20 more)
 
 ### Community 135 - "openapi/__init__.py"
-Cohesion: 0.12
-Nodes (21): get_openapi_api(), init_openapi(), _openapi_enabled(), Api, Flask, OpenAPI / flask-smorest integration for the DataVest human web API.  Documented, Expose Swagger/ReDoc when explicitly enabled or in debug mode., Register flask-smorest, shared components, and documented blueprints. (+13 more)
+Cohesion: 0.08
+Nodes (29): get_openapi_api(), init_openapi(), _openapi_enabled(), Api, Flask, OpenAPI / flask-smorest integration for the DataVest human web API.  Documented, Expose Swagger/ReDoc when explicitly enabled or in debug mode., Register flask-smorest, shared components, and documented blueprints. (+21 more)
 
 ### Community 136 - "factors.py"
 Cohesion: 0.18
 Nodes (23): factor_detail(), factor_research(), Factor catalog and research APIs., compute_factor(), compute_panel_factor(), get_factor(), list_factors(), information_coefficient() (+15 more)
 
-### Community 137 - "routes/strategy.py"
-Cohesion: 0.11
-Nodes (10): _compile_or_repair_generated_strategy(), _error(), generate_strategy(), _ok(), Any, Canonical strategy deployment and lifecycle routes., _strip_code_fence(), verify_strategy() (+2 more)
-
 ### Community 138 - "login_notify.py"
-Cohesion: 0.13
-Nodes (24): get_login_logs(), Paginated account login history (password / email code / OAuth)., _action_label(), _device_fingerprint(), _is_private_ip(), list_login_logs(), _load_prior_login_fingerprints(), _location_key() (+16 more)
+Cohesion: 0.07
+Nodes (48): _build_frontend_login_redirect(), change_password(), _get_client_ip(), get_security_config(), _get_user_agent(), issue_turnstile_clearance(), login_with_code(), oauth_github_callback() (+40 more)
 
 ### Community 139 - "AICalibrationService"
-Cohesion: 0.11
-Nodes (14): AICalibrationService, CalibrationResult, Any, Run offline calibration once on service startup (best-effort)., Get latest calibration config for market.         Falls back to DEFAULTS if not, start_ai_calibration_worker(), Any, Reflection Service - Post-trade validation and learning.  Validates historical (+6 more)
+Cohesion: 0.09
+Nodes (20): AICalibrationService, CalibrationResult, Any, AI Calibration Service (offline).  Goal: - Calibrate the objective-score -> d, Run offline calibration once on service startup (best-effort)., Get latest calibration config for market.         Falls back to DEFAULTS if not, start_ai_calibration_worker(), Any (+12 more)
 
 ### Community 140 - "Multi-User System Setup Guide"
 Cohesion: 0.08
@@ -1124,31 +1112,31 @@ Nodes (15): getters, app, permission, brand, cachedBrand, DEFAULT_BRAND, initial
 
 ### Community 143 - "PulseTrendChart.vue"
 Cohesion: 0.11
-Nodes (12): formatCompact(), formatDate(), formatDateShort(), formatValue(), handler(), mode(), mounted(), range() (+4 more)
+Nodes (13): formatCompact(), formatDate(), formatDateShort(), formatValue(), handler(), mode(), mounted(), primaryColor() (+5 more)
 
 ### Community 144 - "redis_urls.py"
-Cohesion: 0.14
-Nodes (13): Celery application with lazy Flask application context integration., _build_url(), cache_key(), cache_redis_url(), celery_broker_url(), celery_result_backend_url(), Redis endpoint builders for cache and durable job workloads., MemoryCache (+5 more)
+Cohesion: 0.12
+Nodes (15): FlaskContextTask, Celery application with lazy Flask application context integration., _build_url(), cache_key(), cache_redis_url(), celery_broker_url(), celery_result_backend_url(), Redis endpoint builders for cache and durable job workloads. (+7 more)
 
 ### Community 145 - "APIKeys"
-Cohesion: 0.10
-Nodes (14): APIKeys, API key configuration., Return whether an API key is configured., LLMProvider, Enum, LLM service. Supports multiple providers: OpenRouter, OpenAI, Google Gemini, De, Detect which provider a model belongs to based on its name.         Returns Non, Try alternative providers when current provider fails.          Priority: Deep (+6 more)
+Cohesion: 0.13
+Nodes (6): Any, Get list of available (configured) providers., Send LLM HTTP requests without inheriting exchange/data-source proxies., Call OpenAI-compatible API (OpenAI, DeepSeek, Grok, AtlasCloud, OpenRouter)., Yield complete SSE data fields while ignoring comments and event metadata., Stream OpenAI-compatible deltas and require a provider terminal signal.
 
 ### Community 146 - "test_data_providers.py"
 Cohesion: 0.15
 Nodes (23): _api_base_url(), fetch_adanos_market_sentiment(), _normalize_record(), normalize_source(), parse_tickers(), _pick(), Any, Optional Adanos Market Sentiment provider for US stock tickers. (+15 more)
 
 ### Community 147 - "agent_v1/__init__.py"
-Cohesion: 0.11
-Nodes (17): Agent Gateway v1 — versioned, scoped surface for AI agents.  Mounted at `/api/, _authorized(), _headers(), Focused contracts for the expanded Agent Gateway and safety middleware., test_completed_idempotent_response_is_replayed(), test_factor_registry_is_exposed(), test_mutating_scope_requires_idempotency_key(), test_rate_limit_headers_are_returned() (+9 more)
+Cohesion: 0.23
+Nodes (10): Agent Gateway v1 — versioned, scoped surface for AI agents.  Mounted at `/api/, _authorized(), _headers(), Focused contracts for the expanded Agent Gateway and safety middleware., test_completed_idempotent_response_is_replayed(), test_factor_registry_is_exposed(), test_mutating_scope_requires_idempotency_key(), test_rate_limit_headers_are_returned() (+2 more)
 
 ### Community 148 - "routes/universe.py"
-Cohesion: 0.17
-Nodes (22): clone_universe(), create_universe(), create_universe_snapshot(), _failure(), get_universe(), get_universe_members(), list_universes(), Strategy universe APIs. (+14 more)
+Cohesion: 0.24
+Nodes (9): apply_snapshot(), _csv_rows(), main(), nasdaq100(), date, Refresh versioned current-universe snapshots from public sources., Build an ETF snapshot and repair legacy curated ETF metadata., sp500() (+1 more)
 
 ### Community 149 - "SmartInsightsService"
-Cohesion: 0.17
-Nodes (20): SmartInsightsService, _observation(), A stale cohort cannot confirm a newer exchange-flow observation., A non-exchange balance increase is only bullish when exchange netflow confirms o, test_crypto_pulse_exposes_new_cryptoetf_assets_in_flow_summaries(), test_crypto_pulse_exposes_persisted_coinshares_as_fund_flows(), test_crypto_pulse_exposes_whale_movers_and_concentration_from_address_history(), test_crypto_pulse_groups_persisted_evidence_by_legacy_tab_without_inventing_values() (+12 more)
+Cohesion: 0.15
+Nodes (22): SmartInsightsService, _observation(), A stale cohort cannot confirm a newer exchange-flow observation., A non-exchange balance increase is only bullish when exchange netflow confirms o, test_crypto_pulse_exposes_new_cryptoetf_assets_in_flow_summaries(), test_crypto_pulse_exposes_persisted_coinshares_as_fund_flows(), test_crypto_pulse_exposes_whale_movers_and_concentration_from_address_history(), test_crypto_pulse_groups_persisted_evidence_by_legacy_tab_without_inventing_values() (+14 more)
 
 ### Community 150 - "trade_net_pnl.py"
 Cohesion: 0.18
@@ -1163,20 +1151,20 @@ Cohesion: 0.14
 Nodes (20): composeOverrides(), coverage, english, failures, finalMessages(), langDir, root, evaluateObject() (+12 more)
 
 ### Community 153 - "db.py"
-Cohesion: 0.16
-Nodes (21): Container health check for durable backend workers., _apply_init_sql(), close_db_connection(), is_postgres(), Path, Database Connection Utility - PostgreSQL Only  Provides unified interface for, Run ``migrations/init.sql`` idempotently.      Failures are downgraded to a wa, Legacy alias for close_db (+13 more)
+Cohesion: 0.19
+Nodes (21): _apply_init_sql(), close_db_connection(), is_postgres(), Path, Database Connection Utility - PostgreSQL Only  Provides unified interface for, Run ``migrations/init.sql`` idempotently.      Failures are downgraded to a wa, Legacy alias for close_db, Check if using PostgreSQL (always True) (+13 more)
 
 ### Community 154 - "heatmap.py"
-Cohesion: 0.22
-Nodes (23): fetch_crypto_heatmap_coingecko(), Fetch crypto heatmap from CoinGecko with retry., _build_crypto_heatmap(), _cap_heatmap_rows(), _fetch_crypto_data(), _fetch_gold_from_forex_heatmap(), _fetch_gold_heatmap(), _fetch_indices_heatmap() (+15 more)
+Cohesion: 0.20
+Nodes (25): _build_crypto_heatmap(), _cap_heatmap_rows(), _fetch_crypto_data(), _fetch_gold_from_forex_heatmap(), _fetch_gold_heatmap(), _fetch_indices_heatmap(), _fetch_sectors_heatmap(), _fetch_us_stocks() (+17 more)
 
 ### Community 155 - "factors/__init__.py"
 Cohesion: 0.21
 Nodes (20): factor_catalog(), Versioned factor registry and deterministic computation helpers., assert_talib_catalog_ready(), _category(), compute_talib_factor(), compute_talib_indicator(), _flatten_input_names(), is_talib_available() (+12 more)
 
 ### Community 156 - "market_catalog_sync.py"
-Cohesion: 0.12
-Nodes (22): get_market_catalog(), Return market catalog coverage and the latest synchronization state., Start a non-blocking full sync for the supported crypto venues., sync_market_catalog(), _claim_run(), _finish_run(), get_market_catalog_overview(), _json_value() (+14 more)
+Cohesion: 0.15
+Nodes (19): Start a non-blocking full sync for the supported crypto venues., sync_market_catalog(), _claim_run(), _finish_run(), _market_catalog_is_initialized(), Background market catalog synchronization and operator-facing status., Claim and start one non-blocking sync job across all backend workers., Claim and execute one catalog sync in the current durable worker. (+11 more)
 
 ### Community 157 - "CommunityLibrary"
 Cohesion: 0.14
@@ -1195,8 +1183,8 @@ Cohesion: 0.11
 Nodes (12): Any, Exception, Ensure at least one admin user exists.         Creates admin using ADMIN_USER/A, Return the configured bootstrap admin username., Return the configured bootstrap admin email., Replace an untouched legacy bootstrap admin with configured credentials., Sync ADMIN_EMAIL into the bootstrap admin account.          Startup sync only, Get user by username (includes password_hash for auth) (+4 more)
 
 ### Community 161 - "timeout_context"
-Cohesion: 0.11
-Nodes (16): Event, Exception, One bounded watchdog thread shared by all non-main-thread executions., Bound user-code execution time.      Uses SIGALRM on Unix main threads and a t, Raised when sandboxed code execution exceeds its time limit., timeout_context(), TimeoutError, _TimeoutWatchdog (+8 more)
+Cohesion: 0.15
+Nodes (10): Event, Exception, One bounded watchdog thread shared by all non-main-thread executions., Bound user-code execution time.      Uses SIGALRM on Unix main threads and a t, Raised when sandboxed code execution exceeds its time limit., timeout_context(), TimeoutError, _TimeoutWatchdog (+2 more)
 
 ### Community 162 - "investing_calendar_browser.py"
 Cohesion: 0.17
@@ -1211,28 +1199,28 @@ Cohesion: 0.18
 Nodes (20): buildTradeReviewWindow(), calculateTradeValueUsd(), clamp(), findNearestBarIndex(), normalizeReviewTimeframe(), resolveTradeReviewTimeframe(), REVIEW_TIMEFRAMES, TIMEFRAME_ALIASES (+12 more)
 
 ### Community 166 - "i18nText"
-Cohesion: 0.13
-Nodes (24): buildAnalysisPrompt(), buildLockedQuickPrompt(), buildSetupGuide(), buildStrategyPrompt(), classifySetupIssue(), executeProfessionalAnalysis(), fetchProfessionalAnalysis(), handleMessageContentClick() (+16 more)
+Cohesion: 0.11
+Nodes (27): buildAnalysisPrompt(), buildLockedQuickPrompt(), buildSetupGuide(), buildStrategyPrompt(), classifySetupIssue(), executeProfessionalAnalysis(), fetchProfessionalAnalysis(), handleMessageContentClick() (+19 more)
 
 ### Community 167 - "FactorResearchResult.vue"
-Cohesion: 0.12
-Nodes (12): systemQuickTasks(), formatNumber(), formatRate(), groupColumns(), icColumns(), metrics(), mounted(), observationColumns() (+4 more)
+Cohesion: 0.13
+Nodes (11): formatNumber(), formatRate(), groupColumns(), icColumns(), metrics(), mounted(), observationColumns(), percentCell() (+3 more)
 
 ### Community 168 - "MarketPulseSection.vue"
-Cohesion: 0.16
-Nodes (14): chartCards(), metricLabel(), panel(), tabLabel(), buildPulsePanel(), combinedSeries(), finite(), groupSeries() (+6 more)
+Cohesion: 0.17
+Nodes (13): panel(), tabLabel(), buildPulsePanel(), combinedSeries(), finite(), groupSeries(), MARKET_PULSE_TABS, metricMatches() (+5 more)
 
 ### Community 169 - "UniverseLibraryModal.vue"
 Cohesion: 0.14
 Nodes (17): copyReference(), createPersonalUniverse(), ensureFilteredSelection(), ensureSelection(), filteredUniverses(), loadUniverses(), marketFilter(), parseMembers() (+9 more)
 
 ### Community 170 - "to_utc_iso"
-Cohesion: 0.11
-Nodes (19): JSON provider that normalizes NaN/Inf and datetime values., _safe_json_dumps(), SafeJSONProvider, _sanitize(), get_admin_ai_stats(), Get AI analysis usage statistics across the system (admin only).     Does NOT ex, _resolve_schedule_timezone(), _db_naive_tzinfo() (+11 more)
+Cohesion: 0.20
+Nodes (12): get_admin_ai_stats(), Get AI analysis usage statistics across the system (admin only).     Does NOT ex, _db_naive_tzinfo(), Any, Time / time-zone helpers for serializing datetimes to the frontend.  Backgroun, Timezone for naive ``datetime`` values read from PostgreSQL.      The connecti, Convert a value to a UTC ISO 8601 string with a ``Z`` suffix.      Accepts ``d, to_utc_iso() (+4 more)
 
 ### Community 171 - "test_watchlist_symbol_validation.py"
-Cohesion: 0.10
-Nodes (12): __getattr__(), Any, Lazy application service exports., Market domain services., _CaptureConn, _CaptureCursor, test_add_watchlist_persists_only_after_exact_symbol_match(), test_add_watchlist_rejects_crypto_symbol_not_in_registry() (+4 more)
+Cohesion: 0.12
+Nodes (9): Market domain services., _CaptureConn, _CaptureCursor, test_add_watchlist_persists_only_after_exact_symbol_match(), test_add_watchlist_rejects_crypto_symbol_not_in_registry(), test_crypto_add_persists_asset_without_exchange_binding(), test_crypto_hot_symbols_include_default_source_identity(), test_find_market_symbol_accepts_exact_external_match() (+1 more)
 
 ### Community 172 - "import_production_smart_insights_snapshot.py"
 Cohesion: 0.20
@@ -1244,31 +1232,31 @@ Nodes (18): api, closeAll(), closeCurrentActive(), closeLeft(), closeLeftActive(
 
 ### Community 174 - "normalizeSymbolOption"
 Cohesion: 0.14
-Nodes (23): applyDefaultWatchSymbol(), applyIncomingCopilotPrompt(), askWatch(), closeAddWatchModal(), confirmAddWatchSymbol(), currentContextLabel(), handleSymbolChange(), loadAgentPreflight() (+15 more)
+Nodes (20): appendStrategySuggestion(), applyDefaultWatchSymbol(), applyIncomingCopilotPrompt(), askWatch(), closeAddWatchModal(), confirmAddWatchSymbol(), handleSymbolChange(), loadAgentPreflight() (+12 more)
 
 ### Community 175 - "OnchainTerminal.vue"
 Cohesion: 0.14
 Nodes (14): chartEntries(), chartFor(), definitionFor(), DEFINITIONS, formatDate(), formatValue(), groupFor(), handler() (+6 more)
 
 ### Community 176 - "test_crypto_timeframe_resample.py"
-Cohesion: 0.15
-Nodes (18): Pick the finest supported source timeframe to resample into `target_ccxt_timefra, Aggregate every `bucket_size` consecutive CCXT OHLCV rows into one larger candle, Reverse the TIMEFRAME_MAP — e.g. '1d' → '1D'. Used so downstream helpers, _candle(), Regression tests for CryptoDataSource timeframe resampling.  Some data provide, test_ccxt_to_qd_timeframe_inverts_known_mappings(), test_ccxt_to_qd_timeframe_returns_fallback_for_unknown(), test_pick_source_for_1w_uses_1d_x7() (+10 more)
+Cohesion: 0.20
+Nodes (15): Pick the finest supported source timeframe to resample into `target_ccxt_timefra, Aggregate every `bucket_size` consecutive CCXT OHLCV rows into one larger candle, _candle(), Regression tests for CryptoDataSource timeframe resampling.  Some data provide, test_pick_source_for_1w_uses_1d_x7(), test_pick_source_for_3m_uses_1m_x3(), test_pick_source_for_4h_falls_back_to_1h_when_2h_missing(), test_pick_source_for_4h_prefers_2h_over_1h() (+7 more)
 
 ### Community 177 - "blueprint.py"
-Cohesion: 0.16
-Nodes (19): Human-facing API blueprint with default OpenAPI response envelopes.  Routes th, AgentErrorSchema, AgentSuccessEnvelopeSchema, ApiInfoSchema, HealthStatusSchema, HumanErrorEnvelopeSchema, HumanSuccessEnvelopeSchema, PaginationMetaSchema (+11 more)
+Cohesion: 0.10
+Nodes (33): Prometheus metrics shared by the API process., _refresh_runtime_metrics(), render_metrics(), api_health_check(), _celery_broker_ready(), health_check(), _health_payload(), index() (+25 more)
 
 ### Community 178 - "_fallback_agent_intent"
-Cohesion: 0.13
-Nodes (22): agent_intent(), chat_message_stream(), _classify_agent_intent(), _detect_intent(), _fallback_agent_intent(), _get_or_classify_agent_intent(), _input_error(), _normalize_agent_intent() (+14 more)
+Cohesion: 0.11
+Nodes (30): _agent_response_language_name(), _build_llm_messages(), _build_session_working_memory(), _build_system_prompt(), _compact_memory_text(), _extract_macro_value_from_events(), _extract_session_known_fields(), _fallback_agent_intent() (+22 more)
 
 ### Community 179 - "community.py"
 Cohesion: 0.20
 Nodes (21): add_comment(), _admin(), admin_delete(), admin_unpublish(), author_publications(), author_unpublish(), comments(), fork_publication() (+13 more)
 
 ### Community 180 - "routes/smart_insights.py"
-Cohesion: 0.21
-Nodes (20): crypto_market_pulse(), data_health(), dates(), evidence(), _fail(), live_assets(), _ok(), overview() (+12 more)
+Cohesion: 0.20
+Nodes (21): _compact_requested(), crypto_market_pulse(), data_health(), dates(), evidence(), _fail(), live_assets(), _ok() (+13 more)
 
 ### Community 181 - "optimize"
 Cohesion: 0.22
@@ -1279,24 +1267,24 @@ Cohesion: 0.17
 Nodes (11): MarketDataGateway, PriceSeries, Protocol, Provenance-bearing market-data contracts for optimizer inputs., series_checksum(), date, Transport, QuantDingerOptimizerGateway (+3 more)
 
 ### Community 183 - "test_trade_close_reason.py"
-Cohesion: 0.17
+Cohesion: 0.16
 Nodes (20): enrich_trade_row(), infer_legacy_close_reason(), is_exit_trade_type(), label_for_reason(), Any, Trade close / reduce reason codes for qd_strategy_trades.close_reason.  Machin, Best-effort reason for rows inserted before close_reason existed., Pick DB close_reason when persisting a close/reduce fill. (+12 more)
 
 ### Community 184 - "test_agent_v1.py"
-Cohesion: 0.15
-Nodes (20): _bearer(), _fake_token_row(), Smoke tests for the Agent Gateway (`/api/agent/v1`).  These tests exercise the, Successful auth path should reach the route and return its payload., A legacy token row must fail closed instead of silently losing T/C., Per-token rate limit must trip with 429 once the bucket is full., Generated tokens must use the documented prefix and stable hash., Public liveness probe should not require authentication. (+12 more)
+Cohesion: 0.17
+Nodes (18): _bearer(), _fake_token_row(), Smoke tests for the Agent Gateway (`/api/agent/v1`).  These tests exercise the, Successful auth path should reach the route and return its payload., A legacy token row must fail closed instead of silently losing T/C., Per-token rate limit must trip with 429 once the bucket is full., Public liveness probe should not require authentication., Without a token the gateway must return 401, not 500. (+10 more)
 
 ### Community 185 - "encoding-audit.mjs"
 Cohesion: 0.10
 Nodes (19): enUSKeys, enUSPath, extractLocaleObject(), failures, files, ignoredDirs, ignoredFiles, langDir (+11 more)
 
 ### Community 186 - "strategyRuntime.test.mjs"
-Cohesion: 0.24
+Cohesion: 0.13
 Nodes (19): normalizeStrategyLogLevel(), STRATEGY_LOG_FILTERS, strategyLogLevelKey(), asObject(), filterAndSortStrategies(), normalizeTimestampMilliseconds(), strategyCapital(), strategyExchangeId() (+11 more)
 
 ### Community 187 - "portfolio-optimizer/index.vue"
-Cohesion: 0.13
-Nodes (13): setup(), addInstrument(), applyRebalance(), data(), errorText(), idempotencyKey(), newInstrument(), number() (+5 more)
+Cohesion: 0.23
+Nodes (14): fetch_crypto_heatmap_coincap(), fetch_crypto_heatmap_coingecko(), fetch_crypto_prices(), fetch_crypto_prices_ccxt(), fetch_crypto_prices_yfinance(), Any, Crypto price data fetchers with multi-source fallback., Fetch top crypto prices — try CCXT → yfinance → CoinGecko. (+6 more)
 
 ### Community 188 - "FearGreedPanel.vue"
 Cohesion: 0.13
@@ -1323,8 +1311,8 @@ Cohesion: 0.15
 Nodes (13): checkIsAdmin(), filterRoutesByPermission(), generatorDynamicRouter(), changePage(), handleTabChange(), isAdmin(), loadMarket(), loadMine() (+5 more)
 
 ### Community 194 - "strategy_v2/market_data.py"
-Cohesion: 0.15
-Nodes (13): KlineCache, DataFrame, Small in-memory K-line cache with timeframe-aware TTL., load_strategy_frame(), _normalize_utc_datetime(), DataFrame, datetime, Market-data loading for Strategy API V2 backtests. (+5 more)
+Cohesion: 0.12
+Nodes (16): KlineCache, DataFrame, Small in-memory K-line cache with timeframe-aware TTL., load_strategy_frame(), _normalize_utc_datetime(), DataFrame, datetime, Market-data loading for Strategy API V2 backtests. (+8 more)
 
 ### Community 195 - "._sync_bootstrap_admin_password_from_env"
 Cohesion: 0.14
@@ -1352,19 +1340,19 @@ Nodes (20): About Twilio, Complete Environment Variable Reference, Configuration
 
 ### Community 201 - "Any"
 Cohesion: 0.14
-Nodes (20): check_health(), _delete(), delete_signal_alert(), get_indicator_authoring_contract(), list_jobs(), list_watchlist(), _patch(), _patch_with_headers() (+12 more)
+Nodes (20): check_health(), _delete(), delete_signal_alert(), list_indicators(), list_jobs(), list_watchlist(), _patch(), _patch_with_headers() (+12 more)
 
 ### Community 202 - "onIndicatorChange"
 Cohesion: 0.12
 Nodes (20): applyIndicatorRouteSelection(), autoSelectFirstIndicator(), confirmDeleteIndicator(), confirmSaveAsIndicator(), handleDeleteIndicator(), handleUnpublish(), handleWatchlistChange(), ideSelectionStorageKey() (+12 more)
 
 ### Community 203 - "compute_market_sentiment"
-Cohesion: 0.18
-Nodes (18): fetch_dollar_index(), fetch_fear_greed_index(), fetch_gvz(), fetch_put_call_ratio(), fetch_vix(), fetch_vxn(), fetch_yield_curve(), Any (+10 more)
+Cohesion: 0.15
+Nodes (14): backups, browser_requirements_stamp, browser_venv, DBUS_SESSION_BUS_ADDRESS, env_file, incoming, releases, rollback() (+6 more)
 
 ### Community 204 - "USStockDataSource"
-Cohesion: 0.30
-Nodes (4): Any, datetime, 获取美股实时报价                  优先使用 Finnhub（更实时），降级使用 yfinance fast_info, USStockDataSource
+Cohesion: 0.24
+Nodes (12): _classify_asset(), fetch_crypto_symbols(), fetch_crypto_symbols_with_diagnostics(), _load_ccxt_markets_with_retry(), Fetch active USDT instruments and return per-context diagnostics., Fetch all active USDT spot and swap instruments from six venues., test_catalog_diagnostics_report_every_venue_product(), test_equity_metadata_is_classified_without_ticker_hardcoding() (+4 more)
 
 ### Community 205 - "routes/indicator_signal_alerts.py"
 Cohesion: 0.23
@@ -1375,8 +1363,8 @@ Cohesion: 0.13
 Nodes (10): EmailService, Verify a submitted code with brute-force protection.                  Args:, Send an email.                  Args:             to_email: Recipient email a, Generate and send a verification code email.                  Args:, Email service for verification codes and notifications, Basic email format validation, Load email configuration from environment variables, Check if email service is properly configured (+2 more)
 
 ### Community 207 - "BaseSearchProvider"
-Cohesion: 0.13
-Nodes (10): BaseSearchProvider, ABC, Record a successful key usage., Record a failed key usage., Run the provider-specific search request., Run a search through this provider., Extract a compact domain label from a URL., Base class for search providers with key rotation and fallback state. (+2 more)
+Cohesion: 0.32
+Nodes (12): _compact_group_indices(), compact_overview_response(), compact_pulse_response(), _compact_series(), _compact_value(), _point_datetime(), Any, datetime (+4 more)
 
 ### Community 209 - "noticeFormat.js"
 Cohesion: 0.29
@@ -1399,7 +1387,7 @@ Cohesion: 0.18
 Nodes (14): _agent_usage_action(), _agent_usage_payload(), ai_tools(), Build a compact, user-visible trace of skills and data tools used., Return the public Copilot tool registry., build_tool_prompt(), list_tools(), public_tool_registry() (+6 more)
 
 ### Community 214 - "IndicatorSignalAlertService"
-Cohesion: 0.22
+Cohesion: 0.24
 Nodes (13): IndicatorSignalAlertService, CRUD and evaluation logic for indicator signal alerts., _df(), DataFrame, test_signal_alert_boolean_marker_uses_candle_close_as_price(), test_signal_alert_dense_state_notifies_only_on_transition(), test_signal_alert_dense_state_transition_still_notifies(), test_signal_alert_events_mode_keeps_dense_events_explicit() (+5 more)
 
 ### Community 215 - "safe_exec_worker.py"
@@ -1423,16 +1411,16 @@ Cohesion: 0.11
 Nodes (17): 不克隆仓库，直接用 GHCR Compose, 主要能力, 从源码构建, 单独运行桌面端镜像, 启动开发服务, 常见问题, 开发环境 API 代理, 技术栈 (+9 more)
 
 ### Community 220 - "handleMonitorAgentMessage"
-Cohesion: 0.19
-Nodes (18): buildMonitorDraftMessage(), createMonitorFromAction(), createMonitorSetupDraft(), formatIntervalText(), handleMonitorAgentMessage(), isMonitorIntent(), loadMonitors(), mergeMonitorSetupDraft() (+10 more)
+Cohesion: 0.18
+Nodes (21): buildMonitorDraftMessage(), createMonitorFromAction(), createMonitorSetupDraft(), currentContextLabel(), formatIntervalText(), handleMonitorAgentMessage(), loadMonitors(), mergeMonitorSetupDraft() (+13 more)
 
 ### Community 221 - "ai-skills/index.vue"
-Cohesion: 0.16
-Nodes (8): fillExample(), installSkill(), loadAll(), loadSkills(), loadTools(), mounted(), removeSkill(), toggleSkill()
+Cohesion: 0.31
+Nodes (9): test_any_exchange_falls_back_to_recent_candles_when_requested_window_is_rejected(), test_gate_long_range_fetch_is_clamped_to_recent_candle_limit(), test_public_crypto_source_with_fallback_disabled_does_not_cross_exchange(), test_public_kline_reuses_successful_fallback_without_retrying_failed_primary(), test_public_ticker_reuses_kline_promoted_provider(), test_swap_symbol_uses_settlement_suffix(), test_unscoped_crypto_kline_falls_back_to_another_public_exchange(), test_unscoped_swap_kline_fallback_preserves_market_type() (+1 more)
 
 ### Community 223 - "routes/health.py"
-Cohesion: 0.18
-Nodes (15): Prometheus metrics shared by the API process., _refresh_runtime_metrics(), render_metrics(), api_health_check(), _celery_broker_ready(), health_check(), _health_payload(), index() (+7 more)
+Cohesion: 0.20
+Nodes (3): _addon(), _config_float(), MetaCCXTConfig
 
 ### Community 224 - "community_library.py"
 Cohesion: 0.21
@@ -1463,28 +1451,28 @@ Cohesion: 0.15
 Nodes (7): _capture_connection(), _CaptureConn, _CaptureCursor, _FakePyotp, _FakeTotp, test_mfa_start_setup_returns_user_id_not_missing_id(), test_worker_heartbeat_returns_its_real_primary_key()
 
 ### Community 231 - "test_observability.py"
-Cohesion: 0.17
-Nodes (9): Request-scoped logging context., init_http_observability(), Flask, HTTP request correlation and metrics middleware., _formatter(), JsonFormatter, HTTP metrics, request correlation, and structured logging tests., test_json_formatter_includes_runtime_context() (+1 more)
+Cohesion: 0.15
+Nodes (11): Request-scoped logging context., init_http_observability(), Flask, HTTP request correlation and metrics middleware., init_http_observability(), Runtime observability integration., _formatter(), JsonFormatter (+3 more)
 
 ### Community 232 - "is_market_visible"
-Cohesion: 0.17
-Nodes (14): get_market_types(), Return supported market types for the add-watchlist modal.      Visibility is, enabled_markets_whitelist(), filter_market_items(), hidden_markets(), is_market_visible(), _is_supported(), _parse_csv() (+6 more)
+Cohesion: 0.28
+Nodes (9): _fetch_single_local_stock_quote(), fetch_stock_opportunity_prices(), _fetch_stooq_us_quote(), _fetch_yahoo_chart_quote(), Any, Fetch popular US stock prices for opportunity scanning., US spot quote via Yahoo chart API — lighter than yfinance batch calls., US spot quote via Stooq (works when Yahoo/yfinance are blocked in Docker). (+1 more)
 
 ### Community 233 - "portfolio_optimizer.py"
 Cohesion: 0.31
 Nodes (15): apply_optimizer_run(), create_optimizer_run(), _fail(), get_optimizer_run(), _ok(), preview_optimizer_run(), ValueError, JWT-scoped Portfolio Optimizer and paper rebalance API. (+7 more)
 
 ### Community 234 - "StrategyService"
-Cohesion: 0.20
-Nodes (10): get_strategy_review_report_history(), List or load saved AI strategy review reports., get_strategy_service(), Shared lazy service accessors for strategy route modules., get_strategy_service(), _json_object(), Any, Read-only strategy records used by backtests and post-trade research. (+2 more)
+Cohesion: 0.17
+Nodes (12): get_strategy_review_report(), get_strategy_review_report_history(), Build an AI-assisted strategy review report from factual trade records., List or load saved AI strategy review reports., get_strategy_service(), Shared lazy service accessors for strategy route modules., get_strategy_service(), _json_object() (+4 more)
 
 ### Community 235 - "webhook.py"
 Cohesion: 0.18
 Nodes (15): adapt_payload_for_dialect(), build_webhook_text(), check_vendor_response(), detect_webhook_dialect(), dingtalk_signed_url(), feishu_sign(), format_float(), Any (+7 more)
 
 ### Community 236 - "SearchService"
-Cohesion: 0.17
-Nodes (9): Any, 搜索服务          功能：     1. 管理多个搜索引擎     2. 自动故障转移     3. 结果聚合和格式化, Return configured search provider diagnostics for agent context., 执行搜索（兼容旧接口）                  Args:             query: 搜索关键词             num_, 执行搜索（带自动故障转移）                  Args:             query: 搜索关键词             ma, 搜索股票相关新闻                  Args:             stock_code: 股票代码             sto, Describe why a search provider can or cannot be used., _search_provider_note() (+1 more)
+Cohesion: 0.22
+Nodes (8): oauth_github(), oauth_google(), Redirect to GitHub OAuth authorization page.      Query params:         redir, Redirect to Google OAuth authorization page.      Query params:         redir, get_oauth_service(), OAuth Service - Handles Google and GitHub OAuth authentication., Get singleton OAuthService instance, # IMPORTANT: include RETURNING state explicitly.  Otherwise the
 
 ### Community 237 - "utils/technical_indicators.py"
 Cohesion: 0.17
@@ -1523,24 +1511,24 @@ Cohesion: 0.19
 Nodes (7): CircuitBreaker, CircuitState, get_realtime_circuit_breaker(), Any, Enum, 熔断器 - 管理数据源的熔断/冷却状态          策略：     - 连续失败 N 次后进入熔断状态     - 熔断期间跳过该数据源, 检查数据源是否可用                  返回 True 表示可以尝试请求         返回 False 表示应跳过该数据源
 
 ### Community 247 - "maintenance.py"
-Cohesion: 0.18
-Nodes (9): Any, Durable heartbeat records for long-lived backend process roles., WorkerHeartbeat, _enabled(), Periodic maintenance tasks managed by Celery Beat., record_worker_heartbeat(), run_ai_calibration(), run_market_catalog_sync() (+1 more)
+Cohesion: 0.12
+Nodes (12): main(), Scheduler process entrypoint., Lifecycle helpers shared by long-running process entrypoints., run_until_shutdown(), ShutdownSignal, Any, Durable heartbeat records for long-lived backend process roles., WorkerHeartbeat (+4 more)
 
 ### Community 248 - "farside.py"
-Cohesion: 0.18
-Nodes (8): _date(), _millions(), datetime, Decimal, HTMLParser, Transport, Farside ETF total-flow collector using a bounded standard-library table parser., _TableParser
+Cohesion: 0.29
+Nodes (4): 确保 markets 已加载（用于符号验证）, 规范化符号格式，返回 (normalized_symbol, base_currency)                  处理各种输入格式：, 在交易所的 markets 中查找有效的符号                  Args:             base: 基础货币（如 'PI',, 根据交易所特性规范化符号                  不同交易所的符号格式要求：         - Binance: BTC/USDT (标准格式
 
 ### Community 249 - "utils/__init__.py"
-Cohesion: 0.20
-Nodes (10): get_retry_session(), 获取带重试机制的 HTTP Session          Args:         retries: 重试次数         backoff_f, _bearer(), _fake_token_row(), Agent Gateway indicator workspace endpoints., test_authoring_contract_ok(), test_link_indicator_config_sets_id(), test_save_indicator_requires_w_scope() (+2 more)
+Cohesion: 0.33
+Nodes (7): _bearer(), _fake_token_row(), Agent Gateway indicator workspace endpoints., test_authoring_contract_ok(), test_link_indicator_config_sets_id(), test_save_indicator_requires_w_scope(), test_validate_rejects_oversized_code()
 
 ### Community 250 - "test_pnl_utils.py"
 Cohesion: 0.26
 Nodes (13): calc_margin_notional(), calc_notional_value(), calc_pnl_percent(), calc_unrealized_pnl(), is_derivatives_market(), Shared PnL helpers — keep futures margin semantics consistent across routes., Absolute PnL in quote currency (USDT) from base-asset size., Margin used for a linear USDT-margined position. (+5 more)
 
 ### Community 251 - "test_datavest_execution_pruning.py"
-Cohesion: 0.17
-Nodes (8): _imported_modules(), Path, Task 2B1 deletion and retained-boundary regression coverage., test_agent_token_contract_has_only_research_write_backtest_notification_scopes(), test_execution_only_sources_and_migrations_are_physically_absent(), test_fresh_schema_has_no_execution_owned_identifiers(), test_production_python_has_no_imports_to_deleted_execution_modules(), _tracked_existing_files()
+Cohesion: 0.08
+Nodes (18): __getattr__(), Any, Lazy application service exports., _post_admin_issue(), _post_me_issue(), Tests for Agent Token issuance policy on SaaS and self-service routes., test_admin_tokens_reject_removed_T_scope(), test_is_saas_mode_recognizes_known_spellings() (+10 more)
 
 ### Community 252 - "📱 Telegram 通知配置指南"
 Cohesion: 0.13
@@ -1555,8 +1543,8 @@ Cohesion: 0.13
 Nodes (14): August 2026 — Strategy and indicator execution isolation, ⚠️ Disclaimer, How to Report, In Scope, July 2026 — JWT authentication and authorization bypass (resolved), Out of Scope, 📣 Reporting a Vulnerability, ⏱️ Response Expectations (+6 more)
 
 ### Community 255 - "scripts"
-Cohesion: 0.13
-Nodes (15): scripts, build, build:preview, dev, encoding:audit, i18n:audit, i18n:generate, i18n:translate (+7 more)
+Cohesion: 0.10
+Nodes (19): name, packageManager, private, scripts, build, build:preview, dev, encoding:audit (+11 more)
 
 ### Community 256 - "datavest-scope-inventory.mjs"
 Cohesion: 0.21
@@ -1587,8 +1575,8 @@ Cohesion: 0.19
 Nodes (15): allScriptOptions(), buildGeneratedMetadata(), buildIndicatorConversionPrompt(), confirmIndicatorToStrategy(), createNewDraft(), deleteCurrentSource(), extractAiGeneratedCode(), extractSources() (+7 more)
 
 ### Community 263 - "MacroSeriesProvider"
-Cohesion: 0.18
-Nodes (10): BEAConfig, BLSConfig, FredConfig, FRED macro time-series configuration., BLS official labor and CPI data configuration., BEA official national accounts data configuration., MacroSeriesProvider, Any (+2 more)
+Cohesion: 0.36
+Nodes (4): MacroSeriesProvider, Any, date, Small typed client for stable US macro sources.
 
 ### Community 264 - "test_postgres_bootstrap_races_only_ignore_the_username_conflict"
 Cohesion: 0.23
@@ -1611,12 +1599,12 @@ Cohesion: 0.21
 Nodes (14): buildPayload(), buildTradingConfig(), confirmPublish(), currentSourceName(), deriveScriptName(), extractScriptMetadataFromCode(), extractScriptTimeframeFromCode(), getCurrentScriptCode() (+6 more)
 
 ### Community 270 - "commodities.py"
-Cohesion: 0.23
-Nodes (12): Tiingo data source configuration., TiingoConfig, fetch_commodities(), _fetch_td(), _fetch_tiingo(), _fetch_yf(), Any, Commodity price data fetchers with multi-source fallback. (+4 more)
+Cohesion: 0.31
+Nodes (9): fetch_commodities(), _fetch_td(), _fetch_tiingo(), _fetch_yf(), Any, Fetch precious metal commodity prices via Tiingo FX (gold/silver only)., Fetch commodity prices.  Priority: Twelve Data → yfinance → Tiingo., Fetch commodity quotes from Twelve Data. (+1 more)
 
 ### Community 271 - "market_symbols_seed.py"
-Cohesion: 0.22
-Nodes (12): get_all_symbols(), _get_db_connection(), get_hot_symbols(), _normalize_for_match(), Market symbols seed data and lookup functions.  Data is stored in PostgreSQL t, Get database connection, returns None if not available., Normalize symbol for matching., Get all active symbols, optionally filtered by market.          Args: (+4 more)
+Cohesion: 0.36
+Nodes (7): canonical_source_metadata(), Compile source code and persist only the current runtime contract., main(), _metadata(), Any, Rebuild stored strategy-source metadata with the current compiler., repair()
 
 ### Community 272 - "user_stats_service.py"
 Cohesion: 0.23
@@ -1647,8 +1635,8 @@ Cohesion: 0.22
 Nodes (4): finitePositive(), formatLiveAssetPrice(), LIVE_ASSET_ORDER, normalizeLiveAssetRows()
 
 ### Community 280 - "register.py"
-Cohesion: 0.20
-Nodes (8): Api, Register all human-facing API blueprints with flask-smorest.  Legacy handler b, Mount every human web blueprint on the shared smorest Api instance., register_human_blueprints(), OpenAPI tag names (English). Keep stable for published docs., is_enabled(), Fail-closed runtime feature flags for DataVest surfaces., Return true only when a feature flag is explicitly enabled.
+Cohesion: 0.29
+Nodes (6): Automatic deployment, Common operations, DataVest VPS deployment, Manual deployment, Private operator files, Rollback and recovery
 
 ### Community 281 - "indicator_validation.py"
 Cohesion: 0.27
@@ -1663,8 +1651,8 @@ Cohesion: 0.26
 Nodes (10): build_default_indicator_template(), Canonical default chart indicator template for QuantDinger., EMA crossover chart starter used when LLM generation is unavailable., _mock_df(), DataFrame, Tests for default indicator template builder., test_default_template_executes_in_sandbox(), test_default_template_has_no_execution_columns() (+2 more)
 
 ### Community 284 - "test_settings_secret_masking.py"
-Cohesion: 0.23
-Nodes (6): _admin_headers(), _flatten_setting_keys(), test_reachable_settings_schema_and_values_exclude_removed_product_controls(), test_runtime_refresh_does_not_import_billing_or_payment_modules(), test_safe_provider_settings_still_save_and_hot_reload(), test_settings_save_rejects_removed_product_keys()
+Cohesion: 0.29
+Nodes (5): _admin_headers(), _flatten_setting_keys(), test_reachable_settings_schema_and_values_exclude_removed_product_controls(), test_safe_provider_settings_still_save_and_hot_reload(), test_settings_save_rejects_removed_product_keys()
 
 ### Community 285 - "get_live_asset_snapshot"
 Cohesion: 0.26
@@ -1699,27 +1687,27 @@ Cohesion: 0.17
 Nodes (11): ar, de, fr, ja, ko, locale, ru, th (+3 more)
 
 ### Community 293 - "buildChatContext"
-Cohesion: 0.18
-Nodes (12): buildChatContext(), classifyAgentPlan(), commonSymbolAliases(), doSymbolSearch(), findLocalSymbolMatch(), handleSymbolSearch(), inferSymbolFromText(), normalizeSearchText() (+4 more)
+Cohesion: 0.13
+Nodes (16): askAboutEvent(), buildChatContext(), classifyAgentPlan(), commonSymbolAliases(), doSymbolSearch(), eventKey(), eventTitle(), findLocalSymbolMatch() (+8 more)
 
 ### Community 294 - "i18nText"
 Cohesion: 0.18
 Nodes (12): getMarketName(), handleAddStock(), handleCloseAddStockModal(), handleCryptoSourceChange(), handleDirectAdd(), handleSearchOrInput(), handleSymbolSearchInput(), i18nText() (+4 more)
 
 ### Community 295 - "data_providers/forex.py"
-Cohesion: 0.29
-Nodes (10): fetch_forex_pairs(), _fetch_td(), _fetch_tiingo(), _fetch_yf(), Any, Forex pair data fetchers with multi-source fallback., Fetch major forex pairs.  Priority: Twelve Data → yfinance → Tiingo., Fetch forex quotes from Twelve Data. (+2 more)
+Cohesion: 0.47
+Nodes (4): _auth_headers(), Tests for the optional Adanos global-market endpoint., test_adanos_sentiment_endpoint_rejects_invalid_days(), test_adanos_sentiment_endpoint_returns_provider_result()
 
 ### Community 296 - "HumanBlueprint"
-Cohesion: 0.20
-Nodes (8): HumanBlueprint, flask-smorest Blueprint that documents standard human API envelopes., _count(), Research-only dashboard summary., Return research, authoring, backtest, and manual-paper counts., summary(), Shared strategy blueprint.  Strategy routes are split across modules while pre, SmorestBlueprint
+Cohesion: 0.33
+Nodes (6): Agent API, Conventions, Local interactive docs, QuantDinger Web API (OpenAPI), Regenerate, View docs locally
 
 ### Community 297 - "high_risk.py"
 Cohesion: 0.29
 Nodes (9): ChangePasswordRequestSchema, LoginDataSchema, LoginRequestSchema, LoginResponseSchema, Schema, Typed request and response contracts for security-sensitive human APIs., RegisterRequestSchema, ResetPasswordRequestSchema (+1 more)
 
 ### Community 298 - "test_ai_chat_snapshot_quality.py"
-Cohesion: 0.31
+Cohesion: 0.27
 Nodes (8): Recover transient provider failures once without retrying business errors., _stream_llm_with_recovery(), LLMAPIError, Initialize LLM service.          Args:             provider: Override the def, Provider error with protocol metadata preserved for safe recovery decisions., test_stream_non_retryable_error_does_not_regenerate(), test_stream_output_limit_keeps_partial_without_regeneration(), test_stream_recovery_replaces_partial_provider_output()
 
 ### Community 299 - "user_service.py"
@@ -1735,8 +1723,8 @@ Cohesion: 0.35
 Nodes (5): _dump(), _json(), PortfolioOptimizerRepository, Any, PostgreSQL persistence for immutable optimizer runs and paper rebalances.
 
 ### Community 302 - "smart_insights/service.py"
-Cohesion: 0.29
-Nodes (5): _as_of(), _market(), _mode(), Smart Insights application service and input boundary validation., Imports are optional for clean installs and lightweight repository doubles.
+Cohesion: 0.24
+Nodes (5): _as_of(), _market(), _mode(), Return snapshot dates for a UI scope, with ``all`` as a union., Imports are optional for clean installs and lightweight repository doubles.
 
 ### Community 303 - "SnapshotObservationCollector"
 Cohesion: 0.31
@@ -1763,24 +1751,24 @@ Cohesion: 0.18
 Nodes (11): applyCodeMirrorReadOnly(), chartIndicatorToggleDisabled(), extractIndicatorNameFromCode(), getIndicatorExecutableCode(), indicatorDisplayName(), indicatorToolbarSummary(), isIndicatorCodeHidden(), selectedIndicatorCodeHidden() (+3 more)
 
 ### Community 309 - "scheduleEditorRefresh"
-Cohesion: 0.24
-Nodes (11): applyCopilotDraft(), _getDefaultCode(), initEditor(), isDark(), loadBlankTemplate(), mounted(), refreshEditorLayout(), scheduleEditorRefresh() (+3 more)
+Cohesion: 0.17
+Nodes (15): applyCopilotDraft(), beforeDestroy(), clearRefreshTimers(), destroyEditor(), _getDefaultCode(), hiddenSource(), initEditor(), isDark() (+7 more)
 
 ### Community 310 - "apply_backtest_preset"
 Cohesion: 0.36
 Nodes (8): apply_backtest_preset(), normalize_preset(), preset_defaults(), Any, Shared backtest preset defaults for API routes and strategy snapshots., Merge preset defaults into a backtest request payload (mutates copy).      Pre, test_preset_does_not_override_explicit_enable_mtf(), test_preset_fills_missing_defaults()
 
 ### Community 311 - "KlineService"
-Cohesion: 0.29
-Nodes (5): KlineService, Any, 获取K线数据                  Args:             market: 市场类型 (USStock, VNStock, Cry, 获取最新价格（使用1分钟K线，已弃用，建议使用 get_realtime_price）, 获取实时价格（优先使用 ticker API，降级使用分钟 K 线）                  Args:             market:
+Cohesion: 0.12
+Nodes (10): get_indicator_signal_alert_worker(), IndicatorSignalAlertWorker, start_indicator_signal_alert_worker(), KlineService, Any, 获取K线数据                  Args:             market: 市场类型 (USStock, VNStock, Cry, 获取最新价格（使用1分钟K线，已弃用，建议使用 get_realtime_price）, 获取实时价格（优先使用 ticker API，降级使用分钟 K 线）                  Args:             market: (+2 more)
 
 ### Community 312 - "indicator_translator.py"
-Cohesion: 0.27
-Nodes (9): _build_prompt(), _coerce_str(), detect_source_language(), Indicator Translator - 指标多语言翻译服务  设计目标 ======== 解决「指标市场里来自全球作者的 name/descrip, LLM 偶尔输出 list / dict / None — 兜底转 str。, 把指标 name / description 翻译成全部支持的语言。      Args:         name: 原始 name (允许任意语言), 根据文本字符分布做一个粗糙的语言检测，仅用于兜底。      精确语言检测建议在前端按用户 UI 语言决定后传给后端，本函数只在前端没传时     避免空, 组装 system + user prompt。 (+1 more)
+Cohesion: 0.33
+Nodes (6): API and AI agents, Architecture and contracts, Deployment and operations, Maintenance policy, QuantDinger Documentation, Trading and research
 
 ### Community 313 - ".collect_all"
-Cohesion: 0.22
-Nodes (6): NonBlockingThreadPoolExecutor, ThreadPoolExecutor, 获取宏观经济数据 - 复用 global_market.py 的函数和缓存                  优势：         1. 数据与全球金融, Calculate local technical indicators for market analysis., Thread pool that does not wait for slow optional data providers on exit., 采集所有市场数据                  Args:             market: 市场类型 (USStock, Crypto, Fo
+Cohesion: 0.33
+Nodes (5): 1. 当前固定快照, 2. 港股和 ETF 分类, 3. 基本面数据, 4. 已知限制, 公开股票池基础库与基本面数据约定
 
 ### Community 314 - "deploy"
 Cohesion: 0.20
@@ -1826,6 +1814,10 @@ Nodes (9): Acceptance criteria, API contract, Data policy, Non-goals, Purpose, S
 Cohesion: 0.20
 Nodes (9): compilerOptions, baseUrl, paths, target, exclude, include, dist, node_modules (+1 more)
 
+### Community 325 - "OverfitRiskGauge.vue"
+Cohesion: 0.33
+Nodes (5): Global Constraints, Local DataVest Production Data Migration Implementation Plan, Task 1: Inventory and export local DataVest, Task 2: Back up and restore production, Task 3: Verify and document
+
 ### Community 326 - "resolveIdeFullscreenMountNode"
 Cohesion: 0.20
 Nodes (10): buildNewIndicatorStarterCode(), confirmRestoreCodeVersion(), _createIndicatorInIde(), deleteSignalAlertTask(), handleCreateIndicator(), ideModalGetContainer(), loadCodeVersions(), openCodeVersionDrawer() (+2 more)
@@ -1837,10 +1829,6 @@ Nodes (5): buildDate, gitHash, normalizeVersion(), pkg, resolveAppVersion()
 ### Community 330 - "helpers.py"
 Cohesion: 0.25
 Nodes (8): fail(), ok(), Any, Helpers for OpenAPI-documented human API routes., Human API success envelope as a plain dict (flask-smorest friendly)., Human API error envelope. Returns (body, status) for Flask views., OpenAPI extension for Public / Internal / Private tiers., visibility_doc()
-
-### Community 331 - "IndicatorSignalAlertWorker"
-Cohesion: 0.28
-Nodes (5): get_indicator_signal_alert_worker(), IndicatorSignalAlertWorker, start_indicator_signal_alert_worker(), Start background reflection worker (validates + calibrates periodically)., start_reflection_worker()
 
 ### Community 332 - "portfolio_optimizer/service.py"
 Cohesion: 0.42
@@ -1859,8 +1847,8 @@ Cohesion: 0.44
 Nodes (8): _collect(), _dump_row(), main(), _options_snapshot(), _parse_as_of(), Any, datetime, Bounded JSON bridge for the optional OpenBB Deribit provider.
 
 ### Community 336 - "📧 邮箱 SMTP 通知配置指南"
-Cohesion: 0.22
-Nodes (9): 前置要求, 支持的邮件服务商, 📋 目录, 相关文档, 第一步：获取 SMTP 服务信息, 第三步：策略中启用邮件通知, 第二步：配置环境变量, 📧 邮箱 SMTP 通知配置指南 (+1 more)
+Cohesion: 0.09
+Nodes (22): 163 邮箱, Amazon SES, Gmail, Outlook / Office 365, Q: TLS 和 SSL 如何选择？, Q: 发送失败，提示认证错误？, Q: 可以发送 HTML 格式邮件吗？, Q: 连接超时？ (+14 more)
 
 ### Community 337 - "Global Constraints"
 Cohesion: 0.22
@@ -1907,32 +1895,28 @@ Cohesion: 0.25
 Nodes (9): beforeDestroy(), handleCatalogSync(), handleUniverseSync(), mounted(), refreshCatalogOverview(), refreshUniverseOverview(), startCatalogPolling(), stopCatalogPolling() (+1 more)
 
 ### Community 350 - "applyExternalParamState"
-Cohesion: 0.22
-Nodes (9): applyExternalParamState(), beforeDestroy(), bootstrapTemplates(), buildSchemaTemplateFromProps(), clearRefreshTimers(), destroyEditor(), handler(), hiddenSource() (+1 more)
+Cohesion: 0.40
+Nodes (5): applyExternalParamState(), bootstrapTemplates(), buildSchemaTemplateFromProps(), handler(), loadScriptTemplates()
 
 ### Community 351 - "20260824_smart_insights_foundation.sql"
 Cohesion: 0.50
 Nodes (7): asset_opinions, collector_runs, data_sources, insight_evidence_links, insight_snapshots, observations, user_insight_preferences
 
 ### Community 353 - "OAuth 第三方登录配置指南"
-Cohesion: 0.25
-Nodes (7): GitHub OAuth 配置, OAuth 第三方登录配置指南, 步骤 1：创建 GitHub OAuth App, 步骤 2：获取凭据, 步骤 3：配置 .env 文件, 目录, 相关链接
+Cohesion: 0.07
+Nodes (27): Cloudflare Turnstile 配置, GitHub OAuth 配置, Google OAuth 配置, OAuth 第三方登录配置指南, Q: OAuth 登录成功但无法跳转回前端, Q: OAuth 登录跳转后显示错误「redirect_uri_mismatch」, Q: Turnstile 验证一直失败, Q: 如何禁用用户注册？ (+19 more)
 
 ### Community 354 - "Global Constraints"
 Cohesion: 0.25
 Nodes (7): Crypto Insights Browser Snapshots Implementation Plan, Global Constraints, Task 1: Define and test the versioned crypto snapshot contract, Task 2: Add a Browser Use worker for capture, validation, and backfill, Task 3: Normalize local snapshots through the existing observations pipeline, Task 4: Route source-specific scheduled imports and prevent overlap, Task 5: Build locally, run the full Browser Use backfill, and verify persisted data
-
-### Community 355 - "QuantDinger 指标开发指南"
-Cohesion: 0.25
-Nodes (7): 1. 最小示例, 2. 输入与输出, 3. 参数, 4. 信号语义, 5. Pine 迁移边界, 6. 验收清单, QuantDinger 指标开发指南
 
 ### Community 356 - "QuantDinger Strategy Development Guide"
 Cohesion: 0.25
 Nodes (8): 1. Recommended workflow, 2. Minimal strategy, 3. Data and time semantics, 4. Signals, portfolios, and protections, 5. Converting an Indicator, 6. Backtest acceptance, 7. Agent and MCP boundary, QuantDinger Strategy Development Guide
 
 ### Community 357 - "QuantDinger 策略开发指南"
-Cohesion: 0.25
-Nodes (8): 1. 推荐工作流, 2. 最小策略, 3. 数据与时间语义, 4. 信号、组合与保护规则, 5. Indicator 转策略, 6. 回测验收, 7. Agent 与 MCP 边界, QuantDinger 策略开发指南
+Cohesion: 0.40
+Nodes (5): get_market_catalog(), Return market catalog coverage and the latest synchronization state., get_market_catalog_overview(), _json_value(), Return catalog totals, venue coverage, and the most recent sync run.
 
 ### Community 358 - "mcp_server/railway.json"
 Cohesion: 0.25
@@ -1959,8 +1943,8 @@ Cohesion: 0.33
 Nodes (6): main(), Fail-fast database migration entrypoint for deployments., init_database(), Initialize the database connection, apply schema, and probe permissions., SKIP_AUTO_MIGRATE=true must bypass _apply_init_sql but still probe perms., test_init_database_respects_skip_auto_migrate()
 
 ### Community 368 - "get_search_service"
-Cohesion: 0.33
-Nodes (4): 获取新闻和情绪数据                  策略（按优先级）：         1. 结构化API (Finnhub) - 美股首选, 从搜索引擎获取新闻                  使用增强的搜索服务 (Tavily/Google/Bing/SerpAPI), 获取全球重大事件新闻（地缘政治、战争、重大政策等）         这些事件会影响所有市场，特别是加密货币                  Return, get_search_service()
+Cohesion: 0.70
+Nodes (4): main(), Path, read_env(), write_env()
 
 ### Community 369 - "filter_opinions_to_watchlist"
 Cohesion: 0.52
@@ -1971,8 +1955,8 @@ Cohesion: 0.29
 Nodes (3): Test global NaN/Inf JSON protection., NaN values must be serialized as null (RFC 8259 compliance)., test_nan_becomes_null()
 
 ### Community 371 - "常见邮件服务商配置示例"
-Cohesion: 0.29
-Nodes (7): 163 邮箱, Amazon SES, Gmail, Outlook / Office 365, QQ 邮箱, SendGrid, 常见邮件服务商配置示例
+Cohesion: 0.50
+Nodes (5): beforeDestroy(), handler(), mounted(), startProgressTimer(), stopProgressTimer()
 
 ### Community 372 - "Smart Insights production-source activation and legacy migration plan"
 Cohesion: 0.29
@@ -2007,8 +1991,8 @@ Cohesion: 0.52
 Nodes (6): formatPercentDisplay(), parsePercentInput(), percentInputFormatter(), percentInputParser(), ratioOrPercentToUiPercent(), roundTo()
 
 ### Community 383 - "priceFor"
-Cohesion: 0.33
-Nodes (7): formatChangePercent(), normalizePriceMap(), priceChangePercent(), priceFor(), watchAssetKey(), watchChangeClass(), watchKey()
+Cohesion: 0.40
+Nodes (5): decisionDisplayText(), displaySummary(), formatDecisionLabel(), formatOutlookTrend(), neutralizeDecisionText()
 
 ### Community 384 - "pollTaskResult"
 Cohesion: 0.38
@@ -2059,12 +2043,12 @@ Cohesion: 0.33
 Nodes (5): Administrator Credentials and Settings Save Troubleshooting, Initial Administrator Behavior, Read-Only and Special Docker Deployments, Repair an Installation That Still Uses an Old Image, Settings UI Reports Save Failure
 
 ### Community 396 - "常见问题"
-Cohesion: 0.33
-Nodes (6): Q: TLS 和 SSL 如何选择？, Q: 发送失败，提示认证错误？, Q: 可以发送 HTML 格式邮件吗？, Q: 连接超时？, Q: 邮件被标记为垃圾邮件？, 常见问题
+Cohesion: 0.50
+Nodes (3): Reverse the TIMEFRAME_MAP — e.g. '1d' → '1D'. Used so downstream helpers, test_ccxt_to_qd_timeframe_inverts_known_mappings(), test_ccxt_to_qd_timeframe_returns_fallback_for_unknown()
 
 ### Community 397 - "常见问题"
-Cohesion: 0.33
-Nodes (6): Q: OAuth 登录成功但无法跳转回前端, Q: OAuth 登录跳转后显示错误「redirect_uri_mismatch」, Q: Turnstile 验证一直失败, Q: 如何禁用用户注册？, Q: 如何禁用第三方登录？, 常见问题
+Cohesion: 0.67
+Nodes (3): _default_asset_class(), test_explicit_etf_classification_is_preserved(), test_symbol_master_asset_class_defaults_follow_market_type()
 
 ### Community 398 - "Smart Insights legacy production migration"
 Cohesion: 0.33
@@ -2108,7 +2092,7 @@ Nodes (4): collectSignalBlocks(), decodePythonString(), extractIndicatorSignalLa
 
 ### Community 410 - "text"
 Cohesion: 0.40
-Nodes (6): text(), cryptoFactorRows(), formatCompactNum(), formatNumber(), formatPrice(), professionalIndicatorRows()
+Nodes (5): cryptoFactorRows(), formatCompactNum(), formatNumber(), formatPrice(), professionalIndicatorRows()
 
 ### Community 411 - "_displayDateTimeLocaleOptions"
 Cohesion: 0.40
@@ -2123,8 +2107,8 @@ Cohesion: 0.40
 Nodes (4): AccessToken, AuthSettings, _http_auth_config(), _StaticTokenVerifier
 
 ### Community 414 - ".to_list"
-Cohesion: 0.50
-Nodes (3): Any, Convert to the legacy API dictionary shape., Convert to the legacy list shape.
+Cohesion: 0.67
+Nodes (3): Fetch and upsert local symbol master data for the requested markets., sync_symbol_master(), main()
 
 ### Community 415 - "main"
 Cohesion: 0.70
@@ -2134,13 +2118,9 @@ Nodes (4): load_env_file(), main(), Path, validate()
 Cohesion: 0.50
 Nodes (4): main(), Path, _requirements(), Requirement
 
-### Community 418 - "Google OAuth 配置"
-Cohesion: 0.40
-Nodes (5): Google OAuth 配置, 步骤 1：创建 Google Cloud 项目, 步骤 2：配置 OAuth 同意屏幕, 步骤 3：创建 OAuth 2.0 客户端 ID, 步骤 4：配置 .env 文件
-
 ### Community 419 - "部署配置说明"
-Cohesion: 0.40
-Nodes (5): Turnstile 域名配置, 场景 1：前后端同域（推荐）, 场景 2：前后端分离域名, 更新 OAuth 提供商配置, 部署配置说明
+Cohesion: 0.83
+Nodes (3): main(), Path, read_env()
 
 ### Community 420 - "bump_version.py"
 Cohesion: 0.60
@@ -2150,10 +2130,6 @@ Nodes (4): main(), _patch(), Rewrite ``rel_path`` in place. Returns the number o
 Cohesion: 0.40
 Nodes (4): Findings, Implementation checklist, Smart Insights visual QA, Verification performed
 
-### Community 422 - "package.json"
-Cohesion: 0.40
-Nodes (4): name, packageManager, private, version
-
 ### Community 426 - "FooterToolbar 底部工具栏"
 Cohesion: 0.40
 Nodes (4): API, FooterToolbar 底部工具栏, 代码演示, 何时使用
@@ -2161,10 +2137,6 @@ Nodes (4): API, FooterToolbar 底部工具栏, 代码演示, 何时使用
 ### Community 429 - "aiModels.js"
 Cohesion: 0.60
 Nodes (4): DEFAULT_AI_MODEL_MAP, isPlainObject(), mergeModelMaps(), modelMapToOptions()
-
-### Community 430 - "broker-account-workspace.js"
-Cohesion: 0.40
-Nodes (4): locale, locales, zhCN, zhTW
 
 ### Community 432 - "brokerOrderStatus.js"
 Cohesion: 0.70
@@ -2222,10 +2194,6 @@ Nodes (3): _load_module(), test_quality_check_main_passes_current_baseline(), te
 Cohesion: 0.50
 Nodes (3): Test health endpoint., GET /api/health should return 200., test_health_endpoint()
 
-### Community 449 - "Cloudflare Turnstile 配置"
-Cohesion: 0.50
-Nodes (4): Cloudflare Turnstile 配置, 步骤 1：创建 Turnstile Widget, 步骤 2：获取密钥, 步骤 3：配置 .env 文件
-
 ### Community 450 - "Release quantdinger-mcp to PyPI"
 Cohesion: 0.50
 Nodes (3): Notes, Release quantdinger-mcp to PyPI, This release: 0.5.0
@@ -2275,24 +2243,24 @@ Cohesion: 0.67
 Nodes (3): currentLlmProviderLabel(), getMarketModuleRows(), getSelectOptions()
 
 ## Knowledge Gaps
-- **989 isolated node(s):** `docker-entrypoint.sh script`, `SECRET_KEY`, `qd_market_symbols`, `qd_market_sync_runs`, `qd_fundamental_snapshots` (+984 more)
+- **1015 isolated node(s):** `docker-entrypoint.sh script`, `SECRET_KEY`, `qd_market_symbols`, `qd_market_sync_runs`, `qd_fundamental_snapshots` (+1010 more)
   These have ≤1 connection - possible missing edges or undocumented components.
-- **94 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **92 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `dependencies` connect `dependencies` to `nprogress`, `mounted`, `pyodide`, `vuex`, `locales/index.js`, `wangeditor`, `package.json`, `comlink`, `crypto-js`, `klinecharts`, `md5`, `mockjs2`?**
-  _High betweenness centrality (0.201) - this node is a cross-community bridge._
-- **Why does `type` connect `data_sources.py` to `package.json`, `MetaRedisConfig`, `MetaCacheConfig`, `_config_str`, `load_addon_config`, `MetaConfig`?**
-  _High betweenness centrality (0.198) - this node is a cross-community bridge._
+- **Why does `type` connect `data_sources.py` to `QuantDinger 指标开发指南`, `scripts`, `MetaRedisConfig`, `IndicatorSignalAlertWorker`, `MetaCacheConfig`, `_config_str`, `load_addon_config`, `MetaConfig`, `routes/health.py`?**
+  _High betweenness centrality (0.178) - this node is a cross-community bridge._
+- **Why does `dependencies` connect `dependencies` to `mounted`, `locales/index.js`, `scripts`?**
+  _High betweenness centrality (0.177) - this node is a cross-community bridge._
 - **Why does `codemirror` connect `mounted` to `dependencies`?**
-  _High betweenness centrality (0.165) - this node is a cross-community bridge._
-- **Are the 52 inferred relationships involving `CollectorUnavailable` (e.g. with `AlternativeFearGreedCollector` and `BinanceClient`) actually correct?**
-  _`CollectorUnavailable` has 52 INFERRED edges - model-reasoned connections that need verification._
-- **Are the 53 inferred relationships involving `Observation` (e.g. with `AlternativeFearGreedCollector` and `BinanceClient`) actually correct?**
-  _`Observation` has 53 INFERRED edges - model-reasoned connections that need verification._
+  _High betweenness centrality (0.154) - this node is a cross-community bridge._
+- **Are the 54 inferred relationships involving `CollectorUnavailable` (e.g. with `AlternativeFearGreedCollector` and `BinanceClient`) actually correct?**
+  _`CollectorUnavailable` has 54 INFERRED edges - model-reasoned connections that need verification._
+- **Are the 55 inferred relationships involving `Observation` (e.g. with `AlternativeFearGreedCollector` and `BinanceClient`) actually correct?**
+  _`Observation` has 55 INFERRED edges - model-reasoned connections that need verification._
 - **Are the 9 inferred relationships involving `LLMService` (e.g. with `AIDecisionResult` and `AIDecisionStore`) actually correct?**
   _`LLMService` has 9 INFERRED edges - model-reasoned connections that need verification._
 - **What connects `docker-entrypoint.sh script`, `SECRET_KEY`, `qd_market_symbols` to the rest of the system?**
-  _989 weakly-connected nodes found - possible documentation gaps or missing edges._
+  _1015 weakly-connected nodes found - possible documentation gaps or missing edges._

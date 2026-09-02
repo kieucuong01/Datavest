@@ -30,6 +30,30 @@ def _iso(value: Any) -> Any:
 
 
 class SmartInsightsRepository:
+    def list_distinct_supported_watchlist_instruments(self) -> list[dict[str, str]]:
+        """Return a bounded, de-identified set of supported watchlist instruments.
+
+        Smart Insights snapshots are shared market research data.  The collector
+        uses only market/symbol pairs and never reads names or user identifiers.
+        """
+        with get_db_connection() as db:
+            cur = db.cursor()
+            cur.execute(
+                """
+                SELECT DISTINCT market, symbol
+                FROM qd_watchlist
+                WHERE market IN ('Crypto', 'VNStock', 'Forex')
+                ORDER BY market ASC, symbol ASC
+                LIMIT 64
+                """
+            )
+            rows = cur.fetchall() or []
+            cur.close()
+        return [
+            {"market": str(row.get("market") or ""), "symbol": str(row.get("symbol") or "")}
+            for row in rows
+        ]
+
     def load_latest_large_address_balances(self) -> dict[str, Decimal]:
         """Return the latest non-excluded BitInfoCharts balances by address.
 

@@ -30,7 +30,7 @@ services:
     environment:
       TZ: Asia/Ho_Chi_Minh
       SMART_INSIGHTS_AUTO_REFRESH: ${SMART_INSIGHTS_AUTO_REFRESH:-true}
-      SMART_INSIGHTS_AUTO_REFRESH_SOURCE_CODES: ${SMART_INSIGHTS_AUTO_REFRESH_SOURCE_CODES:-bitinfocharts-top-addresses,coinmetrics-community,coinglass-liquidation-maxpain,coinglass-margin-borrow,defillama-chains,defillama-stablecoins,mempool-space}
+      SMART_INSIGHTS_AUTO_REFRESH_SOURCE_CODES: ${SMART_INSIGHTS_AUTO_REFRESH_SOURCE_CODES:-datavest-market-bars,bitinfocharts-top-addresses,coinmetrics-community,coinglass-liquidation-maxpain,coinglass-margin-borrow,defillama-chains,defillama-stablecoins,mempool-space}
       DATAVEST_SMART_INSIGHTS_ENABLED: ${DATAVEST_SMART_INSIGHTS_ENABLED:-true}
       DATAVEST_PORTFOLIO_OPTIMIZER_ENABLED: ${DATAVEST_PORTFOLIO_OPTIMIZER_ENABLED:-true}
       DATAVEST_COMMUNITY_ENABLED: ${DATAVEST_COMMUNITY_ENABLED:-false}
@@ -42,7 +42,7 @@ services:
     environment:
       TZ: Asia/Ho_Chi_Minh
       SMART_INSIGHTS_AUTO_REFRESH: ${SMART_INSIGHTS_AUTO_REFRESH:-true}
-      SMART_INSIGHTS_AUTO_REFRESH_SOURCE_CODES: ${SMART_INSIGHTS_AUTO_REFRESH_SOURCE_CODES:-bitinfocharts-top-addresses,coinmetrics-community,coinglass-liquidation-maxpain,coinglass-margin-borrow,defillama-chains,defillama-stablecoins,mempool-space}
+      SMART_INSIGHTS_AUTO_REFRESH_SOURCE_CODES: ${SMART_INSIGHTS_AUTO_REFRESH_SOURCE_CODES:-datavest-market-bars,bitinfocharts-top-addresses,coinmetrics-community,coinglass-liquidation-maxpain,coinglass-margin-borrow,defillama-chains,defillama-stablecoins,mempool-space}
       STRATEGY_COMMANDS_ENABLED: "false"
 
   celery-worker:
@@ -51,7 +51,7 @@ services:
     environment:
       TZ: Asia/Ho_Chi_Minh
       SMART_INSIGHTS_AUTO_REFRESH: ${SMART_INSIGHTS_AUTO_REFRESH:-true}
-      SMART_INSIGHTS_AUTO_REFRESH_SOURCE_CODES: ${SMART_INSIGHTS_AUTO_REFRESH_SOURCE_CODES:-bitinfocharts-top-addresses,coinmetrics-community,coinglass-liquidation-maxpain,coinglass-margin-borrow,defillama-chains,defillama-stablecoins,mempool-space}
+      SMART_INSIGHTS_AUTO_REFRESH_SOURCE_CODES: ${SMART_INSIGHTS_AUTO_REFRESH_SOURCE_CODES:-datavest-market-bars,bitinfocharts-top-addresses,coinmetrics-community,coinglass-liquidation-maxpain,coinglass-margin-borrow,defillama-chains,defillama-stablecoins,mempool-space}
       STRATEGY_COMMANDS_ENABLED: "false"
 
   celery-beat:
@@ -60,7 +60,7 @@ services:
     environment:
       TZ: Asia/Ho_Chi_Minh
       SMART_INSIGHTS_AUTO_REFRESH: ${SMART_INSIGHTS_AUTO_REFRESH:-true}
-      SMART_INSIGHTS_AUTO_REFRESH_SOURCE_CODES: ${SMART_INSIGHTS_AUTO_REFRESH_SOURCE_CODES:-bitinfocharts-top-addresses,coinmetrics-community,coinglass-liquidation-maxpain,coinglass-margin-borrow,defillama-chains,defillama-stablecoins,mempool-space}
+      SMART_INSIGHTS_AUTO_REFRESH_SOURCE_CODES: ${SMART_INSIGHTS_AUTO_REFRESH_SOURCE_CODES:-datavest-market-bars,bitinfocharts-top-addresses,coinmetrics-community,coinglass-liquidation-maxpain,coinglass-margin-borrow,defillama-chains,defillama-stablecoins,mempool-space}
       STRATEGY_COMMANDS_ENABLED: "false"
 
   frontend:
