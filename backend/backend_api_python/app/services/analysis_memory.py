@@ -362,6 +362,50 @@ class AnalysisMemory:
             logger.error(f"Failed to get all history: {e}")
             return {"items": [], "total": 0, "page": page, "page_size": page_size}
 
+    def list_reports_for_user(self, user_id: int, limit: int = 1000) -> List[Dict]:
+        """Return completed AI Assistant reports for an authenticated user.
+
+        Smart Insights consumes this tenant-scoped history directly.  Keeping the
+        query here prevents the UI projection from reading monitor ``last_result``
+        or a global analysis history.
+        """
+        if not user_id:
+            return []
+        try:
+            with get_db_connection() as db:
+                cur = db.cursor()
+                cur.execute("""
+                    SELECT id, market, symbol, decision, confidence, price_at_analysis,
+                           summary, reasons, scores, raw_result, created_at, updated_at,
+                           task_status, task_error
+                    FROM qd_analysis_memory
+                    WHERE user_id = %s
+                      AND COALESCE(task_status, 'completed') = 'completed'
+                    ORDER BY created_at DESC, id DESC
+                    LIMIT %s
+                """, (user_id, max(1, min(int(limit), 5000))))
+                rows = cur.fetchall() or []
+                cur.close()
+            return [{
+                "id": row["id"],
+                "market": row["market"],
+                "symbol": row["symbol"],
+                "decision": row["decision"],
+                "confidence": row["confidence"],
+                "price": float(row["price_at_analysis"]) if row["price_at_analysis"] else None,
+                "summary": row["summary"],
+                "reasons": _safe_json_parse(row["reasons"], []),
+                "scores": _safe_json_parse(row["scores"], {}),
+                "full_result": _safe_json_parse(row["raw_result"], {}),
+                "status": row.get("task_status") or "completed",
+                "error_message": row.get("task_error") or "",
+                "created_at": row["created_at"].isoformat() if row["created_at"] else None,
+                "updated_at": row["updated_at"].isoformat() if row.get("updated_at") else None,
+            } for row in rows]
+        except Exception as e:
+            logger.error(f"Failed to list AI Assistant reports for user {user_id}: {e}")
+            return []
+
     def delete_history(self, memory_id: int, user_id: int = None) -> bool:
         """
         Delete a history record by ID.

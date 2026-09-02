@@ -60,7 +60,7 @@ test('active product routes and research workspaces do not load removed executio
   assert.equal(exists('src/store/modules/policy.js'), false)
 })
 
-test('Smart Insights exposes overview, evidence and data-health with explicit demo mode', () => {
+test('Smart Insights exposes its history-backed overview and keeps Market Pulse evidence', () => {
   const api = read('src/api/smart-insights.js')
   const view = read('src/views/smart-insights/index.vue')
   const router = read('src/config/router.config.js')
@@ -68,9 +68,8 @@ test('Smart Insights exposes overview, evidence and data-health with explicit de
   assert.match(api, /\/api\/smart-insights\/overview/)
   assert.match(api, /\/api\/smart-insights\/evidence\//)
   assert.match(api, /\/api\/smart-insights\/data-health/)
-  assert.match(view, /mode === 'demo'/)
-  assert.match(view, /\$t\('smartInsights\.demo'\)/)
-  assert.doesNotMatch(view, />DEMO</)
+  assert.match(view, /dailyBrief/)
+  assert.doesNotMatch(view, /mode === 'demo'/)
   assert.match(view, /openEvidence/)
   assert.match(router, /path: '\/smart-insights'/)
 })

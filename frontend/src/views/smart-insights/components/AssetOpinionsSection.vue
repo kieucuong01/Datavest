@@ -21,8 +21,8 @@
     <div v-else-if="rows.length" class="opinion-table">
       <div class="opinion-table-head">
         <span>{{ $t('smartInsights.asset') }}</span>
-        <span>{{ $t('smartInsights.stance') }}</span>
-        <span>{{ $t('smartInsights.quantScore') }}</span>
+        <span>{{ $t('smartInsights.latestAiAnalysis') }}</span>
+        <span>{{ $t('smartInsights.dataStatus') }}</span>
         <span>{{ $t('smartInsights.actions') }}</span>
       </div>
       <div v-for="row in rows" :key="row.id" class="opinion-row">
@@ -30,23 +30,21 @@
           <span class="asset-avatar" :class="assetTone(row.displaySymbol)">{{ symbolMark(row.displaySymbol) }}</span>
           <span>
             <strong>{{ row.displaySymbol }}</strong>
-            <small>{{ marketLabel(row.market) }} · {{ dataClass(row) }}</small>
+            <small>{{ marketLabel(row.market) }}</small>
           </span>
         </div>
         <div>
-          <template v-if="row.opinion">
-            <a-tag v-if="hasValidatedEvidence(row)" :class="stanceTone(row.opinion.stance)">{{ stanceLabel(row.opinion.stance) }}</a-tag>
-            <a-tag v-else class="stance-neutral">{{ $t('smartInsights.dataUnavailableShort') }}</a-tag>
-            <small v-if="hasValidatedEvidence(row)" class="muted-line">{{ row.opinion.explanation }}</small>
-            <small v-else class="muted-line">{{ $t('smartInsights.opinionNeedsValidatedMetrics') }}</small>
-            <small v-if="hasValidatedEvidence(row)" class="confidence-line">{{ $t('smartInsights.confidence') }} {{ percent(row.opinion.confidence) }}</small>
+          <template v-if="row.report">
+            <a-tag :class="decisionTone(row.report.decision)">{{ decisionLabel(row.report.decision) }}</a-tag>
+            <small class="muted-line">{{ row.report.summary || $t('smartInsights.aiReportUnavailable') }}</small>
+            <small class="confidence-line">{{ $t('smartInsights.aiConfidence') }} {{ percent(row.report.confidence) }}</small>
           </template>
           <template v-else>
             <a-tag class="stance-neutral">{{ $t('smartInsights.dataUnavailableShort') }}</a-tag>
-            <small class="muted-line">{{ $t('smartInsights.opinionNeedsValidatedMetrics') }}</small>
+            <small class="muted-line">{{ $t('smartInsights.aiNoResult') }}</small>
           </template>
         </div>
-        <strong class="tabular">{{ row.opinion && hasValidatedEvidence(row) ? displayScore(row.opinion.score) : $t('smartInsights.notAvailable') }}</strong>
+        <small class="report-status">{{ row.report ? formatDateTime(row.report.createdAt) : $t('smartInsights.notAvailable') }}</small>
         <div class="opinion-actions">
           <a-button size="small" type="primary" icon="search" @click="$emit('open-analysis', row)">{{ $t('smartInsights.viewAnalysis') }}</a-button>
         </div>
@@ -72,34 +70,28 @@ export default {
     loading: { type: Boolean, default: false }
   },
   methods: {
-    hasValidatedEvidence (row) {
-      const opinion = row && row.opinion
-      return Boolean(opinion && opinion.evidenceValidated && Array.isArray(row.opinion.evidence) && row.opinion.evidence.length)
-    },
-    dataClass (row) {
-      const opinion = row && row.opinion
-      const value = (opinion && opinion.dataClass) || (this.mode || 'live').toUpperCase()
-      return ({ LIVE: this.$t('smartInsights.live'), DEMO: this.$t('smartInsights.demo') })[String(value).toUpperCase()] || value
-    },
-    displayScore (value) {
-      const number = Number(value)
-      return Number.isFinite(number) ? number.toFixed(2) : this.$t('smartInsights.notAvailable')
-    },
     percent (value) {
       const number = Number(value)
       return Number.isFinite(number) ? `${number.toFixed(0)}%` : this.$t('smartInsights.notAvailable')
     },
     symbolMark (symbol) { return String(symbol || '?').slice(0, 3).toUpperCase() },
     assetTone (symbol) { return `tone-${String(symbol || '').toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 4) || 'neutral'}` },
-    stanceTone (stance) {
-      const text = String(stance || '').toLowerCase()
-      return text.includes('positive') || text.includes('bull') || text.includes('tăng') ? 'stance-positive' : text.includes('negative') || text.includes('bear') || text.includes('giảm') ? 'stance-negative' : 'stance-neutral'
+    decisionTone (decision) {
+      const text = String(decision || '').toUpperCase()
+      return text === 'BUY' ? 'stance-positive' : text === 'SELL' ? 'stance-negative' : 'stance-neutral'
     },
-    stanceLabel (stance) {
-      const text = String(stance || '').toLowerCase()
-      if (text.includes('positive') || text.includes('bull') || text.includes('tăng')) return this.$t('smartInsights.buy')
-      if (text.includes('negative') || text.includes('bear') || text.includes('giảm')) return this.$t('smartInsights.sell')
-      return text ? this.$t('smartInsights.neutral') : this.$t('smartInsights.notAvailable')
+    decisionLabel (decision) {
+      const text = String(decision || '').toUpperCase()
+      if (text === 'BUY') return this.$t('smartInsights.buy')
+      if (text === 'SELL') return this.$t('smartInsights.sell')
+      if (text === 'HOLD') return this.$t('smartInsights.neutral')
+      return this.$t('smartInsights.notAvailable')
+    },
+    formatDateTime (value) {
+      if (!value) return this.$t('smartInsights.notAvailable')
+      const date = new Date(value)
+      if (Number.isNaN(date.getTime())) return String(value)
+      return date.toLocaleString(this.$i18n && this.$i18n.locale === 'vi-VN' ? 'vi-VN' : 'en-GB', { dateStyle: 'short', timeStyle: 'short' })
     },
     marketLabel (market) {
       return ({ crypto: 'Crypto', vn: 'VN', us: 'US', gold: this.$t('smartInsights.gold') })[String(market || '').toLowerCase()] || String(market || '').toUpperCase()
@@ -121,7 +113,7 @@ export default {
 .watchlist-link, .table-empty a { color: var(--blue); font-size: 12px; text-decoration: none; }
 .opinion-loading { min-height: 170px; padding: 20px 18px; }
 .opinion-table { width: 100%; }
-.opinion-table-head, .opinion-row { display: grid; grid-template-columns: 1.1fr 1.8fr .6fr 1fr; align-items: center; gap: 12px; padding: 0 12px; }
+.opinion-table-head, .opinion-row { display: grid; grid-template-columns: 1.1fr 1.8fr .85fr 1fr; align-items: center; gap: 12px; padding: 0 12px; }
 .opinion-table-head { min-height: 34px; color: var(--muted); border-bottom: 1px solid var(--line); background: var(--card); font-size: 11px; }
 .opinion-row { min-height: 62px; border-bottom: 1px solid var(--line); font-size: 13px; }
 .opinion-row:last-child { border-bottom: 0; }
@@ -133,7 +125,7 @@ export default {
 .tone-btc { color: #9d6200; background: #fff3d7; }.tone-eth { color: #545bc3; background: #eff0ff; }.tone-xau { color: #8f6b00; background: #fff8d9; }.tone-vnix { color: #fff; background: #fa4865; }.tone-vn3 { color: #25324a; background: #eef1f7; }
 .opinion-row .ant-tag { margin: 0 0 2px; font-size: 11px; }
 .stance-positive { color: #1b9a6c; border-color: #a9e7cb; background: #e9fbf3; }.stance-negative { color: #d55353; border-color: #f0bcbc; background: #fff0f0; }.stance-neutral { color: #697689; border-color: #d4dce8; background: #f5f7fa; }
-.confidence-line { display: block; color: #7aa4de; font-size: 11px; }.opinion-actions { display: flex; align-items: center; justify-content: flex-end; }.opinion-actions .ant-btn { padding: 0 9px; font-size: 11px; }.tabular { font-variant-numeric: tabular-nums; }
+.confidence-line, .report-status { display: block; color: #7aa4de; font-size: 11px; }.report-status { color: var(--muted); }.opinion-actions { display: flex; align-items: center; justify-content: flex-end; }.opinion-actions .ant-btn { padding: 0 9px; font-size: 11px; }
 .legacy-empty { display: flex; align-items: center; justify-content: center; gap: 9px; min-height: 94px; padding: 16px; color: var(--muted); text-align: center; }.legacy-empty div { display: grid; gap: 4px; text-align: left; }.legacy-empty span, .legacy-empty strong { font-size: 13px; }
 .theme-dark & .card-heading { background: linear-gradient(var(--soft-blue), var(--card)); }.theme-dark & .opinion-table-head, .theme-dark & .opinion-row { border-color: var(--line); }.theme-dark & .opinion-table-head { background: var(--card); }
 @media (max-width: 960px) { .opinion-table-head, .opinion-row { grid-template-columns: 1fr 1.5fr .6fr 1fr; } }

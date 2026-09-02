@@ -18,10 +18,10 @@ test('frontend cannot canonicalize generic FX or retired markets', () => {
   assert.throws(() => canonicalizeSupportedSymbol('Forex', 'EURUSD'))
 })
 
-test('active Smart Insights market filters exclude unsupported markets', () => {
+test('Smart Insights no longer owns a separate market-filter engine', () => {
   const source = fs.readFileSync(new URL('../../src/views/smart-insights/index.vue', import.meta.url), 'utf8')
-  assert.match(source, /markets:\s*\['all', 'crypto', 'vn', 'gold'\]/)
-  assert.match(source, /pulseMarkets:\s*\['crypto', 'vn', 'gold'\]/)
+  assert.doesNotMatch(source, /markets:\s*\[/)
+  assert.doesNotMatch(source, /pulseMarkets:\s*\[/)
   assert.doesNotMatch(source, /markets:\s*\[[^\]]*['"]us['"]/)
   assert.doesNotMatch(source, /markets:\s*\[[^\]]*(?:CNStock|HKStock|Futures|MOEX|macro)/)
 })

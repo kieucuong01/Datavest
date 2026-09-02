@@ -1,6 +1,5 @@
 <template>
-  <div class="legacy-page" :class="{ 'theme-dark': isDarkTheme, 'demo-mode': mode === 'demo' }">
-    <div v-if="mode === 'demo'" class="demo-watermark" aria-hidden="true">{{ $t('smartInsights.demo') }}</div>
+  <div class="legacy-page" :class="{ 'theme-dark': isDarkTheme }">
 
     <main class="legacy-main">
       <section class="analysis-controls" :aria-label="$t('smartInsights.analysisControls')">
@@ -16,18 +15,10 @@
             <a-select-option v-for="item in dates" :key="item" :value="item">{{ formatDate(item) }}</a-select-option>
           </a-select>
         </div>
-        <a-button size="small" disabled>{{ $t('smartInsights.today') }}</a-button>
+        <a-button size="small" @click="showToday">{{ $t('smartInsights.today') }}</a-button>
         <div class="control-spacer" />
-        <a-radio-group v-model="market" size="small" button-style="solid" @change="reloadOverview">
-          <a-radio-button v-for="item in markets" :key="item" :value="item">{{ marketLabel(item) }}</a-radio-button>
-        </a-radio-group>
-        <a-radio-group v-model="mode" size="small" button-style="solid" @change="reloadOverview">
-          <a-radio-button value="live">{{ $t('smartInsights.live') }}</a-radio-button>
-          <a-radio-button value="demo">{{ $t('smartInsights.demo') }}</a-radio-button>
-        </a-radio-group>
       </section>
 
-      <a-alert v-if="mode === 'demo'" class="legacy-alert" type="warning" show-icon :message="$t('smartInsights.demoWarning')" />
       <a-alert v-if="errorMessage" class="legacy-alert" type="error" show-icon :message="errorMessage" />
 
       <section v-if="overviewLoading && !overview" class="initial-overview-loading" aria-busy="true" aria-live="polite">
@@ -42,46 +33,37 @@
               <span class="hero-date">{{ analysisDateLabel }}</span>
             </div>
             <h1>{{ $t('smartInsights.legacyHeroTitle') }}</h1>
-            <p><span class="hero-arrow">▲</span> {{ heroSubtitle }}</p>
+            <p><span class="hero-arrow">▲</span> {{ dailyBriefSummary }}</p>
+            <a-button v-if="dailyBrief.status === 'AVAILABLE'" ghost size="small" class="hero-read-more" @click="heroExpanded = !heroExpanded">
+              {{ heroExpanded ? $t('smartInsights.collapse') : $t('smartInsights.readMore') }}
+            </a-button>
+            <p v-if="heroExpanded && dailyBrief.status === 'AVAILABLE'" class="hero-thesis">{{ dailyBrief.content }}</p>
           </div>
-          <button type="button" class="hero-audio" disabled :title="$t('smartInsights.unavailableMvp')">
-            <span class="play-button"><a-icon type="caret-right" /></span>
-            <span><strong>{{ $t('smartInsights.listenAi') }}</strong><small>{{ $t('smartInsights.unavailableMvp') }}</small></span>
+          <button type="button" class="hero-audio" :disabled="dailyBrief.status !== 'AVAILABLE'" @click="toggleHeroSpeech">
+            <span class="play-button"><a-icon :type="heroSpeechActive ? 'pause' : 'caret-right'" /></span>
+            <span><strong>{{ $t('smartInsights.listenAi') }}</strong><small>{{ heroSpeechActive ? $t('smartInsights.stopListening') : $t('smartInsights.dailyBriefTts') }}</small></span>
           </button>
         </section>
 
         <section class="legacy-card decision-brief-card" aria-labelledby="decision-brief-title">
           <div class="card-heading">
             <div class="heading-with-icon"><span class="section-icon">✓</span><div><h2 id="decision-brief-title">{{ $t('smartInsights.decisionBrief') }}</h2><p>{{ $t('smartInsights.decisionBriefDesc') }}</p></div></div>
-            <a-tag :color="decisionBrief.status === 'UNAVAILABLE' ? 'orange' : 'green'">{{ overviewStatus }}</a-tag>
+            <a-tag :color="dailyBrief.status === 'UNAVAILABLE' ? 'orange' : 'green'">{{ overviewStatus }}</a-tag>
           </div>
           <div class="brief-facts">
             <div><small>{{ $t('smartInsights.analysisDate') }}</small><strong>{{ analysisDateLabel }}</strong></div>
-            <div><small>{{ $t('smartInsights.verifiedSources') }}</small><strong>{{ decisionBrief.sourceCount }}</strong></div>
-            <div><small>{{ $t('smartInsights.observations') }}</small><strong>{{ decisionBrief.observationCount }}</strong></div>
-            <div><small>{{ $t('smartInsights.evidenceChecksum') }}</small><code>{{ displayChecksum(decisionBrief.evidenceChecksum) }}</code></div>
+            <div><small>{{ $t('smartInsights.assets') }}</small><strong>{{ dailyBrief.assetCount || 0 }}</strong></div>
+            <div><small>{{ $t('smartInsights.latestAiAnalysis') }}</small><strong>{{ dailyBrief.generatedAt ? formatDateTime(dailyBrief.generatedAt) : $t('smartInsights.notAvailable') }}</strong></div>
+            <div><small>{{ $t('smartInsights.checksum') }}</small><code>{{ shortChecksum(dailyBrief.sourceChecksum) }}</code></div>
           </div>
-        </section>
-
-        <section v-if="riskAlerts.length" class="risk-alerts" aria-live="polite">
-          <a-alert
-            v-for="alert in riskAlerts"
-            :key="alert.id"
-            type="warning"
-            show-icon
-            :message="`${alert.symbol || $t('smartInsights.portfolioNav')} · ${severityLabel(alert.severity)}`"
-            :description="alert.message"
-          />
         </section>
       </template>
 
       <asset-opinions-section
         :rows="opinionRows"
-        :mode="mode"
         :loading="opinionsLoading || overviewLoading"
         @refresh="loadAll"
         @open-analysis="openAssetAnalysis"
-        @open-evidence="openEvidence"
       />
 
       <economic-calendar-table
@@ -125,61 +107,35 @@
             <strong>{{ selectedOpinionRow.displaySymbol }}</strong>
             <span>{{ marketLabel(selectedOpinionRow.market) }}</span>
           </div>
-          <a-tag :color="selectedScheduledAnalysis ? (selectedScheduledAnalysis.is_active ? 'green' : 'default') : 'orange'">
-            {{ selectedScheduledAnalysis ? (selectedScheduledAnalysis.is_active ? $t('smartInsights.scheduleActive') : $t('smartInsights.schedulePaused')) : $t('smartInsights.noScheduledAnalysis') }}
+          <a-tag :color="selectedOpinionReport ? 'green' : 'orange'">
+            {{ selectedOpinionReport ? overviewStatus : $t('smartInsights.dataUnavailableShort') }}
           </a-tag>
         </div>
 
-        <div v-if="selectedScheduledAnalysis" class="asset-analysis-meta">
-          <span>{{ $t('smartInsights.lastAiRun') }}: {{ formatDateTime(selectedScheduledAnalysis.last_run_at) }}</span>
-          <span>{{ $t('smartInsights.nextAiRun') }}: {{ formatDateTime(selectedScheduledAnalysis.next_run_at) }}</span>
+        <div v-if="selectedOpinionReport" class="asset-analysis-meta">
+          <span>{{ $t('smartInsights.analysisDate') }}: {{ analysisDateLabel }}</span>
+          <span>{{ $t('smartInsights.lastAiRun') }}: {{ formatDateTime(selectedOpinionReport.createdAt) }}</span>
         </div>
 
-        <section v-if="selectedScheduledAnalysisResult && selectedScheduledAnalysisResult.success" class="analysis-drawer-section">
+        <section v-if="selectedOpinionReport" class="analysis-drawer-section">
           <div class="analysis-drawer-section-title"><a-icon type="thunderbolt" /><h3>{{ $t('smartInsights.latestAiAnalysis') }}</h3></div>
           <div class="analysis-result-grid">
-            <div><small>{{ $t('smartInsights.aiDecision') }}</small><strong>{{ selectedOpinionAnalysis.final_decision || selectedOpinionAnalysis.trader_decision || $t('smartInsights.notAvailable') }}</strong></div>
-            <div><small>{{ $t('smartInsights.aiConfidence') }}</small><strong>{{ selectedOpinionAnalysis.confidence != null ? `${selectedOpinionAnalysis.confidence}%` : $t('smartInsights.notAvailable') }}</strong></div>
+            <div><small>{{ $t('smartInsights.aiDecision') }}</small><strong>{{ selectedOpinionReport.decision || $t('smartInsights.notAvailable') }}</strong></div>
+            <div><small>{{ $t('smartInsights.aiConfidence') }}</small><strong>{{ selectedOpinionReport.confidence != null ? `${selectedOpinionReport.confidence}%` : $t('smartInsights.notAvailable') }}</strong></div>
           </div>
-          <div v-if="selectedOpinionAnalysis.reasoning || selectedOpinionAnalysis.trader_reasoning" class="analysis-copy">
+          <div v-if="selectedOpinionReport.summary" class="analysis-copy">
             <h4>{{ $t('smartInsights.aiSummary') }}</h4>
-            <p>{{ selectedOpinionAnalysis.reasoning || selectedOpinionAnalysis.trader_reasoning }}</p>
+            <p>{{ selectedOpinionReport.summary }}</p>
           </div>
-          <div v-if="analysisReportHtml" class="analysis-report" v-html="analysisReportHtml"></div>
-          <div v-else class="analysis-copy"><p>{{ $t('smartInsights.aiReportUnavailable') }}</p></div>
-        </section>
-        <section v-else-if="selectedScheduledAnalysis" class="analysis-drawer-section analysis-empty">
-          <a-icon type="clock-circle" />
-          <p>{{ (selectedScheduledAnalysisResult && selectedScheduledAnalysisResult.error) || $t('smartInsights.aiNoResult') }}</p>
+          <div v-if="selectedOpinionReport.reasons && selectedOpinionReport.reasons.length" class="analysis-copy">
+            <h4>{{ $t('smartInsights.analysisEvidence') }}</h4>
+            <ul><li v-for="(reason, index) in selectedOpinionReport.reasons" :key="index">{{ reason }}</li></ul>
+          </div>
         </section>
         <section v-else class="analysis-drawer-section analysis-empty">
           <a-icon type="clock-circle" />
-          <p>{{ $t('smartInsights.noScheduledAnalysisDesc') }}</p>
-          <router-link to="/ai-asset-analysis" @click.native="closeAssetAnalysis">{{ $t('smartInsights.createAiSchedule') }}</router-link>
-        </section>
-
-        <section class="analysis-drawer-section analysis-evidence">
-          <div class="analysis-drawer-section-title"><a-icon type="safety" /><h3>{{ $t('smartInsights.analysisEvidence') }}</h3></div>
-          <p class="analysis-evidence-desc">{{ $t('smartInsights.analysisEvidenceDesc') }}</p>
-          <a-spin :spinning="analysisEvidenceLoading">
-            <div v-if="analysisEvidence.length" class="analysis-evidence-list">
-              <article v-for="item in analysisEvidence" :key="item.id || item.checksum" class="analysis-evidence-item">
-                <div class="analysis-evidence-item-head">
-                  <strong>{{ item.sourceName || item.source || $t('smartInsights.notAvailable') }}</strong>
-                  <span>{{ item.dataClass || $t('smartInsights.notAvailable') }}</span>
-                </div>
-                <div class="analysis-evidence-item-meta">
-                  <span>{{ $t('smartInsights.observedAt') }}: {{ formatDateTime(item.observedAt) }}</span>
-                  <span>{{ $t('smartInsights.reliability') }}: {{ item.reliability || $t('smartInsights.notAvailable') }}</span>
-                </div>
-                <a v-if="item.sourceUrl" :href="item.sourceUrl" target="_blank" rel="noopener">{{ item.sourceUrl }}</a>
-                <pre>{{ pretty(item.value) }}</pre>
-              </article>
-            </div>
-            <div v-else-if="!analysisEvidenceLoading" class="analysis-empty analysis-empty--compact">
-              <span>{{ $t('smartInsights.noEvidenceForAsset') }}</span>
-            </div>
-          </a-spin>
+          <p>{{ $t('smartInsights.aiNoResult') }}</p>
+          <router-link to="/ai-asset-analysis" @click.native="closeAssetAnalysis">{{ $t('smartInsights.manageWatchlist') }}</router-link>
         </section>
       </div>
     </a-modal>
@@ -217,14 +173,10 @@
 <script>
 import { mapState } from 'vuex'
 import { getWatchlist } from '@/api/market'
-import { getMonitors } from '@/api/portfolio'
 import { getEconomicCalendar } from '@/api/global-market'
 import { getSmartInsightsCryptoPulse, getSmartInsightsDataHealth, getSmartInsightsDates, getSmartInsightsEvidence, getSmartInsightsOverview } from '@/api/smart-insights'
-import { noticeMessageHtml } from '@/utils/noticeFormat'
 import { runSectionLoaders } from './loadingCoordinator'
-import { buildOverviewModules, UNAVAILABLE } from './overviewModules'
-import { buildWatchlistOpinionRows, canonicalOpinionSymbol } from './watchlistOpinions'
-import { buildScheduledAnalysisIndex, scheduledAnalysisResult } from './scheduledAnalysis'
+import { buildWatchlistOpinionRows } from './watchlistOpinions'
 import AssetOpinionsSection from './components/AssetOpinionsSection'
 import EconomicCalendarTable from './components/EconomicCalendarTable'
 import MarketPulseSection from './components/MarketPulseSection'
@@ -234,10 +186,6 @@ export default {
   components: { AssetOpinionsSection, EconomicCalendarTable, MarketPulseSection },
   data () {
     return {
-      markets: ['all', 'crypto', 'vn', 'gold'],
-      pulseMarkets: ['crypto', 'vn', 'gold'],
-      market: 'all',
-      mode: 'live',
       asOf: undefined,
       dates: [],
       overview: null,
@@ -254,69 +202,38 @@ export default {
       calendarError: '',
       health: [],
       watchlist: [],
-      monitors: [],
       evidence: null,
       selectedOpinionRow: null,
-      analysisEvidence: [],
       datesLoading: false,
       overviewLoading: false,
       opinionsLoading: false,
       pulseLoading: false,
       healthLoading: false,
       evidenceLoading: false,
-      analysisEvidenceLoading: false,
       evidenceVisible: false,
       analysisModalVisible: false,
-      analysisEvidenceRequestId: 0,
       healthVisible: false,
+      heroExpanded: false,
+      heroSpeechActive: false,
       errorMessage: ''
     }
   },
   computed: {
     ...mapState({ navTheme: state => state.app.theme }),
     isDarkTheme () { return this.navTheme === 'dark' || this.navTheme === 'realdark' },
-    hasOverview () { return Boolean(this.overview && this.overview.status !== UNAVAILABLE) },
-    insightModules () { return buildOverviewModules(this.overview) },
-    decisionBrief () { return this.insightModules.decisionBrief },
-    summary () { return (this.overview && this.overview.summary) || {} },
-    primary () { return (this.overview && this.overview.primary) || {} },
-    riskAlerts () { return (this.overview && Array.isArray(this.overview.riskAlerts)) ? this.overview.riskAlerts : [] },
-    scheduledAnalysisIndex () { return buildScheduledAnalysisIndex(this.monitors) },
+    hasOverview () { return Boolean(this.overview && this.overview.status !== 'UNAVAILABLE') },
+    dailyBrief () { return (this.overview && this.overview.dailyBrief) || { status: 'UNAVAILABLE', content: '', assetCount: 0 } },
     opinionRows () {
-      return buildWatchlistOpinionRows(this.watchlist, this.overview && this.overview.opinions).map(row => ({
-        ...row,
-        scheduledAnalysis: this.scheduledAnalysisIndex[row.id] || null
-      }))
+      return buildWatchlistOpinionRows(this.watchlist, this.overview && this.overview.opinions)
     },
     analysisModalTitle () {
       const symbol = this.selectedOpinionRow && this.selectedOpinionRow.displaySymbol
       return symbol ? `${this.$t('smartInsights.viewAnalysis')} · ${symbol}` : this.$t('smartInsights.viewAnalysis')
     },
-    selectedScheduledAnalysis () {
-      return this.selectedOpinionRow && this.scheduledAnalysisIndex[this.selectedOpinionRow.id]
-    },
-    selectedScheduledAnalysisResult () {
-      return scheduledAnalysisResult(this.selectedScheduledAnalysis)
-    },
-    selectedOpinionAnalysis () {
-      const result = this.selectedScheduledAnalysisResult || {}
-      const analyses = Array.isArray(result.position_analyses) ? result.position_analyses : []
-      const row = this.selectedOpinionRow || {}
-      const selected = analyses.find(item => {
-        const symbol = canonicalOpinionSymbol(item && (item.symbol || item.sym))
-        return symbol === canonicalOpinionSymbol(row.displaySymbol)
-      })
-      return selected || result
-    },
-    analysisReportHtml () {
-      const result = this.selectedScheduledAnalysisResult
-      return result && result.success && result.analysis
-        ? noticeMessageHtml({ message: result.analysis }, this.$t.bind(this))
-        : ''
-    },
+    selectedOpinionReport () { return this.selectedOpinionRow && this.selectedOpinionRow.report },
     overviewStatus () { return this.statusLabel(this.hasOverview ? this.overview.status : 'UNAVAILABLE') },
     analysisDateLabel () { return this.formatDate(this.asOf || (this.overview && this.overview.asOf) || this.dates[0]) },
-    heroSubtitle () { return this.hasOverview && this.overview.status === 'COMPLETE' ? this.$t('smartInsights.legacyHeroLiveSubtitle') : this.$t('smartInsights.legacyHeroPartialSubtitle') },
+    dailyBriefSummary () { return this.dailyBrief.status === 'AVAILABLE' ? this.dailyBrief.content.split('\n')[0] : this.dailyBrief.content || this.$t('smartInsights.aiNoResult') },
     healthColumns () {
       return [
         { title: this.$t('smartInsights.provider'), dataIndex: 'name', width: 180 },
@@ -337,7 +254,7 @@ export default {
       const results = await runSectionLoaders({
         dates: this.loadDates,
         overview: this.loadOverview,
-        opinions: () => Promise.all([this.loadWatchlist(), this.loadScheduledAnalyses()]),
+        opinions: this.loadWatchlist,
         pulse: this.loadPulse,
         calendar: this.loadCalendar
       }, this.setSectionLoading)
@@ -346,18 +263,31 @@ export default {
         this.errorMessage = this.friendlyError(failed.reason, 'smartInsights.unavailable')
       }
     },
-    async reloadOverview () { this.asOf = undefined; await this.loadAll() },
+    async showToday () {
+      this.asOf = new Date().toISOString().slice(0, 10)
+      await this.loadAll()
+    },
     setSectionLoading (section, active) {
       const fields = { dates: 'datesLoading', overview: 'overviewLoading', opinions: 'opinionsLoading', pulse: 'pulseLoading', calendar: 'calendarLoading' }
       if (fields[section]) this[fields[section]] = active
     },
-    async loadOverview () { const response = await getSmartInsightsOverview({ market: this.market, mode: this.mode, as_of: this.asOf, compact: 1 }); this.overview = response.data },
-    async loadDates () { const response = await getSmartInsightsDates({ market: this.market, mode: this.mode }); this.dates = (response.data && response.data.dates) || []; if (!this.asOf && this.dates.length) this.asOf = this.dates[0] },
+    async loadOverview () {
+      const response = await getSmartInsightsOverview({
+        as_of: this.asOf,
+        lang: (this.$i18n && this.$i18n.locale) || 'en-US'
+      })
+      this.overview = response.data
+    },
+    async loadDates () {
+      const response = await getSmartInsightsDates()
+      this.dates = (response.data && response.data.dates) || []
+      if (!this.asOf && this.dates.length) this.asOf = this.dates[0]
+    },
     async loadHealth () {
       this.healthLoading = true
       try { const response = await getSmartInsightsDataHealth(); this.health = (response.data && response.data.sources) || [] } finally { this.healthLoading = false }
     },
-    async loadPulse () { const response = await getSmartInsightsCryptoPulse({ mode: this.mode, as_of: this.asOf, compact: 1 }); this.cryptoPulse = response.data },
+    async loadPulse () { const response = await getSmartInsightsCryptoPulse({ as_of: this.asOf, compact: 1 }); this.cryptoPulse = response.data },
     async loadCalendar (force = false) {
       this.calendarLoading = true
       this.calendarError = ''
@@ -383,49 +313,26 @@ export default {
         this.errorMessage = this.friendlyError(error, 'smartInsights.watchlistUnavailable')
       }
     },
-    async loadScheduledAnalyses () {
-      try {
-        const response = await getMonitors()
-        this.monitors = response && response.code === 1 && Array.isArray(response.data) ? response.data : []
-      } catch (error) {
-        // Scheduled analysis is an optional enrichment; it must not blank the
-        // source-backed Smart Insights page when the portfolio monitor API is unavailable.
-        this.monitors = []
-      }
-    },
     async openAssetAnalysis (row) {
       this.selectedOpinionRow = row
       this.analysisModalVisible = true
-      this.analysisEvidence = []
-      this.analysisEvidenceLoading = false
-      const requestId = this.analysisEvidenceRequestId + 1
-      this.analysisEvidenceRequestId = requestId
-      const opinion = row && row.opinion
-      const evidenceIds = opinion && opinion.evidenceValidated && Array.isArray(opinion.evidence)
-        ? opinion.evidence.map(item => item && item.id).filter(Boolean).slice(0, 8)
-        : []
-      if (!evidenceIds.length) return
-      this.analysisEvidenceLoading = true
-      try {
-        const results = await Promise.all(evidenceIds.map(async id => {
-          try {
-            const response = await getSmartInsightsEvidence(id)
-            return response && response.data ? response.data : null
-          } catch (error) {
-            return null
-          }
-        }))
-        if (this.analysisEvidenceRequestId === requestId) {
-          this.analysisEvidence = results.filter(Boolean)
-        }
-      } finally {
-        if (this.analysisEvidenceRequestId === requestId) this.analysisEvidenceLoading = false
-      }
     },
     closeAssetAnalysis () {
       this.analysisModalVisible = false
-      this.analysisEvidenceRequestId += 1
-      this.analysisEvidenceLoading = false
+    },
+    toggleHeroSpeech () {
+      if (!this.dailyBrief.content || typeof window === 'undefined' || !window.speechSynthesis) return
+      if (window.speechSynthesis.speaking) {
+        window.speechSynthesis.cancel()
+        this.heroSpeechActive = false
+        return
+      }
+      const utterance = new window.SpeechSynthesisUtterance(this.dailyBrief.content)
+      utterance.lang = this.$i18n && this.$i18n.locale === 'vi-VN' ? 'vi-VN' : 'en-US'
+      utterance.onend = () => { this.heroSpeechActive = false }
+      utterance.onerror = () => { this.heroSpeechActive = false }
+      this.heroSpeechActive = true
+      window.speechSynthesis.speak(utterance)
     },
     async openEvidence (id) {
       this.evidenceVisible = true; this.evidenceLoading = true; this.evidence = null
@@ -458,7 +365,6 @@ export default {
       if (this.$i18n && this.$i18n.locale === 'vi-VN') return this.$t(key)
       return String((error && error.message) || this.$t(key))
     },
-    displayChecksum (value) { return value === UNAVAILABLE ? this.$t('smartInsights.dataUnavailableShort') : this.shortChecksum(value) },
     pretty (value) { return JSON.stringify(value || {}, null, 2) },
     shortChecksum (value) { const text = String(value || ''); return text ? `${text.slice(0, 10)}...${text.slice(-6)}` : this.$t('smartInsights.notAvailable') },
     formatDate (value) { if (!value) return this.$t('smartInsights.dataUnavailableShort'); const date = new Date(value); return Number.isNaN(date.getTime()) ? String(value) : date.toLocaleDateString(this.$i18n && this.$i18n.locale === 'vi-VN' ? 'vi-VN' : 'en-GB') },

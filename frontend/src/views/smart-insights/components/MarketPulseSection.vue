@@ -36,12 +36,12 @@
       <section v-else-if="activeKey === 'equities'" class="legacy-card pulse-summary">
         <div class="card-heading compact-heading">
           <div><h3>{{ tabLabel(activeTab) }}</h3><p>{{ $t('smartInsights.equitiesPulseDesc') }}</p></div>
-          <a-tag :color="equityOpinionCount ? 'green' : 'orange'">{{ equityOpinionCount ? $t('smartInsights.availableStatus') : $t('smartInsights.unavailableShort') }}</a-tag>
+          <a-tag :color="equityReportCount ? 'green' : 'orange'">{{ equityReportCount ? $t('smartInsights.availableStatus') : $t('smartInsights.unavailableShort') }}</a-tag>
         </div>
         <div class="pulse-tiles">
           <article class="pulse-tile"><span>VNINDEX · VN30</span><strong>{{ $t('smartInsights.liveDataSources') }}</strong><small>{{ $t('smartInsights.equitiesTickerHint') }}</small></article>
-          <article class="pulse-tile"><span>{{ $t('smartInsights.equitiesWatchlist') }}</span><strong>{{ equityOpinionCount }}</strong><small>{{ $t('smartInsights.sourceBackedOnly') }}</small></article>
-          <article class="pulse-tile"><span>{{ $t('smartInsights.verifiedSources') }}</span><strong>{{ equitySourceCount }}</strong><small>{{ $t('smartInsights.equitiesSourceHint') }}</small></article>
+          <article class="pulse-tile"><span>{{ $t('smartInsights.equitiesWatchlist') }}</span><strong>{{ equityReportCount }}</strong><small>{{ $t('smartInsights.latestAiAnalysis') }}</small></article>
+          <article class="pulse-tile"><span>{{ $t('smartInsights.analysisDate') }}</span><strong>{{ analysisDate }}</strong><small>{{ $t('smartInsights.equitiesSourceHint') }}</small></article>
         </div>
       </section>
       <template v-else>
@@ -96,15 +96,12 @@ export default {
         { label: this.$t('smartInsights.verifiedSources'), value: events.length ? 1 : 0, meta: this.$t('smartInsights.macroCalendarHint') }
       ]
     },
-    equityOpinionCount () {
+    equityReportCount () {
       return Array.isArray(this.overview && this.overview.opinions)
-        ? this.overview.opinions.filter(item => String(item && item.market || '').toLowerCase() === 'vn').length
+        ? this.overview.opinions.filter(item => String(item && item.market || '').toLowerCase() === 'vn' && item.report).length
         : 0
     },
-    equitySourceCount () {
-      const summary = this.overview && this.overview.summary
-      return Number(summary && summary.sourceCount) || 0
-    }
+    analysisDate () { return String((this.overview && this.overview.asOf) || '—') }
   },
   methods: {
     tabLabel (tab) { return pulseTabLabel(tab, this.locale === 'vi-VN' || this.locale === 'vi' ? 'vi' : 'en') },

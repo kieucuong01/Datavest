@@ -10,14 +10,14 @@ test('renders only watchlist assets in watchlist order', () => {
       { market: 'VNStock', symbol: 'FPT', name: 'FPT' }
     ],
     [
-      { market: 'crypto', symbol: 'BTC', stance: 'POSITIVE' },
-      { market: 'crypto', symbol: 'ETH', stance: 'NEUTRAL' },
-      { market: 'vn', symbol: 'FPT', stance: 'POSITIVE' }
+      { market: 'crypto', symbol: 'BTC', report: { id: 1, decision: 'BUY' } },
+      { market: 'crypto', symbol: 'ETH', report: { id: 2, decision: 'HOLD' } },
+      { market: 'vn', symbol: 'FPT', report: { id: 3, decision: 'BUY' } }
     ]
   )
   assert.deepEqual(rows.map(row => row.symbol), ['ETH/USDT', 'FPT'])
-  assert.equal(rows[0].opinion.stance, 'NEUTRAL')
-  assert.equal(rows[1].opinion.stance, 'POSITIVE')
+  assert.equal(rows[0].report.decision, 'HOLD')
+  assert.equal(rows[1].report.decision, 'BUY')
 })
 
 test('keeps a watchlist row when analysis is unavailable', () => {
@@ -26,5 +26,5 @@ test('keeps a watchlist row when analysis is unavailable', () => {
     []
   )
   assert.equal(row.analysisStatus, 'UNAVAILABLE')
-  assert.equal(row.opinion, null)
+  assert.equal(row.report, null)
 })

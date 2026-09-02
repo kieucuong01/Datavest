@@ -23,16 +23,16 @@ function identity (item) {
   return `${canonicalOpinionMarket(item && item.market)}:${canonicalOpinionSymbol(item && (item.symbol || item.sym))}`
 }
 
-export function buildWatchlistOpinionRows (watchlist = [], opinions = []) {
+export function buildWatchlistOpinionRows (watchlist = [], analyses = []) {
   const indexed = new Map()
-  for (const opinion of Array.isArray(opinions) ? opinions : []) {
-    const key = identity(opinion)
-    if (key !== ':') indexed.set(key, opinion)
+  for (const analysis of Array.isArray(analyses) ? analyses : []) {
+    const key = identity(analysis)
+    if (key !== ':') indexed.set(key, analysis.report || null)
   }
 
   return (Array.isArray(watchlist) ? watchlist : []).map(item => {
     const key = identity(item)
-    const opinion = indexed.get(key) || null
+    const report = indexed.get(key) || null
     return {
       id: key,
       symbol: item.symbol || item.sym,
@@ -40,8 +40,8 @@ export function buildWatchlistOpinionRows (watchlist = [], opinions = []) {
       market: item.market,
       name: item.name || item.symbol || item.sym,
       watchlistItem: item,
-      opinion,
-      analysisStatus: opinion ? 'AVAILABLE' : 'UNAVAILABLE'
+      report,
+      analysisStatus: report ? 'AVAILABLE' : 'UNAVAILABLE'
     }
   })
 }

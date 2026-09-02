@@ -26,25 +26,24 @@ test('Smart Insights page has no BTC Forecast or Kronos surface', () => {
   assert.doesNotMatch(source, /forecast|kronos|btcBottom/iu)
 })
 
-test('MVP hides the Indicator Community route and exposes evidence provenance', () => {
+test('MVP hides the Indicator Community route and keeps evidence provenance for Market Pulse', () => {
   assert.doesNotMatch(routerSource, /path:\s*['"]\/indicator-community['"]/u)
   assert.match(source, /evidence\.sourceUrl/u)
   assert.match(source, /evidence\.reliability/u)
 })
 
-test('Asset Opinions never renders unvalidated AI explanation text', () => {
-  assert.match(opinionsSource, /evidenceValidated/u)
-  assert.match(opinionsSource, /Array\.isArray\(row\.opinion\.evidence\)/u)
+test('Asset Opinions only renders an AI Assistant report pinned to its row', () => {
+  assert.match(opinionsSource, /row\.report/u)
+  assert.match(opinionsSource, /row\.report\.summary/u)
+  assert.doesNotMatch(opinionsSource, /row\.opinion/u)
 })
 
-test('Asset Opinions only shows a quantitative score for validated evidence', () => {
-  assert.match(
-    opinionsSource,
-    /row\.opinion && hasValidatedEvidence\(row\) \? displayScore\(row\.opinion\.score\) : \$t\('smartInsights\.notAvailable'\)/u
-  )
+test('Asset Opinions does not show the retired Smart Insights quantitative score', () => {
+  assert.doesNotMatch(opinionsSource, /quantScore/u)
+  assert.doesNotMatch(opinionsSource, /displayScore/u)
 })
 
-test('Asset Opinions does not present an unvalidated stance or confidence as current research', () => {
-  assert.match(opinionsSource, /<a-tag v-if="hasValidatedEvidence\(row\)"[^>]*:class="stanceTone\(row\.opinion\.stance\)"/u)
-  assert.match(opinionsSource, /<small v-if="hasValidatedEvidence\(row\)" class="confidence-line">/u)
+test('Asset Opinions identifies the AI Assistant decision and report timestamp', () => {
+  assert.match(opinionsSource, /decisionTone\(row\.report\.decision\)/u)
+  assert.match(opinionsSource, /formatDateTime\(row\.report\.createdAt\)/u)
 })

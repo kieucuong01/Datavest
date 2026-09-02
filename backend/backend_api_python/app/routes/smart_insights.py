@@ -6,9 +6,9 @@ from flask import g, jsonify, request
 
 from app.observability.features import observe_feature_operation
 from app.openapi.blueprint import HumanBlueprint as Blueprint
+from app.services.ai_assistant_insights import get_ai_assistant_insights_service
 from app.services.smart_insights import get_smart_insights_service
 from app.services.smart_insights.response_compaction import (
-    compact_overview_response,
     compact_pulse_response,
 )
 from app.utils.auth import admin_required, login_required
@@ -35,20 +35,21 @@ def _compact_requested() -> bool:
     return str(request.args.get("compact") or "").strip().lower() in {"1", "true", "yes"}
 
 
+def _locale() -> str:
+    return str(request.args.get("lang") or request.headers.get("Accept-Language") or "vi-VN").split(",", 1)[0]
+
+
 @smart_insights_blp.route("/overview", methods=["GET"])
 @observe_feature_operation("smart_insights", "overview")
 @login_required
 def overview():
-    """Get the latest source-backed insight snapshot."""
+    """Get Smart Insights from the authenticated user's AI Assistant history."""
     try:
-        data = get_smart_insights_service().get_overview(
+        data = get_ai_assistant_insights_service().get_overview(
             user_id=_user_id(),
             as_of=request.args.get("as_of"),
-            market=request.args.get("market"),
-            mode=request.args.get("mode"),
+            locale=_locale(),
         )
-        if _compact_requested():
-            data = compact_overview_response(data)
         return _ok(data)
     except ValueError as exc:
         return _fail(str(exc), 400)
@@ -60,14 +61,10 @@ def overview():
 @smart_insights_blp.route("/dates", methods=["GET"])
 @login_required
 def dates():
-    """List available insight snapshot dates."""
+    """List dates with completed AI Assistant analyses for this user/watchlist."""
     try:
         return _ok(
-            get_smart_insights_service().list_dates(
-                user_id=_user_id(),
-                market=request.args.get("market"),
-                mode=request.args.get("mode"),
-            )
+            get_ai_assistant_insights_service().list_dates(user_id=_user_id())
         )
     except ValueError as exc:
         return _fail(str(exc), 400)
