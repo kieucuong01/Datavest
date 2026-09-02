@@ -13,9 +13,10 @@ test('Smart Insights MVP is watchlist-first and keeps the daily brief surface', 
   assert.match(page, /cryptoPulse/u)
 })
 
-test('Smart Insights MVP renders live source status and chart primitives', () => {
+test('Smart Insights MVP renders live source status and keeps detail terminals', () => {
   assert.match(liveSources, /statusLabel/u)
   assert.match(liveSources, /fetchedAtLabel/u)
-  assert.match(marketPulse, /PulseTrendChart/u)
+  assert.match(marketPulse, /FearGreedPanel|FlowTerminal|DerivativesTerminal|CycleTerminal|OnchainTerminal/u)
+  assert.doesNotMatch(marketPulse, /pulse-chart-grid|PulseTrendChart/u)
   assert.match(marketPulse, /statusLabel/u)
 })

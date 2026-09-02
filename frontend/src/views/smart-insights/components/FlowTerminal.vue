@@ -170,3 +170,7 @@ grid: { left: 8, right: 10, top: 18, bottom: 30, containLabel: true },
 @media (max-width: 980px) { .flow-terminal-layout { grid-template-columns: 1fr; }.asset-rail { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 3px; }.asset-rail h4 { grid-column: 1 / -1; }.flow-details-grid { grid-template-columns: 1fr; } }
 @media (max-width: 680px) { .flow-terminal { padding: 13px; }.flow-terminal-header, .terminal-card-heading { flex-direction: column; }.flow-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }.asset-rail { grid-template-columns: repeat(2, minmax(0, 1fr)); }.terminal-controls { width: 100%; flex-wrap: wrap; }.flow-chart { height: 235px; } }
 </style>
+<style lang="less" scoped>
+.flow-table-scroll { max-height: 372px; overflow: auto; overscroll-behavior: contain; scrollbar-gutter: stable; }
+.flow-table-card thead th { position: sticky; top: 0; z-index: 1; background: #f7f9fd; }
+</style>

@@ -199,6 +199,17 @@ test('Smart Insights routes the flows tab to the multi-asset Flow Terminal inste
   assert.match(flowTerminal, /tableRows/u)
 })
 
+test('Smart Insights history tables show about ten rows before scrolling', () => {
+  const flowTerminal = readFileSync(path.join(repositoryRoot, 'src/views/smart-insights/components/FlowTerminal.vue'), 'utf8')
+  const derivativesTerminal = readFileSync(path.join(repositoryRoot, 'src/views/smart-insights/components/DerivativesTerminal.vue'), 'utf8')
+
+  for (const source of [flowTerminal, derivativesTerminal]) {
+    assert.match(source, /max-height:\s*3\d\dpx/u)
+    assert.match(source, /overflow:\s*auto/u)
+    assert.match(source, /position:\s*sticky/u)
+  }
+})
+
 test('Smart Insights routes Cycle to a source-backed Altseason and CBBI terminal', () => {
   const pulse = readFileSync(path.join(repositoryRoot, 'src/views/smart-insights/components/MarketPulseSection.vue'), 'utf8')
   const cycleTerminalPath = path.join(repositoryRoot, 'src/views/smart-insights/components/CycleTerminal.vue')
@@ -229,12 +240,14 @@ test('Smart Insights routes Cycle to a source-backed Altseason and CBBI terminal
   assert.match(cycleTerminal, /grid-column:\s*auto/u)
 })
 
-test('Smart Insights renders separate BTC, ETH, and SOL ETF charts', () => {
+test('Smart Insights keeps crypto detail terminals without the removed summary and chart grid', () => {
   const pulse = readFileSync(path.join(repositoryRoot, 'src/views/smart-insights/components/MarketPulseSection.vue'), 'utf8')
 
-  assert.match(pulse, /for \(const asset of \['BTC', 'ETH', 'SOL'\]\)/u)
-  assert.match(pulse, /key: `etf-flow-\$\{asset\}`/u)
-  assert.match(pulse, /point\.symbol/u)
+  assert.match(pulse, /FlowTerminal/u)
+  assert.match(pulse, /DerivativesTerminal/u)
+  assert.match(pulse, /CycleTerminal/u)
+  assert.match(pulse, /OnchainTerminal/u)
+  assert.doesNotMatch(pulse, /cryptoPulseTitle|pulse-metric-grid--summary|pulse-chart-grid|chartCards/u)
 })
 
 test('Smart Insights gives Fear & Greed its own gauge, historical values, and range chart', () => {

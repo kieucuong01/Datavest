@@ -89,7 +89,8 @@ export function buildPulsePanel (pulse = {}, key = 'overview') {
     ]
     const tab = {
       status: metrics.length ? 'AVAILABLE' : 'UNAVAILABLE',
-      sources: uniqueSources(flows.sources, shared.sources, cycle.sources, onchain.sources)
+      sources: uniqueSources(flows.sources, shared.sources, cycle.sources, onchain.sources),
+      groups: Array.isArray(onchain.groups) ? onchain.groups : []
     }
     const etf = flows.etfFlows || {}
     const whaleFlows = flows.whaleFlows || null

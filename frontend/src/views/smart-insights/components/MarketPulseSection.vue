@@ -45,33 +45,7 @@
         </div>
       </section>
       <template v-else>
-        <section class="legacy-card pulse-summary">
-          <div class="card-heading compact-heading">
-            <div><h3>{{ $t('smartInsights.cryptoPulseTitle') }}</h3><p>{{ $t('smartInsights.cryptoPulseSummaryDesc') }}</p></div>
-            <a-tag :color="panel.status === 'AVAILABLE' ? 'green' : 'orange'">{{ statusLabel(panel.status) }}</a-tag>
-          </div>
-          <div class="pulse-metric-grid pulse-metric-grid--summary">
-            <article v-for="metric in summaryMetrics" :key="metricKey(metric)" class="pulse-metric">
-              <small>{{ metricLabel(metric) }}</small>
-              <strong>{{ formatMetric(metric.value, metric.unit) }}</strong>
-              <a-button v-if="metric.evidenceId" type="link" size="small" @click="$emit('open-evidence', metric.evidenceId)">{{ $t('smartInsights.evidence') }}</a-button>
-            </article>
-          </div>
-          <div v-if="!summaryMetrics.length" class="pulse-empty"><a-icon type="database" /><span>{{ $t('smartInsights.dataUnavailableShort') }}</span></div>
-        </section>
         <fear-greed-panel v-if="fearGreed" :fear="fearGreed" />
-        <div v-if="chartCards.length" class="pulse-chart-grid">
-          <pulse-trend-chart
-            v-for="chart in chartCards"
-            :key="chart.key"
-            :title="chart.title"
-            :series="chart.series"
-            :status="chart.status"
-            :unit="chart.unit"
-            :variant="chart.variant"
-            :interactive="chart.interactive"
-          />
-        </div>
         <div class="pulse-detail-grid">
           <flow-terminal v-if="panel.etfFlows" :flow="panel.etfFlows" />
           <whale-flow-monitor v-if="panel.whaleFlows" :whale-flow="panel.whaleFlows" />
@@ -87,7 +61,6 @@
 <script>
 import { MARKET_PULSE_TABS, buildPulsePanel, pulseTabLabel } from '../marketPulse'
 import FearGreedPanel from './FearGreedPanel'
-import PulseTrendChart from './PulseTrendChart'
 import FlowTerminal from './FlowTerminal'
 import CycleTerminal from './CycleTerminal'
 import OnchainTerminal from './OnchainTerminal'
@@ -96,7 +69,7 @@ import WhaleFlowMonitor from './WhaleFlowMonitor'
 
 export default {
   name: 'MarketPulseSection',
-  components: { FearGreedPanel, PulseTrendChart, FlowTerminal, CycleTerminal, OnchainTerminal, DerivativesTerminal, WhaleFlowMonitor },
+  components: { FearGreedPanel, FlowTerminal, CycleTerminal, OnchainTerminal, DerivativesTerminal, WhaleFlowMonitor },
   props: {
     pulse: { type: Object, default: () => ({}) },
     overview: { type: Object, default: () => ({}) },
@@ -131,34 +104,6 @@ export default {
     equitySourceCount () {
       const summary = this.overview && this.overview.summary
       return Number(summary && summary.sourceCount) || 0
-    },
-    summaryMetrics () {
-      const groups = [
-        /net_flow|stablecoin|whale|balance_change/iu,
-        /fear|greed|sentiment/iu,
-        /funding|open[_ ]?interest|liquidation|derivative/iu,
-        /cbbi|altcoin_season|halving/iu,
-        /address_balance|chain_tvl|onchain/iu
-      ]
-      return groups.map(pattern => this.panel.metrics.find(metric => pattern.test(String(metric.metric || '')))).filter(Boolean)
-    },
-    chartCards () {
-      const cards = []
-      const directMetrics = new Set()
-      if (this.activeKey === 'crypto') {
-        const fear = this.panel.fearGreed
-        if (fear) {
-          directMetrics.add('crypto.fear_greed.index')
-        }
-      }
-      const omittedMetric = /net_flow|trolololo|woobull|rhodl|two[_ -]?year/iu
-      this.panel.seriesGroups
-        .filter(group => !directMetrics.has(group.key.split(':')[0]) && !omittedMetric.test(group.key))
-        .slice(0, 6)
-        .forEach(group => {
-        cards.push({ key: group.key, title: this.metricLabel({ metric: group.key.split(':')[0] }), series: group.points, status: this.panel.status, unit: '', variant: 'line' })
-      })
-      return cards
     }
   },
   methods: {
@@ -171,32 +116,6 @@ export default {
         UNAVAILABLE: this.$t('smartInsights.unavailableShort')
       }
       return labels[String(status || 'UNAVAILABLE').toUpperCase()] || this.$t('smartInsights.unavailableShort')
-    },
-    metricKey (metric) { return `${metric.metric || 'metric'}-${metric.symbol || ''}-${metric.effectiveAt || ''}` },
-    metricLabel (metric) {
-      const key = String(metric.metric || '').toLowerCase().split('.').pop()
-      const labels = {
-        fear_greed: this.$t('smartInsights.metricFearGreed'),
-        index: this.$t('smartInsights.metricIndex'),
-        net_flow_usd: this.$t('smartInsights.metricNetFlow'),
-        funding_rate: this.$t('smartInsights.metricFundingRate'),
-        open_interest: this.$t('smartInsights.metricOpenInterest'),
-        liquidation_usd: this.$t('smartInsights.metricLiquidation'),
-        stablecoin_supply_usd: this.$t('smartInsights.metricStablecoinSupply'),
-        chain_tvl_usd: this.$t('smartInsights.metricChainTvl'),
-        aum_usd: this.$t('smartInsights.metricAum'),
-        address_balance_btc: this.$t('smartInsights.metricAddressBalance'),
-        balance_change_btc: this.$t('smartInsights.metricBalanceChange'),
-        cbbi: this.$t('smartInsights.metricCbbi'),
-        altcoin_season: this.$t('smartInsights.altcoinSeason'),
-        confidence: this.$t('smartInsights.metricCbbi')
-      }
-      return labels[key] || (this.$i18n && this.$i18n.locale === 'vi-VN' ? `${this.$t('smartInsights.metricLabel')}: ${key.replace(/[_-]+/gu, ' ')}` : key.replace(/[_-]+/gu, ' '))
-    },
-    formatMetric (value, unit) {
-      const number = Number(value)
-      if (!Number.isFinite(number)) return this.$t('smartInsights.dataUnavailableShort')
-      return `${new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 }).format(number)}${unit ? ` ${unit}` : ''}`
     }
   }
 }
@@ -222,16 +141,8 @@ export default {
 .card-heading .ant-tag { margin: 0; font-size: 11px; }
 .pulse-tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 9px; padding: 12px 15px 15px; }
 .pulse-tile { display: grid; gap: 5px; min-height: 72px; padding: 12px; border: 1px solid var(--line); border-radius: 9px; background: var(--page-bg); }
-.pulse-tile span, .pulse-tile small, .pulse-metric small { color: var(--muted); font-size: 13px; }
+.pulse-tile span, .pulse-tile small { color: var(--muted); font-size: 13px; }
 .pulse-tile strong { color: var(--ink); font-size: 21px; }
-.pulse-metric-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 9px; margin-top: 12px; }
-.pulse-metric-grid--summary { grid-template-columns: repeat(5, minmax(0, 1fr)); padding: 12px 15px 15px; margin: 0; }
-.pulse-metric { display: grid; gap: 6px; padding: 12px; border: 1px solid var(--line); border-radius: 9px; background: var(--card); }
-.pulse-metric strong { color: var(--ink); font-size: 20px; font-variant-numeric: tabular-nums; }
-.pulse-metric .ant-btn { padding: 0; justify-self: start; font-size: 11px; }
-.pulse-chart-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 12px; }
 .pulse-detail-grid { display: grid; gap: 12px; margin-top: 12px; }
-.pulse-empty { display: flex; align-items: center; justify-content: center; gap: 7px; min-height: 160px; margin-top: 12px; color: var(--muted); font-size: 12px; }
-@media (max-width: 960px) { .pulse-metric-grid--summary { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
-@media (max-width: 680px) { .pulse-tiles, .pulse-metric-grid, .pulse-metric-grid--summary, .pulse-chart-grid { grid-template-columns: 1fr; } }
+@media (max-width: 680px) { .pulse-tiles { grid-template-columns: 1fr; } }
 </style>

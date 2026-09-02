@@ -32,6 +32,21 @@ test('builds one crypto overview from source-backed flow, sentiment, derivatives
   ])
 })
 
+test('passes the persisted on-chain groups into the crypto terminal adapter', () => {
+  const panel = buildPulsePanel({ tabs: {
+    onchain: {
+      status: 'AVAILABLE',
+      sources: [{ source: 'coinmetrics-community' }],
+      groups: [{ key: 'valuation', status: 'AVAILABLE', metrics: [{ metric: 'crypto.onchain.mvrv', value: 1.8 }] }],
+      series: [{ effectiveAt: '2026-09-01', value: 1.8, metric: 'crypto.onchain.mvrv', symbol: 'BTC' }]
+    }
+  } }, 'crypto')
+
+  assert.deepEqual(panel.groups.map(group => group.key), ['valuation'])
+  assert.equal(panel.groups[0].metrics[0].metric, 'crypto.onchain.mvrv')
+  assert.equal(panel.series.some(point => point.metric === 'crypto.onchain.mvrv'), true)
+})
+
 test('keeps the backend whale-flow contract with the flows panel', () => {
   const whaleFlows = {
     status: 'AVAILABLE',
@@ -67,7 +82,7 @@ test('shows the economic calendar before the three-tab market pulse without fore
     assert.match(modelSource, new RegExp(`['"]${key}['"]`, 'u'))
   }
   assert.match(source, /MARKET_PULSE_TABS|activeKey|tabs/u)
-  assert.match(source, /PulseTrendChart/u)
+  assert.doesNotMatch(source, /PulseTrendChart|pulse-metric-grid--summary|pulse-chart-grid|cryptoPulseTitle/u)
   assert.ok(pageSource.indexOf('<economic-calendar-table') < pageSource.indexOf('<market-pulse-section'))
   assert.equal(source.match(/forecast|kronos|btcBottom/iu), null)
 })
