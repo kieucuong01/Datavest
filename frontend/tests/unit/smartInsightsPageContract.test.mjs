@@ -36,3 +36,15 @@ test('Asset Opinions never renders unvalidated AI explanation text', () => {
   assert.match(opinionsSource, /evidenceValidated/u)
   assert.match(opinionsSource, /Array\.isArray\(row\.opinion\.evidence\)/u)
 })
+
+test('Asset Opinions only shows a quantitative score for validated evidence', () => {
+  assert.match(
+    opinionsSource,
+    /row\.opinion && hasValidatedEvidence\(row\) \? displayScore\(row\.opinion\.score\) : \$t\('smartInsights\.notAvailable'\)/u
+  )
+})
+
+test('Asset Opinions does not present an unvalidated stance or confidence as current research', () => {
+  assert.match(opinionsSource, /<a-tag v-if="hasValidatedEvidence\(row\)"[^>]*:class="stanceTone\(row\.opinion\.stance\)"/u)
+  assert.match(opinionsSource, /<small v-if="hasValidatedEvidence\(row\)" class="confidence-line">/u)
+})

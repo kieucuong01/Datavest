@@ -68,7 +68,20 @@ class SmartInsightsService:
         watchlist_pairs = self.watchlist_loader(int(user_id))
         imported = self._production_import(int(user_id), "briefing") if data_class == "LIVE" else None
         imported_as_of = str((imported or {}).get("payload", {}).get("localDate") or "")
-        if imported and (not normalized_as_of or imported_as_of == normalized_as_of):
+        # A production import is a migration compatibility source, not a
+        # freshness override. Once a live snapshot exists for this market
+        # scope, the default view must use that snapshot instead of silently
+        # returning an older imported briefing.
+        live_dates = self._snapshot_dates(normalized_market, data_class="LIVE") if data_class == "LIVE" else []
+        requested_live_snapshot = (
+            normalized_as_of in live_dates if normalized_as_of else bool(live_dates)
+        )
+        if (
+            imported
+            and imported_as_of
+            and not requested_live_snapshot
+            and (not normalized_as_of or imported_as_of == normalized_as_of)
+        ):
             from .production_account_view import build_imported_overview
 
             result = build_imported_overview(
@@ -99,13 +112,24 @@ class SmartInsightsService:
 
     def list_dates(self, *, user_id: int, market: str | None, mode: str | None) -> dict:
         normalized_mode, data_class = _mode(mode)
-        dates = self.repository.list_dates(market=_market(market, allow_none=True), data_class=data_class)
+        normalized_market = _market(market, allow_none=True)
+        dates = self._snapshot_dates(normalized_market, data_class=data_class)
         if data_class == "LIVE":
             imported = self._production_import(int(user_id), "briefing")
             imported_date = str((imported or {}).get("payload", {}).get("localDate") or "")
             if imported_date and imported_date not in dates:
                 dates = sorted([*dates, imported_date], reverse=True)
         return {"mode": normalized_mode, "dates": dates}
+
+    def _snapshot_dates(self, market: str | None, *, data_class: str) -> list[str]:
+        """Return snapshot dates for a UI scope, with ``all`` as a union."""
+        loader = getattr(self.repository, "list_dates", None)
+        if not callable(loader):
+            # Keep lightweight repository doubles and clean installs
+            # compatible; the real repository always implements this method.
+            return []
+        query_market = None if market == "all" else market
+        return list(loader(market=query_market, data_class=data_class) or [])
 
     def get_evidence(self, *, user_id: int, evidence_id: str) -> dict | None:
         del user_id

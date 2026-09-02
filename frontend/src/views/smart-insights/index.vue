@@ -223,7 +223,7 @@ import { getSmartInsightsCryptoPulse, getSmartInsightsDataHealth, getSmartInsigh
 import { noticeMessageHtml } from '@/utils/noticeFormat'
 import { runSectionLoaders } from './loadingCoordinator'
 import { buildOverviewModules, UNAVAILABLE } from './overviewModules'
-import { buildWatchlistOpinionRows } from './watchlistOpinions'
+import { buildWatchlistOpinionRows, canonicalOpinionSymbol } from './watchlistOpinions'
 import { buildScheduledAnalysisIndex, scheduledAnalysisResult } from './scheduledAnalysis'
 import AssetOpinionsSection from './components/AssetOpinionsSection'
 import EconomicCalendarTable from './components/EconomicCalendarTable'
@@ -303,8 +303,8 @@ export default {
       const analyses = Array.isArray(result.position_analyses) ? result.position_analyses : []
       const row = this.selectedOpinionRow || {}
       const selected = analyses.find(item => {
-        const symbol = String(item && (item.symbol || item.sym) || '').toUpperCase().replace(/[/:-](USDT|USD)$/u, '')
-        return symbol === String(row.displaySymbol || '').toUpperCase()
+        const symbol = canonicalOpinionSymbol(item && (item.symbol || item.sym))
+        return symbol === canonicalOpinionSymbol(row.displaySymbol)
       })
       return selected || result
     },

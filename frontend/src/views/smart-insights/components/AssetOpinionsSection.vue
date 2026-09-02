@@ -35,17 +35,18 @@
         </div>
         <div>
           <template v-if="row.opinion">
-            <a-tag :class="stanceTone(row.opinion.stance)">{{ stanceLabel(row.opinion.stance) }}</a-tag>
+            <a-tag v-if="hasValidatedEvidence(row)" :class="stanceTone(row.opinion.stance)">{{ stanceLabel(row.opinion.stance) }}</a-tag>
+            <a-tag v-else class="stance-neutral">{{ $t('smartInsights.dataUnavailableShort') }}</a-tag>
             <small v-if="hasValidatedEvidence(row)" class="muted-line">{{ row.opinion.explanation }}</small>
             <small v-else class="muted-line">{{ $t('smartInsights.opinionNeedsValidatedMetrics') }}</small>
-            <small class="confidence-line">{{ $t('smartInsights.confidence') }} {{ percent(row.opinion.confidence) }}</small>
+            <small v-if="hasValidatedEvidence(row)" class="confidence-line">{{ $t('smartInsights.confidence') }} {{ percent(row.opinion.confidence) }}</small>
           </template>
           <template v-else>
             <a-tag class="stance-neutral">{{ $t('smartInsights.dataUnavailableShort') }}</a-tag>
             <small class="muted-line">{{ $t('smartInsights.opinionNeedsValidatedMetrics') }}</small>
           </template>
         </div>
-        <strong class="tabular">{{ displayScore(row.opinion && row.opinion.score) }}</strong>
+        <strong class="tabular">{{ row.opinion && hasValidatedEvidence(row) ? displayScore(row.opinion.score) : $t('smartInsights.notAvailable') }}</strong>
         <div class="opinion-actions">
           <a-button size="small" type="primary" icon="search" @click="$emit('open-analysis', row)">{{ $t('smartInsights.viewAnalysis') }}</a-button>
         </div>
