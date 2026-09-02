@@ -28,6 +28,13 @@ def test_celery_beat_owns_periodic_maintenance():
     assert schedule["crypto-derivatives-daily-retry"]["task"] == "datavest.tasks.enqueue_smart_insights_refresh_for_sources"
 
 
+def test_celery_beat_defaults_to_vietnam_timezone_for_crypto_snapshot_handoff():
+    """A missing server TZ must not shift the importer into the crawler window."""
+    from app.celery_app import celery_app
+
+    assert celery_app.conf.timezone == "Asia/Ho_Chi_Minh"
+
+
 def test_fast_analysis_dispatches_to_celery(monkeypatch):
     from app.services import fast_analysis_tasks
     from app.tasks.fast_analysis import execute_fast_analysis

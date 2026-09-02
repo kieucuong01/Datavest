@@ -47,10 +47,10 @@ $digest = (Get-FileHash -Algorithm SHA256 -LiteralPath $archive).Hash.ToLowerInv
 
 $target = "$($settings.DATAVEST_VPS_USER)@$($settings.DATAVEST_VPS_HOST)"
 $scpArgs = @('-i',$keyPath,'-P',$settings.DATAVEST_VPS_PORT,'-o','BatchMode=yes','-o','IdentitiesOnly=yes','-o','StrictHostKeyChecking=yes')
-scp @scpArgs $archive $checksum (Join-Path $repo 'deploy/vps/deploy.sh') "${target}:/opt/datavest/incoming/"
+scp @scpArgs $archive $checksum (Join-Path $repo 'deploy/vps/deploy.sh') (Join-Path $repo 'deploy/vps/datavest-crypto-insights-browser.service') "${target}:/opt/datavest/incoming/"
 if ($LASTEXITCODE) { throw "Upload failed" }
 $sshArgs = @('-i',$keyPath,'-p',$settings.DATAVEST_VPS_PORT,'-o','BatchMode=yes','-o','IdentitiesOnly=yes','-o','StrictHostKeyChecking=yes')
-ssh @sshArgs $target "install -m 0755 /opt/datavest/incoming/deploy.sh /opt/datavest/shared/deploy.sh && /opt/datavest/shared/deploy.sh /opt/datavest/incoming/$(Split-Path -Leaf $archive) $sha"
+ssh @sshArgs $target "install -m 0755 /opt/datavest/incoming/deploy.sh /opt/datavest/shared/deploy.sh && install -m 0644 /opt/datavest/incoming/datavest-crypto-insights-browser.service /opt/datavest/shared/datavest-crypto-insights-browser.service && /opt/datavest/shared/deploy.sh /opt/datavest/incoming/$(Split-Path -Leaf $archive) $sha"
 if ($LASTEXITCODE) { throw "Remote deployment failed" }
 Remove-Item -LiteralPath $archive,$checksum,$work -Recurse -Force
 Write-Host "Deployed $sha to https://$($settings.DATAVEST_DOMAIN)/"

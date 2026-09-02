@@ -51,6 +51,7 @@ install -m 0644 -o datavest-deploy -g datavest-deploy "$script_dir/datavest-api.
 install -m 0644 -o datavest-deploy -g datavest-deploy "$script_dir/datavest-celery.service" "$unit_dir/datavest-celery.service"
 install -m 0644 -o datavest-deploy -g datavest-deploy "$script_dir/datavest-beat.service" "$unit_dir/datavest-beat.service"
 install -m 0644 -o datavest-deploy -g datavest-deploy "$script_dir/datavest-scheduler.service" "$unit_dir/datavest-scheduler.service"
+install -m 0644 -o datavest-deploy -g datavest-deploy "$script_dir/datavest-crypto-insights-browser.service" "$unit_dir/datavest-crypto-insights-browser.service"
 
 mkdir -p /var/www/datavest-acme
 cat > /etc/nginx/sites-available/datavest.conf <<'EOF'

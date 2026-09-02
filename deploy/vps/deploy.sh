@@ -8,6 +8,8 @@ readonly incoming="$root/incoming"
 readonly shared="$root/shared"
 readonly backups="$root/backups"
 readonly env_file="$shared/.env"
+readonly browser_venv="$shared/crypto-insights-venv"
+readonly browser_requirements_stamp="$shared/crypto-insights-requirements.sha256"
 readonly runtime_uid="$(id -u)"
 export XDG_RUNTIME_DIR="/run/user/$runtime_uid"
 export DBUS_SESSION_BUS_ADDRESS="unix:path=$XDG_RUNTIME_DIR/bus"
@@ -62,6 +64,19 @@ python3 -m venv "$release/.venv"
 "$release/.venv/bin/python" -m pip install --disable-pip-version-check --upgrade 'pip>=26.1.2,<27'
 "$release/.venv/bin/pip" install --disable-pip-version-check --prefer-binary -r "$release/backend/requirements.lock"
 
+# Keep Browser Use isolated from the API/Celery environment. The long-running
+# snapshot process needs its own browser dependencies, while the application
+# only reads the validated JSON files beneath the shared data directory.
+browser_requirements="$release/backend/crypto_insights_worker/requirements.txt"
+browser_hash="$(sha256sum "$browser_requirements" | awk '{print $1}')"
+if [[ ! -x "$browser_venv/bin/python" || ! -f "$browser_requirements_stamp" || "$(cat "$browser_requirements_stamp")" != "$browser_hash" ]]; then
+  rm -rf -- "$browser_venv"
+  python3 -m venv "$browser_venv"
+  "$browser_venv/bin/pip" install --disable-pip-version-check --prefer-binary -r "$browser_requirements"
+  printf '%s\n' "$browser_hash" > "$browser_requirements_stamp"
+fi
+install -d -m 0750 "$shared/data/crypto-insights" "$shared/data/browser-profiles/crypto-insights" "$shared/browser-home/cache" "$shared/browser-home/config"
+
 install -d -m 0700 "$backups"
 backup="$backups/datavest-$(date -u +%Y%m%dT%H%M%SZ)-${sha:0:12}.sql.gz"
 /usr/local/bin/datavest-env-exec --cwd "$release/backend" "$env_file" \
@@ -92,7 +107,7 @@ rollback() {
   if [[ -n "$old_release" && -d "$old_release" ]]; then
     ln -sfn "$old_release" "$root/current.new"
     mv -Tf "$root/current.new" "$root/current"
-    user_systemctl restart datavest-api datavest-celery datavest-beat datavest-scheduler || true
+    user_systemctl restart datavest-api datavest-celery datavest-beat datavest-scheduler datavest-crypto-insights-browser || true
   fi
   echo 'deploy_status=failed' >&2
   exit "$status"
@@ -100,8 +115,10 @@ rollback() {
 trap rollback ERR
 
 user_systemctl daemon-reload
-user_systemctl enable datavest-api datavest-celery datavest-beat datavest-scheduler >/dev/null
-user_systemctl restart datavest-api datavest-celery datavest-beat datavest-scheduler
+install -m 0644 "$shared/datavest-crypto-insights-browser.service" "$HOME/.config/systemd/user/datavest-crypto-insights-browser.service"
+user_systemctl daemon-reload
+user_systemctl enable datavest-api datavest-celery datavest-beat datavest-scheduler datavest-crypto-insights-browser >/dev/null
+user_systemctl restart datavest-api datavest-celery datavest-beat datavest-scheduler datavest-crypto-insights-browser
 
 for _ in {1..36}; do
   if curl -fsS --max-time 5 http://127.0.0.1:5100/api/health/ready >/dev/null && \
@@ -113,7 +130,8 @@ done
 curl -fsS --max-time 10 http://127.0.0.1:5100/api/health/ready >/dev/null
 curl -fsS --max-time 10 http://127.0.0.1/health -H 'Host: datavest.vn' >/dev/null
 curl -kfsS --max-time 10 https://127.0.0.1/ -H 'Host: datavest.vn' >/dev/null
-user_systemctl --no-pager --full status datavest-api datavest-celery datavest-beat datavest-scheduler | sed -n '1,60p'
+user_systemctl is-active --quiet datavest-crypto-insights-browser
+user_systemctl --no-pager --full status datavest-api datavest-celery datavest-beat datavest-scheduler datavest-crypto-insights-browser | sed -n '1,75p'
 
 trap - ERR
 printf '%s\n' "$sha" > "$shared/current-release"

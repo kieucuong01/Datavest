@@ -1,0 +1,35 @@
+[Unit]
+Description=DataVest Browser Use crypto insight snapshots
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/datavest/current/backend
+EnvironmentFile=/opt/datavest/shared/.env
+Environment=PYTHONUNBUFFERED=1
+Environment=TZ=Asia/Ho_Chi_Minh
+Environment=HOME=/opt/datavest/shared/browser-home
+Environment=XDG_CACHE_HOME=/opt/datavest/shared/browser-home/cache
+Environment=XDG_CONFIG_HOME=/opt/datavest/shared/browser-home/config
+Environment=CRYPTO_INSIGHTS_SNAPSHOT_ROOT=/opt/datavest/shared/data/crypto-insights
+Environment=CRYPTO_INSIGHTS_BROWSER_USER_DATA_DIR=/opt/datavest/shared/data/browser-profiles/crypto-insights
+Environment=CRYPTO_INSIGHTS_BROWSER_EXECUTABLE_PATH=/usr/bin/google-chrome-stable
+Environment=CRYPTO_INSIGHTS_BROWSER_HEADLESS=true
+Environment=CRYPTO_INSIGHTS_BROWSER_PAGE_WAIT_SECONDS=4
+ExecStart=/opt/datavest/shared/crypto-insights-venv/bin/python -m crypto_insights_worker.browser_snapshots
+Restart=on-failure
+RestartSec=20
+TimeoutStopSec=45
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/datavest/shared
+RestrictSUIDSGID=true
+LockPersonality=true
+MemoryMax=700M
+TasksMax=256
+
+[Install]
+WantedBy=default.target
