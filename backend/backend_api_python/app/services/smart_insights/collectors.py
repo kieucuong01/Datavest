@@ -70,7 +70,18 @@ class RefreshCoordinator:
     def execute(self, run_id: str) -> dict:
         request = self.repository.load_refresh_request(run_id)
         source_codes = tuple(str(code) for code in (request.get("sourceCodes") or ()))
-        self.repository.mark_run_running(run_id)
+        try:
+            self.repository.mark_run_running(run_id)
+        except ValueError as exc:
+            # A late Celery redelivery must not turn a refresh another worker
+            # already owns into a failed run.  The claiming update is atomic.
+            if str(exc) == "refresh_run_not_queued":
+                return {
+                    "runId": run_id,
+                    "status": "SKIPPED",
+                    "reason": "already_claimed",
+                }
+            raise
         fetched = 0
         persisted = 0
         warnings: list[str] = []

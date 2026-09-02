@@ -35,6 +35,8 @@ CRYPTOETF_SOURCES = tuple(f"cryptoetf-{asset}-etf" for asset in CRYPTOETF_ASSETS
 XOOMAR_SOURCES = ("xoomar-btc-etf", "xoomar-eth-etf")
 FARSIDE_SOURCES = ("farside-btc-etf", "farside-eth-etf", "farside-sol-etf")
 COINSHARES_SOURCE = "coinshares-weekly"
+_DAILY_SNAPSHOT_TIME = (8, 15)
+_COINSHARES_SNAPSHOT_TIME = (18, 0)
 SOURCE_URLS = {
     "alternative-fng": "https://api.alternative.me/fng/?limit=0&format=json",
     "farside-btc-etf": "https://farside.co.uk/btc/",
@@ -648,6 +650,31 @@ def scheduled_daily_sources() -> tuple[str, ...]:
     return (*_BASE_DAILY_SOURCES, *provider_sources)
 
 
+def due_snapshot_sources(local_now: datetime, seen: set[str]) -> tuple[str, ...]:
+    """Return one daily catch-up batch when this long-running worker starts late.
+
+    The old exact-minute check silently skipped an entire day's ETF snapshot if
+    Docker restarted after 08:15.  A per-day key keeps the normal worker to one
+    batch while allowing a restart later that day to recover the missed fetch.
+    """
+    zone = ZoneInfo("Asia/Ho_Chi_Minh")
+    current = local_now.astimezone(zone) if local_now.tzinfo else local_now.replace(tzinfo=zone)
+    daily_key = f"daily:{current.date().isoformat()}"
+    coinshares_key = f"coinshares:{current.date().isoformat()}"
+    clock = (current.hour, current.minute)
+    if clock >= _DAILY_SNAPSHOT_TIME and daily_key not in seen:
+        seen.add(daily_key)
+        return scheduled_daily_sources()
+    if (
+        current.weekday() in {0, 1}
+        and clock >= _COINSHARES_SNAPSHOT_TIME
+        and coinshares_key not in seen
+    ):
+        seen.add(coinshares_key)
+        return (COINSHARES_SOURCE,)
+    return ()
+
+
 async def _farside_table(page: Any, url: str) -> list[list[str]]:
     await page.goto(url)
     await asyncio.sleep(max(1, float(os.getenv("CRYPTO_INSIGHTS_BROWSER_PAGE_WAIT_SECONDS", "3"))))
@@ -894,11 +921,9 @@ def main() -> None:
         zone = ZoneInfo("Asia/Ho_Chi_Minh")
         while True:
             local_now = datetime.now(zone)
-            due = scheduled_daily_sources() if (local_now.hour, local_now.minute) == (8, 15) else ((COINSHARES_SOURCE,) if local_now.weekday() in {0, 1} and (local_now.hour, local_now.minute) == (18, 0) else ())
-            key = f"{local_now.date().isoformat()}-{local_now.hour:02d}-{local_now.minute:02d}"
-            if due and key not in seen:
+            due = due_snapshot_sources(local_now, seen)
+            if due:
                 print(json.dumps(await browser_backfill(due), ensure_ascii=False))
-                seen.add(key)
             await asyncio.sleep(30)
     asyncio.run(loop())
 

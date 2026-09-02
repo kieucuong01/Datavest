@@ -458,6 +458,28 @@ def test_refresh_coordinator_dedupes_checksums_and_audits_counts():
     assert repository.success == ("run-1", 2, 1, ())
 
 
+def test_refresh_coordinator_skips_a_run_claimed_by_another_worker():
+    from app.services.smart_insights.collectors import RefreshCoordinator
+
+    class Repository:
+        def load_refresh_request(self, _run_id):
+            return {"market": "crypto", "sourceCodes": ("cryptoetf-btc-etf",)}
+
+        def mark_run_running(self, _run_id):
+            raise ValueError("refresh_run_not_queued")
+
+        def mark_run_failed(self, *_args, **_kwargs):
+            pytest.fail("a duplicate delivery must not mark the claimed run failed")
+
+    result = RefreshCoordinator(repository=Repository(), collector_registry={}).execute("run-claimed")
+
+    assert result == {
+        "runId": "run-claimed",
+        "status": "SKIPPED",
+        "reason": "already_claimed",
+    }
+
+
 def test_refresh_coordinator_records_sanitized_failure():
     from app.services.smart_insights.collectors import CollectorUnavailable, RefreshCoordinator
 

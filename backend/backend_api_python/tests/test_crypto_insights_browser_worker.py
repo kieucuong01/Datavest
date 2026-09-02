@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 import json
+from zoneinfo import ZoneInfo
 
 from app.services.smart_insights.browser_snapshots import load_snapshot, write_snapshot
 
@@ -70,6 +71,16 @@ def test_backfill_keeps_prior_snapshot_when_one_source_collector_crashes(tmp_pat
     assert result["farside-btc-etf"]["status"] == "failed"
     assert result["farside-btc-etf"]["error"] == "UNEXPECTED:RuntimeError"
     assert load_snapshot("farside-btc-etf", root=tmp_path, now=NOW)["records"][0]["value"] == "111"
+
+
+def test_daily_sources_are_caught_up_once_when_worker_starts_after_schedule():
+    from crypto_insights_worker.browser_snapshots import due_snapshot_sources, scheduled_daily_sources
+
+    seen: set[str] = set()
+    after_schedule = datetime(2026, 9, 2, 9, 5, tzinfo=ZoneInfo("Asia/Ho_Chi_Minh"))
+
+    assert due_snapshot_sources(after_schedule, seen) == scheduled_daily_sources()
+    assert due_snapshot_sources(after_schedule, seen) == ()
 
 
 def test_public_document_parsers_keep_history_and_current_metrics():

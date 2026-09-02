@@ -151,26 +151,11 @@ export default {
           directMetrics.add('crypto.fear_greed.index')
         }
       }
-      if (this.activeKey === 'crypto') {
-        const flow = this.panel.etfFlows
-        if (flow) {
-          directMetrics.add('crypto.etf.net_flow_usd')
-          for (const asset of ['BTC', 'ETH', 'SOL']) {
-            const series = (flow.series || []).filter(point => String(point.symbol || '').toUpperCase() === asset)
-            cards.push({
-              key: `etf-flow-${asset}`,
-              title: `${asset} · ${this.$t('smartInsights.flowTitle')}`,
-              series,
-              status: series.length ? flow.status : 'UNAVAILABLE',
-              unit: 'USD',
-              variant: 'bar',
-              interactive: true
-            })
-          }
-        }
-      }
-      const limit = cards.length ? 4 : 6
-      this.panel.seriesGroups.filter(group => !directMetrics.has(group.key.split(':')[0])).slice(0, limit).forEach(group => {
+      const omittedMetric = /net_flow|trolololo|woobull|rhodl|two[_ -]?year/iu
+      this.panel.seriesGroups
+        .filter(group => !directMetrics.has(group.key.split(':')[0]) && !omittedMetric.test(group.key))
+        .slice(0, 6)
+        .forEach(group => {
         cards.push({ key: group.key, title: this.metricLabel({ metric: group.key.split(':')[0] }), series: group.points, status: this.panel.status, unit: '', variant: 'line' })
       })
       return cards
