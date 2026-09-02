@@ -113,21 +113,22 @@ export default {
 .watchlist-link, .table-empty a { color: var(--blue); font-size: 12px; text-decoration: none; }
 .opinion-loading { min-height: 170px; padding: 20px 18px; }
 .opinion-table { width: 100%; }
-.opinion-table-head, .opinion-row { display: grid; grid-template-columns: 1.1fr 1.8fr .85fr 1fr; align-items: center; gap: 12px; padding: 0 12px; }
+.opinion-table-head, .opinion-row { display: grid; grid-template-columns: minmax(130px, 1.05fr) minmax(0, 2.35fr) minmax(90px, .85fr) minmax(112px, auto); align-items: center; gap: 12px; padding: 0 12px; }
+.opinion-table-head > *, .opinion-row > * { min-width: 0; }
 .opinion-table-head { min-height: 34px; color: var(--muted); border-bottom: 1px solid var(--line); background: var(--card); font-size: 11px; }
 .opinion-row { min-height: 62px; border-bottom: 1px solid var(--line); font-size: 13px; }
 .opinion-row:last-child { border-bottom: 0; }
 .asset-cell { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .asset-cell > span:last-child { display: grid; gap: 2px; min-width: 0; }
 .asset-cell strong { font-size: 13px; }
-.asset-cell small, .muted-line { display: block; overflow: hidden; color: var(--muted); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.asset-cell small, .muted-line { display: block; overflow: hidden; color: var(--muted); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }.muted-line { display: -webkit-box; max-width: 100%; white-space: normal; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
 .asset-avatar { display: inline-grid; place-items: center; flex: 0 0 auto; width: 29px; height: 29px; border-radius: 50%; color: var(--blue); border: 1px solid var(--blue-ring); background: var(--soft-blue); font-size: 10px; font-weight: 800; }
 .tone-btc { color: #9d6200; background: #fff3d7; }.tone-eth { color: #545bc3; background: #eff0ff; }.tone-xau { color: #8f6b00; background: #fff8d9; }.tone-vnix { color: #fff; background: #fa4865; }.tone-vn3 { color: #25324a; background: #eef1f7; }
 .opinion-row .ant-tag { margin: 0 0 2px; font-size: 11px; }
 .stance-positive { color: #1b9a6c; border-color: #a9e7cb; background: #e9fbf3; }.stance-negative { color: #d55353; border-color: #f0bcbc; background: #fff0f0; }.stance-neutral { color: #697689; border-color: #d4dce8; background: #f5f7fa; }
-.confidence-line, .report-status { display: block; color: #7aa4de; font-size: 11px; }.report-status { color: var(--muted); }.opinion-actions { display: flex; align-items: center; justify-content: flex-end; }.opinion-actions .ant-btn { padding: 0 9px; font-size: 11px; }
+.confidence-line, .report-status { display: block; color: #7aa4de; font-size: 11px; }.report-status { color: var(--muted); overflow-wrap: anywhere; }.opinion-actions { display: flex; align-items: center; justify-content: flex-end; min-width: 0; }.opinion-actions .ant-btn { max-width: 100%; padding: 0 9px; overflow: hidden; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
 .legacy-empty { display: flex; align-items: center; justify-content: center; gap: 9px; min-height: 94px; padding: 16px; color: var(--muted); text-align: center; }.legacy-empty div { display: grid; gap: 4px; text-align: left; }.legacy-empty span, .legacy-empty strong { font-size: 13px; }
 .theme-dark & .card-heading { background: linear-gradient(var(--soft-blue), var(--card)); }.theme-dark & .opinion-table-head, .theme-dark & .opinion-row { border-color: var(--line); }.theme-dark & .opinion-table-head { background: var(--card); }
-@media (max-width: 960px) { .opinion-table-head, .opinion-row { grid-template-columns: 1fr 1.5fr .6fr 1fr; } }
+@media (max-width: 960px) { .opinion-table-head, .opinion-row { grid-template-columns: minmax(118px, 1fr) minmax(0, 1.6fr) minmax(76px, .72fr) minmax(108px, auto); } }
 @media (max-width: 680px) { .card-heading { align-items: flex-start; flex-direction: column; }.heading-actions { justify-content: flex-start; }.opinion-table-head { display: none; }.opinion-row { grid-template-columns: 1fr auto; padding-top: 12px; padding-bottom: 10px; }.opinion-row > :nth-child(2) { grid-column: 1 / -1; }.opinion-row .opinion-actions { grid-column: 1 / -1; }.opinion-row .opinion-actions .ant-btn { width: 100%; } }
 </style>

@@ -127,15 +127,32 @@
             <h4>{{ $t('smartInsights.aiSummary') }}</h4>
             <p>{{ selectedOpinionReport.summary }}</p>
           </div>
-          <div v-if="selectedOpinionReport.reasons && selectedOpinionReport.reasons.length" class="analysis-copy">
-            <h4>{{ $t('smartInsights.analysisEvidence') }}</h4>
-            <ul><li v-for="(reason, index) in selectedOpinionReport.reasons" :key="index">{{ reason }}</li></ul>
-          </div>
         </section>
         <section v-else class="analysis-drawer-section analysis-empty">
           <a-icon type="clock-circle" />
           <p>{{ $t('smartInsights.aiNoResult') }}</p>
           <router-link to="/ai-asset-analysis" @click.native="closeAssetAnalysis">{{ $t('smartInsights.manageWatchlist') }}</router-link>
+        </section>
+
+        <section class="analysis-drawer-section analysis-evidence">
+          <div class="analysis-drawer-section-title"><a-icon type="safety" /><h3>{{ $t('smartInsights.analysisEvidence') }}</h3></div>
+          <p class="analysis-evidence-desc">{{ $t('smartInsights.analysisEvidenceDesc') }}</p>
+          <div v-if="selectedOpinionReport && selectedOpinionReport.reasons && selectedOpinionReport.reasons.length" class="analysis-evidence-list">
+            <article v-for="(reason, index) in selectedOpinionReport.reasons" :key="index" class="analysis-evidence-item">
+              <div class="analysis-evidence-item-head">
+                <strong>{{ selectedOpinionRow.displaySymbol }}</strong>
+                <span>{{ analysisDateLabel }}</span>
+              </div>
+              <div class="analysis-evidence-item-meta">
+                <span>{{ $t('smartInsights.lastAiRun') }}: {{ formatDateTime(selectedOpinionReport.createdAt) }}</span>
+                <span>{{ $t('smartInsights.aiConfidence') }}: {{ selectedOpinionReport.confidence != null ? `${selectedOpinionReport.confidence}%` : $t('smartInsights.notAvailable') }}</span>
+              </div>
+              <p class="analysis-evidence-item-copy">{{ reason }}</p>
+            </article>
+          </div>
+          <div v-else class="analysis-empty analysis-empty--compact">
+            <span>{{ $t('smartInsights.aiReportUnavailable') }}</span>
+          </div>
         </section>
       </div>
     </a-modal>
@@ -387,7 +404,7 @@ export default {
 .asset-analysis-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-bottom: 12px; border-bottom: 1px solid var(--line); }.asset-analysis-header > div { display: grid; gap: 3px; }.asset-analysis-header strong { color: var(--ink); font-size: 18px; }.asset-analysis-header span { color: var(--muted); font-size: 12px; }
 .asset-analysis-meta { display: flex; flex-wrap: wrap; gap: 12px; padding: 10px 0; color: var(--muted); font-size: 12px; }
 .analysis-drawer-section { margin-top: 16px; padding: 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--card); }.analysis-drawer-section-title { display: flex; align-items: center; gap: 7px; }.analysis-drawer-section-title .anticon { color: var(--blue); }.analysis-drawer-section-title h3 { margin: 0; color: var(--ink); font-size: 15px; }.analysis-result-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 12px; }.analysis-result-grid > div { display: grid; gap: 4px; padding: 9px 10px; border-radius: 8px; background: var(--soft-blue); }.analysis-result-grid small { color: var(--muted); font-size: 11px; }.analysis-result-grid strong { color: var(--ink); font-size: 16px; }.analysis-copy { margin-top: 13px; }.analysis-copy h4 { margin: 0 0 5px; color: var(--ink); font-size: 13px; }.analysis-copy p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.65; white-space: pre-wrap; }.analysis-report { margin-top: 13px; overflow: auto; color: var(--ink); font-size: 13px; line-height: 1.6; }.analysis-report :deep(.qd-report) { max-width: 100%; }
-.analysis-evidence-desc { margin: 5px 0 10px; color: var(--muted); font-size: 12px; }.analysis-evidence-list { display: grid; gap: 8px; }.analysis-evidence-item { padding: 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--page-bg); }.analysis-evidence-item-head, .analysis-evidence-item-meta { display: flex; justify-content: space-between; gap: 10px; }.analysis-evidence-item-head strong { color: var(--ink); font-size: 13px; }.analysis-evidence-item-head span, .analysis-evidence-item-meta { color: var(--muted); font-size: 11px; }.analysis-evidence-item-meta { margin-top: 4px; flex-wrap: wrap; }.analysis-evidence-item a { display: block; overflow: hidden; margin-top: 7px; color: var(--blue); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }.analysis-evidence-item pre { max-height: 150px; margin: 8px 0 0; padding: 8px; overflow: auto; border-radius: 6px; color: var(--ink); background: var(--card); font-size: 11px; white-space: pre-wrap; word-break: break-word; }.analysis-empty { display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 7px; min-height: 90px; color: var(--muted); text-align: center; }.analysis-empty p { margin: 0; font-size: 13px; }.analysis-empty a { color: var(--blue); font-size: 13px; }.analysis-empty--compact { min-height: 48px; }
+.analysis-evidence-desc { margin: 5px 0 10px; color: var(--muted); font-size: 12px; }.analysis-evidence-list { display: grid; gap: 8px; }.analysis-evidence-item { padding: 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--page-bg); }.analysis-evidence-item-head, .analysis-evidence-item-meta { display: flex; justify-content: space-between; gap: 10px; }.analysis-evidence-item-head strong { color: var(--ink); font-size: 13px; }.analysis-evidence-item-head span, .analysis-evidence-item-meta { color: var(--muted); font-size: 11px; }.analysis-evidence-item-meta { margin-top: 4px; flex-wrap: wrap; }.analysis-evidence-item-copy { margin: 8px 0 0; color: var(--ink); font-size: 13px; line-height: 1.55; white-space: pre-wrap; overflow-wrap: anywhere; }.analysis-evidence-item a { display: block; overflow: hidden; margin-top: 7px; color: var(--blue); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }.analysis-evidence-item pre { max-height: 150px; margin: 8px 0 0; padding: 8px; overflow: auto; border-radius: 6px; color: var(--ink); background: var(--card); font-size: 11px; white-space: pre-wrap; word-break: break-word; }.analysis-empty { display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 7px; min-height: 90px; color: var(--muted); text-align: center; }.analysis-empty p { margin: 0; font-size: 13px; }.analysis-empty a { color: var(--blue); font-size: 13px; }.analysis-empty--compact { min-height: 48px; }
 .legacy-page { --page-bg: #f7f9fc; --ink: #17253d; --muted: #7b8798; --line: #e4eaf3; --card: #fff; --blue: var(--primary-color, #174ca8); --blue-hover: var(--primary-color-hover, #40a9ff); --blue-active: var(--primary-color-active, #096dd9); --blue-ring: var(--primary-color-ring, rgba(24,144,255,.22)); --soft-blue: var(--primary-color-soft, rgba(24,144,255,.1)); --soft-blue-strong: var(--primary-color-soft-strong, rgba(24,144,255,.18)); position: relative; min-height: calc(100vh - 64px); overflow: hidden; color: var(--ink); background: var(--page-bg); font-size: 15px; }
 .legacy-main, .footer-inner, .footer-bottom { width: 100%; max-width: 1120px; margin: 0 auto; }
 .legacy-main { width: 100%; max-width: 1480px; margin: 0 auto; box-sizing: border-box; padding: 24px 28px 48px; }.analysis-controls { display: flex; align-items: end; gap: 10px; min-height: 40px; margin-bottom: 17px; }.date-control { display: grid; grid-template-columns: auto 130px; align-items: center; gap: 8px; }.date-control label { color: var(--muted); font-size: 13px; font-weight: 600; }.date-control .ant-select { width: 130px; }.analysis-controls .ant-btn, .analysis-controls .ant-radio-button-wrapper, .date-control .ant-select-selection-selected-value { font-size: 13px; }.control-spacer { flex: 1; }.legacy-alert { margin-bottom: 12px; }.initial-overview-loading { min-height: 184px; padding: 34px 38px; border: 1px solid var(--line); border-radius: 17px; background: var(--card); box-shadow: 0 8px 24px var(--blue-ring); }
