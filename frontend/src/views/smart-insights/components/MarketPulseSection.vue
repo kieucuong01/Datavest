@@ -24,41 +24,62 @@
           {{ tabLabel(tab) }}
         </button>
       </div>
-      <flow-terminal v-if="activeKey === 'flows' && panel.etfFlows" :flow="panel.etfFlows" />
-      <whale-flow-monitor v-if="activeKey === 'flows' && panel.whaleFlows" :whale-flow="panel.whaleFlows" />
-      <derivatives-terminal v-if="activeKey === 'derivatives'" :derivatives="panel" />
-      <cycle-terminal v-if="activeKey === 'cycle'" :cycle="panel" />
-      <onchain-terminal v-if="activeKey === 'onchain'" :onchain="panel" />
-      <section v-if="activeKey !== 'flows' && activeKey !== 'derivatives' && activeKey !== 'cycle' && activeKey !== 'onchain'" class="legacy-card pulse-summary">
+      <section v-if="activeKey === 'macro'" class="legacy-card pulse-summary">
         <div class="card-heading compact-heading">
-          <div><h3>{{ tabLabel(activeTab) }}</h3><p>{{ $t('smartInsights.sourceBackedOnly') }}</p></div>
-          <a-tag>{{ statusLabel(panel.status) }}</a-tag>
+          <div><h3>{{ tabLabel(activeTab) }}</h3><p>{{ $t('smartInsights.macroPulseDesc') }}</p></div>
+          <a-tag :color="calendarEvents.length ? 'green' : 'orange'">{{ calendarEvents.length ? $t('smartInsights.availableStatus') : $t('smartInsights.unavailableShort') }}</a-tag>
         </div>
         <div class="pulse-tiles">
-          <article v-for="tile in summaryTiles" :key="tile.label" class="pulse-tile"><span>{{ tile.label }}</span><strong>{{ tile.value }}</strong><small>{{ tile.meta }}</small></article>
+          <article v-for="tile in macroTiles" :key="tile.label" class="pulse-tile"><span>{{ tile.label }}</span><strong>{{ tile.value }}</strong><small>{{ tile.meta }}</small></article>
         </div>
       </section>
-      <div v-if="activeKey !== 'flows' && activeKey !== 'derivatives' && activeKey !== 'cycle' && activeKey !== 'onchain' && panel.metrics.length" class="pulse-metric-grid">
-        <article v-for="metric in panel.metrics.slice(0, 6)" :key="metricKey(metric)" class="pulse-metric">
-          <small>{{ metricLabel(metric) }}</small>
-          <strong>{{ formatMetric(metric.value, metric.unit) }}</strong>
-          <a-button v-if="metric.evidenceId" type="link" size="small" @click="$emit('open-evidence', metric.evidenceId)">{{ $t('smartInsights.evidence') }}</a-button>
-        </article>
-      </div>
-      <fear-greed-panel v-if="fearGreed" :fear="fearGreed" />
-      <div v-if="activeKey !== 'flows' && activeKey !== 'derivatives' && activeKey !== 'cycle' && activeKey !== 'onchain' && chartCards.length" class="pulse-chart-grid">
-        <pulse-trend-chart
-          v-for="chart in chartCards"
-          :key="chart.key"
-          :title="chart.title"
-          :series="chart.series"
-          :status="chart.status"
-          :unit="chart.unit"
-          :variant="chart.variant"
-          :interactive="chart.interactive"
-        />
-      </div>
-      <div v-if="activeKey !== 'flows' && activeKey !== 'derivatives' && activeKey !== 'cycle' && activeKey !== 'onchain' && !chartCards.length" class="pulse-empty"><a-icon type="database" /><span>{{ $t('smartInsights.noHistory') }}</span></div>
+      <section v-else-if="activeKey === 'equities'" class="legacy-card pulse-summary">
+        <div class="card-heading compact-heading">
+          <div><h3>{{ tabLabel(activeTab) }}</h3><p>{{ $t('smartInsights.equitiesPulseDesc') }}</p></div>
+          <a-tag :color="equityOpinionCount ? 'green' : 'orange'">{{ equityOpinionCount ? $t('smartInsights.availableStatus') : $t('smartInsights.unavailableShort') }}</a-tag>
+        </div>
+        <div class="pulse-tiles">
+          <article class="pulse-tile"><span>VNINDEX · VN30</span><strong>{{ $t('smartInsights.liveDataSources') }}</strong><small>{{ $t('smartInsights.equitiesTickerHint') }}</small></article>
+          <article class="pulse-tile"><span>{{ $t('smartInsights.equitiesWatchlist') }}</span><strong>{{ equityOpinionCount }}</strong><small>{{ $t('smartInsights.sourceBackedOnly') }}</small></article>
+          <article class="pulse-tile"><span>{{ $t('smartInsights.verifiedSources') }}</span><strong>{{ equitySourceCount }}</strong><small>{{ $t('smartInsights.equitiesSourceHint') }}</small></article>
+        </div>
+      </section>
+      <template v-else>
+        <section class="legacy-card pulse-summary">
+          <div class="card-heading compact-heading">
+            <div><h3>{{ $t('smartInsights.cryptoPulseTitle') }}</h3><p>{{ $t('smartInsights.cryptoPulseSummaryDesc') }}</p></div>
+            <a-tag :color="panel.status === 'AVAILABLE' ? 'green' : 'orange'">{{ statusLabel(panel.status) }}</a-tag>
+          </div>
+          <div class="pulse-metric-grid pulse-metric-grid--summary">
+            <article v-for="metric in summaryMetrics" :key="metricKey(metric)" class="pulse-metric">
+              <small>{{ metricLabel(metric) }}</small>
+              <strong>{{ formatMetric(metric.value, metric.unit) }}</strong>
+              <a-button v-if="metric.evidenceId" type="link" size="small" @click="$emit('open-evidence', metric.evidenceId)">{{ $t('smartInsights.evidence') }}</a-button>
+            </article>
+          </div>
+          <div v-if="!summaryMetrics.length" class="pulse-empty"><a-icon type="database" /><span>{{ $t('smartInsights.dataUnavailableShort') }}</span></div>
+        </section>
+        <fear-greed-panel v-if="fearGreed" :fear="fearGreed" />
+        <div v-if="chartCards.length" class="pulse-chart-grid">
+          <pulse-trend-chart
+            v-for="chart in chartCards"
+            :key="chart.key"
+            :title="chart.title"
+            :series="chart.series"
+            :status="chart.status"
+            :unit="chart.unit"
+            :variant="chart.variant"
+            :interactive="chart.interactive"
+          />
+        </div>
+        <div class="pulse-detail-grid">
+          <flow-terminal v-if="panel.etfFlows" :flow="panel.etfFlows" />
+          <whale-flow-monitor v-if="panel.whaleFlows" :whale-flow="panel.whaleFlows" />
+          <derivatives-terminal :derivatives="panel" />
+          <cycle-terminal :cycle="panel" />
+          <onchain-terminal :onchain="panel" />
+        </div>
+      </template>
     </template>
   </section>
 </template>
@@ -78,35 +99,59 @@ export default {
   components: { FearGreedPanel, PulseTrendChart, FlowTerminal, CycleTerminal, OnchainTerminal, DerivativesTerminal, WhaleFlowMonitor },
   props: {
     pulse: { type: Object, default: () => ({}) },
+    overview: { type: Object, default: () => ({}) },
+    calendarEvents: { type: Array, default: () => [] },
     locale: { type: String, default: 'vi' },
     loading: { type: Boolean, default: false }
   },
-  data () { return { tabs: MARKET_PULSE_TABS, activeKey: 'overview' } },
+  data () { return { tabs: MARKET_PULSE_TABS, activeKey: 'crypto' } },
   computed: {
     activeTab () { return this.tabs.find(tab => tab.key === this.activeKey) || this.tabs[0] },
     panel () { return buildPulsePanel(this.pulse, this.activeKey) },
     fearGreed () {
-      if (this.activeKey !== 'overview' && this.activeKey !== 'sentiment') return null
+      if (this.activeKey !== 'crypto') return null
       const fear = this.panel.fearGreed
       return fear && Array.isArray(fear.series) && fear.series.length ? fear : null
     },
-    summaryTiles () {
+    macroTiles () {
+      const events = this.calendarEvents || []
+      const highImpact = events.filter(event => String(event && (event.impact || event.importance) || '').toLowerCase() === 'high').length
+      const next = events[0] || {}
       return [
-        { label: this.$t('smartInsights.metrics'), value: this.panel.metrics.length, meta: this.$t('smartInsights.observations') },
-        { label: this.$t('smartInsights.chartSeries'), value: this.panel.seriesGroups.length, meta: this.$t('smartInsights.history') },
-        { label: this.$t('smartInsights.verifiedSources'), value: this.panel.sources.length, meta: this.$t('smartInsights.sources') }
+        { label: this.$t('smartInsights.macroUpcomingEvents'), value: events.length, meta: next.name || next.event || this.$t('smartInsights.dataUnavailableShort') },
+        { label: this.$t('smartInsights.macroHighImpact'), value: highImpact, meta: this.$t('smartInsights.macroCalendarHint') },
+        { label: this.$t('smartInsights.verifiedSources'), value: events.length ? 1 : 0, meta: this.$t('smartInsights.macroCalendarHint') }
       ]
+    },
+    equityOpinionCount () {
+      return Array.isArray(this.overview && this.overview.opinions)
+        ? this.overview.opinions.filter(item => String(item && item.market || '').toLowerCase() === 'vn').length
+        : 0
+    },
+    equitySourceCount () {
+      const summary = this.overview && this.overview.summary
+      return Number(summary && summary.sourceCount) || 0
+    },
+    summaryMetrics () {
+      const groups = [
+        /net_flow|stablecoin|whale|balance_change/iu,
+        /fear|greed|sentiment/iu,
+        /funding|open[_ ]?interest|liquidation|derivative/iu,
+        /cbbi|altcoin_season|halving/iu,
+        /address_balance|chain_tvl|onchain/iu
+      ]
+      return groups.map(pattern => this.panel.metrics.find(metric => pattern.test(String(metric.metric || '')))).filter(Boolean)
     },
     chartCards () {
       const cards = []
       const directMetrics = new Set()
-      if (this.activeKey === 'overview' || this.activeKey === 'sentiment') {
+      if (this.activeKey === 'crypto') {
         const fear = this.panel.fearGreed
         if (fear) {
           directMetrics.add('crypto.fear_greed.index')
         }
       }
-      if (this.activeKey === 'overview') {
+      if (this.activeKey === 'crypto') {
         const flow = this.panel.etfFlows
         if (flow) {
           directMetrics.add('crypto.etf.net_flow_usd')
@@ -195,10 +240,13 @@ export default {
 .pulse-tile span, .pulse-tile small, .pulse-metric small { color: var(--muted); font-size: 13px; }
 .pulse-tile strong { color: var(--ink); font-size: 21px; }
 .pulse-metric-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 9px; margin-top: 12px; }
+.pulse-metric-grid--summary { grid-template-columns: repeat(5, minmax(0, 1fr)); padding: 12px 15px 15px; margin: 0; }
 .pulse-metric { display: grid; gap: 6px; padding: 12px; border: 1px solid var(--line); border-radius: 9px; background: var(--card); }
 .pulse-metric strong { color: var(--ink); font-size: 20px; font-variant-numeric: tabular-nums; }
 .pulse-metric .ant-btn { padding: 0; justify-self: start; font-size: 11px; }
 .pulse-chart-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 12px; }
+.pulse-detail-grid { display: grid; gap: 12px; margin-top: 12px; }
 .pulse-empty { display: flex; align-items: center; justify-content: center; gap: 7px; min-height: 160px; margin-top: 12px; color: var(--muted); font-size: 12px; }
-@media (max-width: 680px) { .pulse-tiles, .pulse-metric-grid, .pulse-chart-grid { grid-template-columns: 1fr; } }
+@media (max-width: 960px) { .pulse-metric-grid--summary { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 680px) { .pulse-tiles, .pulse-metric-grid, .pulse-metric-grid--summary, .pulse-chart-grid { grid-template-columns: 1fr; } }
 </style>

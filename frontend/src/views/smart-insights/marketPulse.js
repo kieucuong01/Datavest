@@ -1,10 +1,7 @@
 export const MARKET_PULSE_TABS = [
-  { key: 'overview', vi: 'Tổng quan', en: 'Overview' },
-  { key: 'flows', vi: 'Dòng tiền', en: 'Flows' },
-  { key: 'sentiment', vi: 'Tâm lý', en: 'Sentiment' },
-  { key: 'derivatives', vi: 'Phái sinh', en: 'Derivatives' },
-  { key: 'cycle', vi: 'Chu kỳ', en: 'Cycle' },
-  { key: 'onchain', vi: 'Chuỗi khối', en: 'On-chain' }
+  { key: 'macro', vi: 'Vĩ mô', en: 'Macro' },
+  { key: 'equities', vi: 'Chứng khoán', en: 'Equities' },
+  { key: 'crypto', vi: 'Crypto', en: 'Crypto' }
 ]
 
 function finite (value) {
@@ -34,6 +31,16 @@ function metricsFrom (tab) {
 
 function combinedSeries (...series) {
   return normalizePulseSeries(series.flatMap(item => Array.isArray(item) ? item : []))
+}
+
+function uniqueSources (...sourceLists) {
+  const seen = new Set()
+  return sourceLists.flatMap(list => Array.isArray(list) ? list : []).filter(source => {
+    const key = String(source && (source.code || source.name || source.url) || '')
+    if (!key || seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
 }
 
 function groupSeries (series) {
@@ -70,6 +77,40 @@ function tabModel (key, tab, options = {}) {
 export function buildPulsePanel (pulse = {}, key = 'overview') {
   const tabs = pulse && pulse.tabs ? pulse.tabs : {}
   const shared = tabs.sentimentDerivatives || {}
+  if (key === 'crypto') {
+    const flows = tabs.flows || {}
+    const cycle = tabs.cycle || {}
+    const onchain = tabs.onchain || {}
+    const metrics = [
+      ...metricsFrom(flows),
+      ...metricsFrom(shared),
+      ...metricsFrom(cycle),
+      ...metricsFrom(onchain)
+    ]
+    const tab = {
+      status: metrics.length ? 'AVAILABLE' : 'UNAVAILABLE',
+      sources: uniqueSources(flows.sources, shared.sources, cycle.sources, onchain.sources)
+    }
+    const etf = flows.etfFlows || {}
+    const whaleFlows = flows.whaleFlows || null
+    const fearGreed = shared.fearGreed || null
+    return tabModel(key, tab, {
+      metrics,
+      fearGreed,
+      etfFlows: etf,
+      whaleFlows,
+      derivatives: shared.derivatives || null,
+      series: combinedSeries(
+        etf.series,
+        whaleFlows && whaleFlows.series,
+        fearGreed && fearGreed.series,
+        shared.series,
+        cycle.series,
+        onchain.series
+      )
+    })
+  }
+  if (key === 'macro' || key === 'equities') return tabModel(key, tabs[key] || {})
   if (key === 'overview') {
     const tab = tabs.overview || {}
     const etf = tab.etfFlows || {}

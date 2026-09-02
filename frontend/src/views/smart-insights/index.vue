@@ -84,13 +84,6 @@
         @open-evidence="openEvidence"
       />
 
-      <market-pulse-section
-        :pulse="cryptoPulse || {}"
-        :locale="$i18n && $i18n.locale"
-        :loading="pulseLoading"
-        @open-evidence="openEvidence"
-      />
-
       <economic-calendar-table
         class="crypto-calendar"
         :events="calendarEvents"
@@ -98,6 +91,15 @@
         :loading="calendarLoading"
         :error="calendarError"
         @filter-change="calendarFilter = $event"
+      />
+
+      <market-pulse-section
+        :pulse="cryptoPulse || {}"
+        :overview="overview || {}"
+        :calendar-events="calendarEvents"
+        :locale="$i18n && $i18n.locale"
+        :loading="pulseLoading"
+        @open-evidence="openEvidence"
       />
     </main>
 
