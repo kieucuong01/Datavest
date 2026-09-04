@@ -52,3 +52,17 @@ test('Smart Insights starts every section concurrently and settles loading indep
     ['calendar', false]
   ])
 })
+
+test('Smart Insights carries the active request token through loading events', async () => {
+  const { runSectionLoaders } = await import(pathToFileURL(coordinatorPath).href)
+  const events = []
+  let release
+  const pending = runSectionLoaders({
+    pulse: () => new Promise(resolve => { release = resolve })
+  }, (section, active, requestId) => events.push([section, active, requestId]), 4)
+
+  assert.deepEqual(events, [['pulse', true, 4]])
+  release('ready')
+  await pending
+  assert.deepEqual(events, [['pulse', true, 4], ['pulse', false, 4]])
+})

@@ -47,3 +47,27 @@ test('Asset Opinions identifies the AI Assistant decision and report timestamp',
   assert.match(opinionsSource, /decisionTone\(row\.report\.decision\)/u)
   assert.match(opinionsSource, /formatDateTime\(row\.report\.createdAt\)/u)
 })
+
+test('Smart Insights pins Today to Vietnam calendar time and guards stale date responses', () => {
+  assert.match(source, /vietnamToday/u)
+  assert.match(source, /requestSequence/u)
+  assert.match(source, /isCurrentRequest/u)
+  assert.doesNotMatch(source, /new Date\(\)\.toISOString\(\)\.slice\(0, 10\)/u)
+})
+
+test('Smart Insights exposes a compact data readiness bar with per-section retry actions', () => {
+  assert.match(source, /data-readiness/u)
+  assert.match(source, /retrySection/u)
+  assert.match(source, /dataHealth/u)
+  assert.match(source, /fetchedAt/u)
+  assert.match(source, /freshness/u)
+  assert.match(source, /coverage/u)
+})
+
+test('Daily Brief renders 3-5 actionable highlights linked to Asset Opinions', () => {
+  assert.match(source, /dailyBriefHighlights/u)
+  assert.match(source, /v-for="highlight in dailyBriefHighlights"/u)
+  assert.match(source, /openBriefHighlight\(highlight\)/u)
+  assert.match(source, /opinionRows\.find/u)
+  assert.doesNotMatch(source, /dailyBriefSummary \(\) \{ return this\.dailyBrief\.content\.split/u)
+})

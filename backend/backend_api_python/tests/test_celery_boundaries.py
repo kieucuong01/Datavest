@@ -28,6 +28,14 @@ def test_celery_beat_owns_periodic_maintenance():
     assert schedule["crypto-derivatives-daily-retry"]["task"] == "datavest.tasks.enqueue_smart_insights_refresh_for_sources"
 
 
+def test_celery_crypto_snapshot_schedule_excludes_retired_cbbi_source():
+    from app.celery_app import celery_app
+
+    schedule = celery_app.conf.beat_schedule
+    for name in ("crypto-insights-daily-import", "crypto-insights-daily-import-retry"):
+        assert "cbbi-public" not in str(schedule[name].get("args", ()))
+
+
 def test_celery_beat_defaults_to_vietnam_timezone_for_crypto_snapshot_handoff():
     """A missing server TZ must not shift the importer into the crawler window."""
     from app.celery_app import celery_app

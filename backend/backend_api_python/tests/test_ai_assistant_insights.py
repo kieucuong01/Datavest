@@ -84,6 +84,32 @@ def test_daily_brief_only_summarizes_reports_from_selected_day():
     assert len(brief["content"].split()) <= 650
 
 
+def test_daily_brief_exposes_at_most_five_actionable_asset_highlights():
+    reports = [
+        {
+            "id": index,
+            "market": "Crypto",
+            "symbol": f"TOKEN{index}/USDT",
+            "created_at": f"2026-09-02T{index:02d}:00:00+00:00",
+            "status": "completed",
+            "decision": decision,
+            "confidence": confidence,
+            "summary": f"Tín hiệu cần theo dõi cho TOKEN{index}.",
+        }
+        for index, (decision, confidence) in enumerate(
+            [("HOLD", 99), ("BUY", 61), ("SELL", 85), ("BUY", 72), ("HOLD", 98), ("SELL", 67), ("HOLD", 97)],
+            start=1,
+        )
+    ]
+
+    brief = build_daily_brief(reports, "2026-09-02", "vi-VN")
+
+    assert len(brief["highlights"]) == 5
+    assert all({"assetKey", "market", "symbol", "displaySymbol", "decision", "summary", "sourceAnalysisId"} <= set(item) for item in brief["highlights"])
+    assert [item["decision"] for item in brief["highlights"][:4]] == ["SELL", "BUY", "SELL", "BUY"]
+    assert brief["highlights"][0]["assetKey"] == "crypto:TOKEN3"
+
+
 def test_public_report_keeps_the_detail_needed_by_smart_insights_modal():
     report = {
         "id": 9,
@@ -206,6 +232,41 @@ def test_overview_marks_a_missing_report_from_the_matching_monitor_state():
     assert xau["report"] is None
     assert xau["analysisStatus"] == "PAUSED"
     assert xau["monitor"]["state"] == "PAUSED"
+
+
+def test_overview_and_daily_brief_expose_date_and_data_readiness_contract():
+    today = "2026-09-04"
+    now = datetime(2026, 9, 4, 9, 0, tzinfo=timezone.utc)
+    watchlist = [{"market": "Crypto", "symbol": "BTC/USDT"}]
+    reports = [{
+        "id": 12,
+        "market": "Crypto",
+        "symbol": "BTC/USDT",
+        "created_at": "2026-09-04T08:45:00+00:00",
+        "status": "completed",
+        "decision": "HOLD",
+        "confidence": 60,
+        "summary": "BTC đang chờ xác nhận.",
+        "full_result": {"input_data": {"captured_at": "2026-09-04T08:42:00+00:00"}},
+    }]
+
+    service = AiAssistantInsightsService(
+        memory=type("Memory", (), {"list_reports_for_user": lambda *_args, **_kwargs: reports})(),
+        watchlist_loader=lambda _user_id: watchlist,
+        monitor_loader=lambda _user_id: [],
+        now_loader=lambda: now,
+    )
+
+    overview = service.get_overview(user_id=7, as_of=today)
+
+    assert overview["requestedAsOf"] == today
+    assert overview["resolvedAsOf"] == today
+    assert overview["fetchedAt"].endswith("+07:00")
+    assert overview["freshness"] == "FRESH"
+    assert overview["coverage"] == {"expectedAssets": 1, "availableAssets": 1, "ratio": 1.0}
+    assert overview["dailyBrief"]["requestedAsOf"] == today
+    assert overview["dailyBrief"]["resolvedAsOf"] == today
+    assert overview["dailyBrief"]["coverage"]["expectedAssets"] == 1
 
 
 def test_public_report_keeps_only_safe_input_provenance_fields():

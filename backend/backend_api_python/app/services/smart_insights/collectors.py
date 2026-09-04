@@ -183,7 +183,7 @@ def default_collector_registry(*, repository: SmartInsightsRepository | None = N
     from .alternative_fng import AlternativeFearGreedCollector
     from .farside import FarsideEtfCollector
     from .mempool import MempoolCollector
-    from .cycle import AltcoinSeasonCollector, CbbiCollector
+    from .cycle import AltcoinSeasonCollector
     from .openbb_deribit import OpenBBDeribitCollector
     from .bybit_derivatives import BybitDerivativesCollector
     from .binance_usdm_derivatives import BinanceUsdmDerivativesCollector
@@ -239,7 +239,6 @@ def default_collector_registry(*, repository: SmartInsightsRepository | None = N
         **{source: SnapshotObservationCollector(source) for source in _CRYPTOETF_SNAPSHOT_SOURCES},
         "xoomar-btc-etf": SnapshotObservationCollector("xoomar-btc-etf"),
         "xoomar-eth-etf": SnapshotObservationCollector("xoomar-eth-etf"),
-        "cbbi-public": SnapshotObservationCollector("cbbi-public"),
         "blockchaincenter-altcoin-season": SnapshotObservationCollector("blockchaincenter-altcoin-season"),
         "datavest-market-bars": lambda: WatchlistMarketEvidenceCollector(
             instruments_loader=(

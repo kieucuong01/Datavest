@@ -13,7 +13,7 @@ def test_registry_matches_documented_production_activation_set():
         UNQUALIFIED_SOURCE_REASONS,
     )
 
-    assert len(PRODUCTION_VERIFIED_SOURCE_CODES) == 25
+    assert len(PRODUCTION_VERIFIED_SOURCE_CODES) == 24
     assert PRODUCTION_VERIFIED_SOURCE_CODES <= set(SOURCES)
     assert set(UNQUALIFIED_SOURCE_REASONS) == {
         "mempool-btc-large-addresses",
@@ -34,7 +34,6 @@ def test_only_verified_sources_are_default_enabled_and_runtime_status_is_explici
         "bitinfocharts-top-addresses",
         "blockchaincenter-altcoin-season",
         "bybit-derivatives",
-        "cbbi-public",
         "coinmetrics-community",
         "coinglass-liquidation-maxpain",
         "coinglass-margin-borrow",
@@ -65,6 +64,7 @@ def test_only_verified_sources_are_default_enabled_and_runtime_status_is_explici
         "xoomar-eth-etf",
         "datavest-market-bars",
     }
+    assert "cbbi-public" not in SOURCES
     assert all(
         source.disabled_reason
         for source in SOURCES.values()
@@ -81,3 +81,18 @@ def test_activation_migration_enables_only_the_verified_set_and_allows_partial_r
     assert "enabled = EXCLUDED.enabled" in migration
     assert "'PARTIAL'" in migration
     assert "POSTGRES_PASSWORD" not in migration
+    assert "cbbi-public" not in migration
+    assert "cbbi-public" not in (
+        BACKEND_ROOT / "migrations" / "20260825_smart_insights_crypto_pulse_runtime.sql"
+    ).read_text(encoding="utf-8")
+
+
+def test_retired_crypto_metrics_migration_disables_cbbi_without_deleting_history():
+    migration = (
+        BACKEND_ROOT / "migrations" / "20260904_smart_insights_retire_legacy_crypto_metrics.sql"
+    ).read_text(encoding="utf-8")
+
+    assert "code = 'cbbi-public'" in migration
+    assert "enabled = FALSE" in migration
+    assert "activation_mode = 'DISABLED'" in migration
+    assert "DELETE FROM observations" not in migration

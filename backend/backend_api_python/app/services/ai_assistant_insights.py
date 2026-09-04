@@ -257,6 +257,43 @@ def _short_text(value: Any, limit: int) -> str:
     return f"{text[: max(0, limit - 1)].rstrip()}…"
 
 
+def _brief_highlights(reports: Iterable[dict[str, Any]], locale: str) -> list[dict[str, Any]]:
+    """Return a small, deterministic action list for the Daily Brief hero."""
+    is_vi = str(locale).lower().startswith("vi")
+    actionable = {"BUY", "SELL", "STRONG_BUY", "STRONG_SELL"}
+
+    def priority(item: dict[str, Any]) -> tuple[int, float, str, str]:
+        decision = str(item.get("decision") or "HOLD").strip().upper()
+        try:
+            confidence = float(item.get("confidence"))
+        except (TypeError, ValueError):
+            confidence = -1.0
+        return (
+            0 if decision in actionable else 1,
+            -confidence,
+            canonical_market(item.get("market")),
+            canonical_symbol(item.get("symbol")),
+        )
+
+    highlights = []
+    for item in sorted(reports, key=priority)[:5]:
+        symbol = canonical_symbol(item.get("symbol")) or str(item.get("symbol") or "?")
+        summary = _short_text(item.get("summary") or item.get("reasoning"), 200)
+        if not summary:
+            summary = "Chưa có phần tóm tắt chi tiết." if is_vi else "No detailed summary was returned."
+        highlights.append({
+            "assetKey": report_identity(item),
+            "market": canonical_market(item.get("market")),
+            "symbol": symbol,
+            "displaySymbol": symbol,
+            "decision": str(item.get("decision") or "HOLD").strip().upper(),
+            "confidence": item.get("confidence"),
+            "summary": summary,
+            "sourceAnalysisId": int(item["id"]) if item.get("id") is not None else None,
+        })
+    return highlights
+
+
 def build_daily_brief(reports: Iterable[dict[str, Any]], as_of: str, locale: str = "vi-VN") -> dict[str, Any]:
     """Condense already-generated AI Assistant reports without another AI call."""
     completed = [item for item in reports if item and str(item.get("status") or "completed").lower() == "completed"]
@@ -274,6 +311,7 @@ def build_daily_brief(reports: Iterable[dict[str, Any]], as_of: str, locale: str
             "assetCount": 0,
             "sourceAnalysisIds": [],
             "sourceChecksum": "",
+            "highlights": [],
             "content": "Chưa có nhận định từ AI Assistant cho ngày đã chọn." if is_vi else "No AI Assistant analysis is available for the selected date.",
         }
 
@@ -306,6 +344,7 @@ def build_daily_brief(reports: Iterable[dict[str, Any]], as_of: str, locale: str
         "assetCount": len(completed),
         "sourceAnalysisIds": source_ids,
         "sourceChecksum": checksum,
+        "highlights": _brief_highlights(completed, locale),
         "content": content,
         "generatedAt": max((_timestamp(item) for item in completed), default=None),
     }
@@ -344,6 +383,8 @@ class AiAssistantInsightsService:
         return {"dates": dates, "source": "AI_ASSISTANT_HISTORY"}
 
     def get_overview(self, user_id: int, as_of: str | None = None, locale: str = "vi-VN", **_ignored: Any) -> dict[str, Any]:
+        from app.services.smart_insights.data_contract import attach_data_contract
+
         watchlist = self.watchlist_loader(user_id)
         reports = self.memory.list_reports_for_user(user_id=user_id)
         dates = self.list_dates(user_id).get("dates") or []
@@ -372,18 +413,42 @@ class AiAssistantInsightsService:
             })
         available_count = len(report_rows)
         status = "COMPLETE" if watchlist and available_count == len(opinions) else "PARTIAL" if available_count else "UNAVAILABLE"
-        return {
+        if not report_rows:
+            freshness = "UNAVAILABLE"
+        elif any(item.get("dataFreshness") == "STALE" for item in opinions):
+            freshness = "STALE"
+        elif selected_day != vietnam_calendar_date(now):
+            freshness = "HISTORICAL"
+        elif status == "COMPLETE":
+            freshness = "FRESH"
+        else:
+            freshness = "PARTIAL"
+        coverage = {
+            "expectedAssets": len(opinions),
+            "availableAssets": available_count,
+            "ratio": round(available_count / len(opinions), 4) if opinions else 0.0,
+        }
+        daily_brief = build_daily_brief(report_rows, selected_day, locale)
+        daily_brief = attach_data_contract(
+            daily_brief,
+            requested_as_of=as_of,
+            resolved_as_of=selected_day,
+            fetched_at=now,
+            freshness=freshness,
+            coverage=coverage,
+        )
+        return attach_data_contract({
             "asOf": selected_day,
             "timeZone": VIETNAM_TIME_ZONE,
             "status": status,
             "mode": "live",
             "source": "AI_ASSISTANT_HISTORY",
             "opinions": opinions,
-            "dailyBrief": build_daily_brief(report_rows, selected_day, locale),
+            "dailyBrief": daily_brief,
             "summary": {},
             "primary": {},
             "riskAlerts": [],
-        }
+        }, requested_as_of=as_of, resolved_as_of=selected_day, fetched_at=now, freshness=freshness, coverage=coverage)
 
     @staticmethod
     def _public_report(report: dict[str, Any]) -> dict[str, Any]:

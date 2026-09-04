@@ -28,7 +28,7 @@ from app.services.smart_insights.browser_snapshots import (
 
 
 PayloadCollector = Callable[[str, datetime], Mapping[str, object]]
-_BASE_DAILY_SOURCES = ("alternative-fng", "blockchaincenter-altcoin-season", "cbbi-public", "bitinfocharts-top-addresses")
+_BASE_DAILY_SOURCES = ("alternative-fng", "blockchaincenter-altcoin-season", "bitinfocharts-top-addresses")
 CRYPTOETF_ASSETS = ("btc", "eth", "sol", "xrp", "hyp", "doge", "link", "avax", "hbar", "ltc", "bnb", "dot", "sui")
 CRYPTOETF_SYMBOLS = {"hyp": "HYPE"}
 CRYPTOETF_SOURCES = tuple(f"cryptoetf-{asset}-etf" for asset in CRYPTOETF_ASSETS)
@@ -46,22 +46,10 @@ SOURCE_URLS = {
     "xoomar-btc-etf": "https://xoomar.com/api/markets/etf-flows?asset=btc&days=90",
     "xoomar-eth-etf": "https://xoomar.com/api/markets/etf-flows?asset=eth&days=90",
     "blockchaincenter-altcoin-season": "https://www.blockchaincenter.net/altcoin-season-index/",
-    "cbbi-public": "https://colintalkscrypto.com/cbbi/data/latest.json",
     "coinshares-weekly": "https://coinshares.com/insights/research-data/",
     "bitinfocharts-top-addresses": "https://bitinfocharts.com/top-100-richest-bitcoin-addresses.html",
 }
 
-_CBBI_COMPONENTS = {
-    "PiCycle": "pi_cycle",
-    "RUPL": "rupl_nupl",
-    "RHODL": "rhodl",
-    "Puell": "puell",
-    "2YMA": "two_year_ma",
-    "Trolololo": "trolololo",
-    "MVRV": "mvrv",
-    "ReserveRisk": "reserve_risk",
-    "Woobull": "woobull",
-}
 _COINSHARES_REPORT_DATE = re.compile(r"fund-flows-(\d{1,2})-(\d{1,2})-(\d{2}|\d{4})/?$", re.IGNORECASE)
 _COINSHARES_TOTAL = re.compile(
     r"\b(inflows|outflows)\b[^.]{0,120}?\b(?:US\s*\$|\$)\s*(\d+(?:\.\d+)?)\s*(bn|billion|m|million)\b",
@@ -303,23 +291,6 @@ def parse_altcoin_season(text: str) -> list[dict[str, str]]:
             if stats_90.get(field) is not None:
                 records.append({"effective_at": latest_date, "metric": f"crypto.cycle.altcoin_season.stat.{field}", "value": _number(stats_90[field]), "unit": "days", "horizon": "season_90d"})
     return sorted(records, key=lambda row: (row["effective_at"], row["metric"]))
-
-
-def parse_cbbi(payload: Mapping[str, object]) -> list[dict[str, str]]:
-    confidence = payload.get("Confidence")
-    if not isinstance(confidence, Mapping) or not confidence:
-        raise SnapshotUnavailable("REQUIRED_RECORDS")
-    result = []
-    for raw_timestamp, value in confidence.items():
-        effective_at = _timestamp(raw_timestamp)
-        result.append({"effective_at": effective_at, "metric": "crypto.cycle.cbbi.confidence", "value": _number(value), "unit": "index"})
-        for field, component in _CBBI_COMPONENTS.items():
-            series = payload.get(field)
-            if isinstance(series, Mapping) and raw_timestamp in series:
-                component_value = series[raw_timestamp]
-                if component_value is not None:
-                    result.append({"effective_at": effective_at, "metric": f"crypto.cycle.cbbi.component.{component}", "value": _number(component_value), "unit": "index"})
-    return sorted(result, key=lambda row: (row["effective_at"], row["metric"]))
 
 
 def parse_coinshares_report(text: str, report_url: str) -> list[dict[str, str]]:
@@ -856,11 +827,6 @@ async def collect_source(source_code: str, page: Any | None, *, as_of: datetime)
         records.extend(await _bitinfocharts_detail_records(page, rendered_rows, as_of=as_of))
     elif source_code == "blockchaincenter-altcoin-season":
         records = parse_altcoin_season(await _page_html(page, SOURCE_URLS[source_code]))
-    elif source_code == "cbbi-public":
-        body = await _page_text(page, SOURCE_URLS[source_code])
-        if not isinstance(body, Mapping):
-            raise SnapshotUnavailable("INVALID_RESPONSE")
-        records = parse_cbbi(body)
     else:
         index_url = SOURCE_URLS[source_code]
         await page.goto(index_url)

@@ -5,7 +5,7 @@
         <h3 id="flow-terminal-title">{{ $t('smartInsights.flowTerminalTitle') }}</h3>
         <p>{{ $t('smartInsights.flowTerminalDesc') }}</p>
       </div>
-      <a-tag color="green"><i class="live-dot" />{{ $t('smartInsights.currentData') }}</a-tag>
+      <a-tag v-if="isCurrent" color="green"><i class="live-dot" />{{ $t('smartInsights.currentData') }}</a-tag>
     </header>
 
     <div v-if="assetOptions.length" class="flow-terminal-layout">
@@ -85,7 +85,7 @@ const ASSET_ORDER = Object.keys(ASSET_META)
 
 export default {
   name: 'FlowTerminal',
-  props: { flow: { type: Object, default: () => ({}) } },
+  props: { flow: { type: Object, default: () => ({}) }, isCurrent: { type: Boolean, default: false } },
   data () { return { selectedAsset: 'TOTAL', mode: 'flow', range: '90D', chart: null, resizeObserver: null, onWindowResize: null } },
   computed: {
     locale () { return this.$i18n && this.$i18n.locale === 'vi-VN' ? 'vi-VN' : 'en-US' },

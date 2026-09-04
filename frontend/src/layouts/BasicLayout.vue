@@ -11,6 +11,7 @@
       :menu-render="topMenuRender"
       :selected-keys="[activeTopMenuKey]"
       v-bind="proLayoutSettings"
+      :title="(brandConfig && brandConfig.app_name) || title || 'DataVest'"
     >
 
       <template #menuHeaderRender>
@@ -241,6 +242,7 @@ import {
 } from '@/store/mutation-types'
 
 import defaultSettings from '@/config/defaultSettings'
+import { BaseMenu } from '@ant-design-vue/pro-layout'
 import RightContent from '@/components/GlobalHeader/RightContent'
 import SettingDrawer from '@/components/SettingDrawer/SettingDrawer'
 import MultiTab from '@/components/MultiTab'
@@ -255,6 +257,7 @@ import { normalizeLiveAssetRows } from '@/views/smart-insights/liveAssets'
 import LiveDataSources from '@/views/smart-insights/components/LiveDataSources'
 
 const LIVE_ASSET_REFRESH_MS = 30000
+const SMART_INSIGHTS_PATH = '/smart-insights'
 
 export default {
   name: 'BasicLayout',
@@ -300,12 +303,14 @@ export default {
       refreshKey: 0,
       isDrawerOpen: false,
       isDrawerAnimating: false,
+      mobileDrawerCloseTimer: null,
       isInitialThemeColorLoad: true,
       liveAssets: [],
       liveAssetsFetchedAt: '',
       liveAssetsLoading: false,
       liveAssetError: '',
-      liveAssetRefreshTimer: null
+      liveAssetRefreshTimer: null,
+      liveAssetRequestInFlight: false
     }
   },
   computed: {
@@ -380,6 +385,9 @@ export default {
     },
     topAdminShortcutActive () {
       return this.topAdminRoutes.some(route => this.$route.path === route.path)
+    },
+    isSmartInsightsRoute () {
+      return Boolean(this.$route && this.$route.path === SMART_INSIGHTS_PATH)
     },
     liveAssetRows () {
       return normalizeLiveAssetRows({ assets: this.liveAssets, fetchedAt: this.liveAssetsFetchedAt })
@@ -456,11 +464,14 @@ export default {
     },
     showAdminMenuDivider () {
       this.scheduleAdminMenuDivider()
+    },
+    '$route.path' (path) {
+      this.syncLiveAssetPolling(path)
     }
   },
   mounted () {
     this.loadLiveAssets()
-    this.liveAssetRefreshTimer = window.setInterval(this.loadLiveAssets, LIVE_ASSET_REFRESH_MS)
+    this.syncLiveAssetPolling(this.$route && this.$route.path, false)
 
     const userAgent = navigator.userAgent
     if (userAgent.indexOf('Edge') > -1) {
@@ -581,13 +592,27 @@ export default {
       clearInterval(this._desktopFooterInterval)
     }
 
-    if (this.liveAssetRefreshTimer) {
-      window.clearInterval(this.liveAssetRefreshTimer)
+    this.stopLiveAssetPolling()
+
+    if (this.mobileDrawerCloseTimer) {
+      window.clearTimeout(this.mobileDrawerCloseTimer)
     }
-    this.liveAssetRefreshTimer = null
+    this.mobileDrawerCloseTimer = null
   },
   methods: {
+    stopLiveAssetPolling () {
+      if (this.liveAssetRefreshTimer) window.clearInterval(this.liveAssetRefreshTimer)
+      this.liveAssetRefreshTimer = null
+    },
+    syncLiveAssetPolling (path = this.$route && this.$route.path, loadImmediately = true) {
+      this.stopLiveAssetPolling()
+      if (path !== SMART_INSIGHTS_PATH) return
+      if (loadImmediately) this.loadLiveAssets()
+      this.liveAssetRefreshTimer = window.setInterval(this.loadLiveAssets, LIVE_ASSET_REFRESH_MS)
+    },
     async loadLiveAssets () {
+      if (this.liveAssetRequestInFlight) return
+      this.liveAssetRequestInFlight = true
       this.liveAssetsLoading = true
       try {
         const response = await getSmartInsightsLiveAssets()
@@ -601,13 +626,26 @@ export default {
           : String((error && error.message) || this.$t('smartInsights.watchlistUnavailable'))
       } finally {
         this.liveAssetsLoading = false
+        this.liveAssetRequestInFlight = false
       }
     },
     i18nRender,
     topMenuRender (h, props) {
-      // ProLayout falls back to RouteMenu only when the renderer is false.
-      // Returning null here rendered the literal text "undefined" in the mobile drawer.
-      if (!props || props.layout !== 'topmenu' || props.isMobile) return false
+      // Use the custom horizontal groups only for the desktop top menu. The
+      // mobile Drawer still needs a truthy renderer so ProLayout keeps its
+      // hamburger trigger; returning a real BaseMenu vnode avoids the
+      // component's function fallback rendering the literal "undefined".
+      if (!props || props.layout !== 'topmenu' || props.isMobile) {
+        return h(BaseMenu, {
+          props: {
+            menus: this.menus,
+            collapsed: !!(props && props.collapsed),
+            collapsedWidth: props && props.collapsedWidth,
+            selectedKeys: [this.activeTopMenuKey],
+            i18nRender: this.i18nRender
+          }
+        })
+      }
       return h(TopMenu, {
         props: {
           menus: this.menus,
@@ -888,8 +926,24 @@ export default {
         this.settings.contentWidth = CONTENT_WIDTH_TYPE.Fluid
         // this.settings.fixSiderbar = false
         this.$nextTick(() => {
+          // ProLayout can replay the desktop collapse state while replacing
+          // the Sider with its mobile Drawer. Re-apply the closed state after
+          // that render so mobile never opens with the route menu visible.
+          this.collapsed = true
+          this.isDrawerOpen = false
           this.updateMenuFooterPosition()
         })
+        if (this.mobileDrawerCloseTimer) {
+          window.clearTimeout(this.mobileDrawerCloseTimer)
+        }
+        this.mobileDrawerCloseTimer = window.setTimeout(() => {
+          if (this.isMobile) {
+            this.collapsed = true
+            this.isDrawerOpen = false
+            this.updateMenuFooterPosition()
+          }
+          this.mobileDrawerCloseTimer = null
+        }, 0)
       }
     },
     handleCollapse (val) {

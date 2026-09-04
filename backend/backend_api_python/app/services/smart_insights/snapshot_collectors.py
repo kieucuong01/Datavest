@@ -80,8 +80,6 @@ class SnapshotObservationCollector:
             warnings = ()
         label = dimensions.get("label")
         symbol = str(record.get("symbol") or record.get("asset") or _SYMBOLS.get(label or "") or "").strip() or None
-        if self.source.code == "cbbi-public":
-            symbol = "BTC"
         return Observation.create(
             source_code=self.source.code,
             source_url=source_url,

@@ -27,7 +27,6 @@ _STALE_AFTER = {
     "xoomar-btc-etf": timedelta(days=2),
     "xoomar-eth-etf": timedelta(days=2),
     "blockchaincenter-altcoin-season": timedelta(days=2),
-    "cbbi-public": timedelta(days=2),
     "coinshares-weekly": timedelta(days=9),
     "bitinfocharts-top-addresses": timedelta(days=2),
 }

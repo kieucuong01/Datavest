@@ -41,13 +41,15 @@ _ETF_SOURCE_PRIORITY = {
     "farside-sol-etf": 2,
 }
 _WHALE_SOURCES = {"bitinfocharts-top-addresses", "mempool-btc-large-addresses"}
+_RETIRED_SOURCES = frozenset({"cbbi-public"})
+_RETIRED_METRIC_PREFIXES = ("crypto.cycle.cbbi.",)
+_RETIRED_METRIC_PREFIXES_EXACT = frozenset({"crypto.onchain.rhodl_ratio"})
 _ONCHAIN_GROUPS = (
     (
         "valuation",
         (
             "crypto.onchain.mvrv",
             "crypto.onchain.nupl",
-            "crypto.onchain.rhodl_ratio",
             "crypto.onchain.supply_in_profit_pct",
             "crypto.onchain.sopr",
         ),
@@ -108,6 +110,12 @@ def _number(row: Mapping[str, Any]) -> float | None:
 
 def _metric(row: Mapping[str, Any]) -> str:
     return str(_value(row).get("metric") or "")
+
+
+def _is_retired_row(row: Mapping[str, Any]) -> bool:
+    source = str(row.get("source") or "").strip().lower()
+    metric = _metric(row)
+    return source in _RETIRED_SOURCES or metric.startswith(_RETIRED_METRIC_PREFIXES) or metric in _RETIRED_METRIC_PREFIXES_EXACT
 
 
 def _onchain_group(metric: str) -> str | None:
@@ -482,7 +490,7 @@ def _whale_flow_tab(
 def build_crypto_market_pulse(rows: Iterable[Mapping[str, Any]], *, mode: str) -> dict[str, Any]:
     """Build the old page's tab model from immutable LIVE/DEMO observations."""
     normalized = [row for row in rows if isinstance(row, Mapping) and row.get("dataClass") == mode.upper()]
-    crypto = [row for row in normalized if row.get("market") == "crypto"]
+    crypto = [row for row in normalized if row.get("market") == "crypto" and not _is_retired_row(row)]
     calendar_rows = [row for row in normalized if row.get("source") == "cryptocraft"]
 
     fear_rows = [row for row in crypto if _metric(row) == "crypto.fear_greed.index"]
@@ -553,8 +561,6 @@ def build_crypto_market_pulse(rows: Iterable[Mapping[str, Any]], *, mode: str) -
         }
     ]
     whale_flow = _whale_flow_tab(whale_rows, exchange_rows)
-    cbbi_rows = [row for row in cycle_rows if _metric(row).startswith("crypto.cycle.cbbi.")]
-
     def tab(rows_for_tab: list[Mapping[str, Any]], *, series_limit: int = 90) -> dict[str, Any]:
         if not rows_for_tab:
             return _unavailable()
@@ -581,7 +587,6 @@ def build_crypto_market_pulse(rows: Iterable[Mapping[str, Any]], *, mode: str) -
         "sentimentDerivatives": {**tab(derivative_rows + fear_rows, series_limit=10_000), "fearGreed": fear},
         "cycle": {
             **tab(cycle_rows, series_limit=100_000),
-            "cbbi": tab(cbbi_rows, series_limit=100_000),
             "halving": tab(halving_rows, series_limit=100_000),
             "priceHistory": tab(btc_price_rows, series_limit=10_000),
         },

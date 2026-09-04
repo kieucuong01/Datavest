@@ -136,7 +136,6 @@ def test_registry_reads_snapshot_collectors_for_the_seven_browser_sources(monkey
         "cryptoetf-sui-etf",
         "coinshares-weekly",
         "blockchaincenter-altcoin-season",
-        "cbbi-public",
         "bitinfocharts-top-addresses",
     }
     assert all(registry[code].__module__.endswith("snapshot_collectors") for code in expected)

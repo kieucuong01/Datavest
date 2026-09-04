@@ -43,7 +43,6 @@ def test_crypto_pulse_groups_persisted_evidence_by_legacy_tab_without_inventing_
         _observation("defillama-stablecoins", "crypto.stablecoin.supply_usd", "180000000000"),
         _observation("mempool-space", "crypto.mempool.tx_count", "190234"),
         _observation("blockchaincenter-altcoin-season", "crypto.cycle.altcoin_season.index", "41"),
-        _observation("cbbi-public", "crypto.cycle.cbbi.confidence", "54"),
         _observation("cryptocraft", "macro.calendar.event", "1", dimensions={"event": "US CPI", "impact": "high"}),
     ]
 
@@ -73,6 +72,26 @@ def test_crypto_pulse_groups_persisted_evidence_by_legacy_tab_without_inventing_
     assert result["calendar"]["events"] == [
         {"effectiveAt": "2026-08-24T00:00:00+00:00", "event": "US CPI", "impact": "high", "source": "cryptocraft"}
     ]
+
+
+def test_crypto_pulse_exposes_requested_date_and_readiness_contract():
+    from app.services.smart_insights.service import SmartInsightsService
+
+    class Repository:
+        def list_pulse_observations(self, *, data_class, as_of):
+            assert data_class == "LIVE"
+            assert as_of == "2026-08-24"
+            return [_observation("alternative-fng", "crypto.fear_greed.index", "66")]
+
+    result = SmartInsightsService(repository=Repository()).get_crypto_market_pulse(
+        user_id=7, as_of="2026-08-24", mode="live"
+    )
+
+    assert result["requestedAsOf"] == "2026-08-24"
+    assert result["resolvedAsOf"] == "2026-08-24"
+    assert result["fetchedAt"].endswith("+07:00")
+    assert result["freshness"] in {"FRESH", "PARTIAL"}
+    assert result["coverage"]["totalTabs"] == 5
 
 
 def test_crypto_pulse_merges_confirmed_whale_accumulation_into_flows_not_a_separate_tab():
@@ -327,19 +346,15 @@ def test_crypto_pulse_keeps_long_derivatives_history_for_terminal_ranges():
     assert len(result["tabs"]["sentimentDerivatives"]["series"]) == 365
 
 
-def test_crypto_pulse_keeps_full_cycle_history_and_all_cbbi_components_for_charts():
+def test_crypto_pulse_filters_retired_cbbi_and_rhodl_metrics_from_the_read_model():
     from app.services.smart_insights.service import SmartInsightsService
 
-    start = datetime(2025, 1, 1, tzinfo=timezone.utc)
-    rows = []
-    for day in range(120):
-        effective_at = (start + timedelta(days=day)).isoformat()
-        rows.extend([
-            _observation("blockchaincenter-altcoin-season", "crypto.cycle.altcoin_season.index", str(20 + day % 60), effective_at=effective_at),
-            _observation("cbbi-public", "crypto.cycle.cbbi.confidence", str(day / 120), effective_at=effective_at),
-            _observation("cbbi-public", "crypto.cycle.cbbi.component.pi_cycle", str(day / 180), effective_at=effective_at),
-            _observation("cbbi-public", "crypto.cycle.cbbi.component.mvrv", str(day / 240), effective_at=effective_at),
-        ])
+    rows = [
+        _observation("blockchaincenter-altcoin-season", "crypto.cycle.altcoin_season.index", "41"),
+        _observation("cbbi-public", "crypto.cycle.cbbi.confidence", "54"),
+        _observation("coinmetrics-community", "crypto.onchain.rhodl_ratio", "0.72", symbol="BTC"),
+        _observation("coinmetrics-community", "crypto.onchain.mvrv", "1.8", symbol="BTC"),
+    ]
 
     class Repository:
         def list_pulse_observations(self, *, data_class, as_of):
@@ -350,12 +365,10 @@ def test_crypto_pulse_keeps_full_cycle_history_and_all_cbbi_components_for_chart
     )
 
     cycle = result["tabs"]["cycle"]
-    assert len(cycle["series"]) == 480
-    assert {point["metric"] for point in cycle["cbbi"]["series"]} == {
-        "crypto.cycle.cbbi.confidence",
-        "crypto.cycle.cbbi.component.pi_cycle",
-        "crypto.cycle.cbbi.component.mvrv",
-    }
+    assert {point["metric"] for point in cycle["series"]} == {"crypto.cycle.altcoin_season.index"}
+    assert "cbbi" not in cycle
+    assert not any("cbbi" in point["metric"] for point in result["tabs"]["overview"]["metrics"])
+    assert {point["metric"] for point in result["tabs"]["onchain"]["series"]} == {"crypto.onchain.mvrv"}
 
 
 def test_crypto_pulse_separates_onchain_groups_and_excludes_market_prices():
@@ -370,7 +383,6 @@ def test_crypto_pulse_separates_onchain_groups_and_excludes_market_prices():
         _observation("coinmetrics-community", "crypto.mining.hashrate_hs", "700000000000000000000", symbol="BTC"),
         _observation("coinmetrics-community", "crypto.market.price_usd", "65000", symbol="BTC"),
         _observation("mempool-space", "crypto.chain.block_height", "910000", symbol="BTC"),
-        _observation("cbbi-public", "crypto.cycle.cbbi.confidence", "54"),
     ]
 
     class Repository:

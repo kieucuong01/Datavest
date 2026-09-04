@@ -118,7 +118,7 @@ test('Smart Insights history tables show about ten rows before scrolling', () =>
   }
 })
 
-test('Smart Insights routes Cycle to a source-backed Altseason and CBBI terminal', () => {
+test('Smart Insights keeps Cycle focused on Altseason and halving context', () => {
   const pulse = readFileSync(path.join(repositoryRoot, 'src/views/smart-insights/components/MarketPulseSection.vue'), 'utf8')
   const cycleTerminalPath = path.join(repositoryRoot, 'src/views/smart-insights/components/CycleTerminal.vue')
 
@@ -126,26 +126,16 @@ test('Smart Insights routes Cycle to a source-backed Altseason and CBBI terminal
   const cycleTerminal = readFileSync(cycleTerminalPath, 'utf8')
   assert.match(pulse, /CycleTerminal/u)
   assert.match(cycleTerminal, /altcoin_season\.index/u)
-  assert.match(cycleTerminal, /cbbi\.component/u)
   assert.match(cycleTerminal, /markArea/u)
   assert.match(cycleTerminal, /tooltip:\s*\{/u)
   assert.match(cycleTerminal, /rangeOptions/u)
-  assert.match(cycleTerminal, /cbbi-main-card/u)
-  assert.match(cycleTerminal, /cbbi-component-grid/u)
-  assert.match(cycleTerminal, /cbbiComponentOptions/u)
-  assert.match(cycleTerminal, /renderComponentCharts/u)
-  assert.match(cycleTerminal, /price-cycle-models/u)
-  assert.match(cycleTerminal, /2-Year MA/u)
-  assert.match(cycleTerminal, /200WMA/u)
-  assert.match(cycleTerminal, /Power Law \/ Rainbow/u)
   assert.match(cycleTerminal, /Halving → Peak context/u)
   assert.match(cycleTerminal, /not a buy\/sell signal/u)
   assert.match(cycleTerminal, /full-width-card/u)
   assert.match(cycleTerminal, /altcoin-summary-row/u)
-  assert.match(cycleTerminal, /grid-template-columns: repeat\(2/u)
   assert.match(cycleTerminal, /\.cycle-terminal\s*\{[^}]*width:\s*100%[^}]*max-width:\s*none/u)
   assert.match(cycleTerminal, /\.cycle-grid\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)/u)
-  assert.match(cycleTerminal, /grid-column:\s*auto/u)
+  assert.doesNotMatch(cycleTerminal, /CBBI Confidence|cbbi-main-card|cbbi-components-section|cbbi-component-grid|price-cycle-models|renderCbbiChart|renderComponentCharts|renderModelCharts|2-Year MA|200WMA|Power Law \/ Rainbow/u)
 })
 
 test('Smart Insights keeps crypto detail terminals without the removed summary and chart grid', () => {

@@ -1,6 +1,6 @@
-export async function runSectionLoaders (loaders = {}, setLoading = () => {}) {
+export async function runSectionLoaders (loaders = {}, setLoading = () => {}, requestId) {
   const entries = Object.entries(loaders)
-  entries.forEach(([section]) => setLoading(section, true))
+  entries.forEach(([section]) => setLoading(section, true, requestId))
 
   const tasks = entries.map(async ([section, loader]) => {
     try {
@@ -8,7 +8,7 @@ export async function runSectionLoaders (loaders = {}, setLoading = () => {}) {
     } catch (reason) {
       return { section, status: 'rejected', reason }
     } finally {
-      setLoading(section, false)
+      setLoading(section, false, requestId)
     }
   })
 

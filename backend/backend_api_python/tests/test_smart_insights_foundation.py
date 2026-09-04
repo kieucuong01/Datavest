@@ -66,7 +66,8 @@ def test_pulse_repository_keeps_full_cycle_and_fear_greed_history_without_expand
     assert "INTERVAL '730 days'" in connection.cursor_instance.query
     assert "s.code = 'alternative-fng'" in connection.cursor_instance.query
     assert "INTERVAL '4000 days'" in connection.cursor_instance.query
-    assert "s.code IN ('blockchaincenter-altcoin-season', 'cbbi-public')" in connection.cursor_instance.query
+    assert "s.code = 'blockchaincenter-altcoin-season'" in connection.cursor_instance.query
+    assert "cbbi-public" not in connection.cursor_instance.query
     assert "LIMIT 100000" in connection.cursor_instance.query
 
 
@@ -263,13 +264,13 @@ def test_overview_passes_user_scope_and_explicit_mode(client, monkeypatch):
     captured = {}
 
     class Service:
-        def get_overview(self, *, user_id, as_of, market, mode):
-            captured.update(user_id=user_id, as_of=as_of, market=market, mode=mode)
-            return {"asOf": as_of, "market": market, "mode": mode, "opinions": []}
+        def get_overview(self, *, user_id, as_of, locale):
+            captured.update(user_id=user_id, as_of=as_of, locale=locale)
+            return {"asOf": as_of, "locale": locale, "opinions": []}
 
-    monkeypatch.setattr(routes, "get_smart_insights_service", lambda: Service())
+    monkeypatch.setattr(routes, "get_ai_assistant_insights_service", lambda: Service())
     response = client.get(
-        "/api/smart-insights/overview?as_of=2026-08-24&market=crypto&mode=demo",
+        "/api/smart-insights/overview?as_of=2026-08-24&lang=en-US",
         headers=_authenticate(monkeypatch, user_id=19),
     )
 
@@ -277,10 +278,9 @@ def test_overview_passes_user_scope_and_explicit_mode(client, monkeypatch):
     assert captured == {
         "user_id": 19,
         "as_of": "2026-08-24",
-        "market": "crypto",
-        "mode": "demo",
+        "locale": "en-US",
     }
-    assert response.get_json()["data"]["mode"] == "demo"
+    assert response.get_json()["data"]["locale"] == "en-US"
 
 
 def test_compact_overview_keeps_only_the_evidence_rendered_by_the_workspace(client, monkeypatch):
@@ -307,7 +307,7 @@ def test_compact_overview_keeps_only_the_evidence_rendered_by_the_workspace(clie
         def get_overview(self, **_kwargs):
             return deepcopy(payload)
 
-    monkeypatch.setattr(routes, "get_smart_insights_service", lambda: Service())
+    monkeypatch.setattr(routes, "get_ai_assistant_insights_service", lambda: Service())
     headers = _authenticate(monkeypatch)
 
     full = client.get("/api/smart-insights/overview", headers=headers).get_json()["data"]

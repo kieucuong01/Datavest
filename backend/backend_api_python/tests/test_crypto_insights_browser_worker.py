@@ -79,6 +79,7 @@ def test_daily_sources_are_caught_up_once_when_worker_starts_after_schedule():
     seen: set[str] = set()
     after_schedule = datetime(2026, 9, 2, 9, 5, tzinfo=ZoneInfo("Asia/Ho_Chi_Minh"))
 
+    assert "cbbi-public" not in scheduled_daily_sources()
     assert due_snapshot_sources(after_schedule, seen) == scheduled_daily_sources()
     assert due_snapshot_sources(after_schedule, seen) == ()
 
@@ -86,7 +87,6 @@ def test_daily_sources_are_caught_up_once_when_worker_starts_after_schedule():
 def test_public_document_parsers_keep_history_and_current_metrics():
     from crypto_insights_worker.browser_snapshots import (
         parse_altcoin_season,
-        parse_cbbi,
         parse_coinshares_report,
         parse_farside,
         parse_fear_greed,
@@ -114,12 +114,6 @@ def test_public_document_parsers_keep_history_and_current_metrics():
         ("crypto.cycle.altcoin_season.index", "61"),
         ("crypto.cycle.altcoin_season.month_index", "43"),
         ("crypto.cycle.altcoin_season.year_index", "37"),
-    }
-
-    cbbi = parse_cbbi({"Confidence": {"1788048000": 0.42}, "PiCycle": {"1788048000": 0.2}})
-    assert {(row["metric"], row["value"]) for row in cbbi} == {
-        ("crypto.cycle.cbbi.confidence", "0.42"),
-        ("crypto.cycle.cbbi.component.pi_cycle", "0.2"),
     }
 
 
@@ -230,19 +224,6 @@ def test_prepare_browser_profile_removes_only_stale_chromium_singleton_locks(tmp
     assert prepare_browser_profile(tmp_path) == tmp_path.resolve()
     assert not any((tmp_path / name).exists() for name in ("SingletonLock", "SingletonSocket", "SingletonCookie"))
     assert (tmp_path / "Cookies").read_text(encoding="utf-8") == "preserve"
-
-
-def test_cbbi_parser_keeps_confidence_when_an_optional_component_is_null():
-    from crypto_insights_worker.browser_snapshots import parse_cbbi
-
-    rows = parse_cbbi({"Confidence": {"1788048000": 0.42}, "PiCycle": {"1788048000": None}})
-
-    assert rows == [{
-        "effective_at": "2026-08-30T00:00:00+00:00",
-        "metric": "crypto.cycle.cbbi.confidence",
-        "value": "0.42",
-        "unit": "index",
-    }]
 
 
 def test_bitinfocharts_parser_builds_a_heuristic_non_exchange_cohort_with_daily_delta():

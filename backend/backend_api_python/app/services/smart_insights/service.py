@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime, timezone
 from functools import lru_cache
 
 from app.utils.request_guard import cache_key, guarded_cached
+from app.utils.timeutil import vietnam_calendar_date
 
 from .repository import SmartInsightsRepository
+from .data_contract import attach_data_contract, freshness_for_status
 
 
 _MARKETS = frozenset({"crypto", "macro", "vn", "us", "gold", "all"})
@@ -139,7 +141,16 @@ class SmartInsightsService:
 
     def get_data_health(self, *, user_id: int) -> dict:
         del user_id
-        return {"sources": self.repository.data_health()}
+        sources = self.repository.data_health()
+        fresh_count = sum(1 for row in sources if str(row.get("freshness") or "").upper() == "FRESH")
+        status = "COMPLETE" if sources and fresh_count == len(sources) else "PARTIAL" if fresh_count or sources else "UNAVAILABLE"
+        return attach_data_contract(
+            {"status": status, "sources": sources},
+            requested_as_of=None,
+            resolved_as_of=vietnam_calendar_date(),
+            fetched_at=datetime.now(timezone.utc),
+            coverage={"sources": len(sources), "freshSources": fresh_count},
+        )
 
     def get_crypto_market_pulse(
         self, *, user_id: int, as_of: str | None, mode: str | None,
@@ -213,7 +224,10 @@ class SmartInsightsService:
                     self.repository.list_pulse_observations(**repository_kwargs),
                     mode=normalized_mode,
                 )
-                return merge_imported_crypto_market_pulse(imported, runtime)
+                return self._attach_pulse_contract(
+                    merge_imported_crypto_market_pulse(imported, runtime),
+                    requested_as_of=as_of,
+                )
         from .crypto_pulse import build_crypto_market_pulse
 
         repository_kwargs = {
@@ -222,10 +236,47 @@ class SmartInsightsService:
         }
         if compact:
             repository_kwargs["compact"] = True
-        return build_crypto_market_pulse(
-            self.repository.list_pulse_observations(**repository_kwargs),
-            mode=normalized_mode,
+        return self._attach_pulse_contract(
+            build_crypto_market_pulse(
+                self.repository.list_pulse_observations(**repository_kwargs),
+                mode=normalized_mode,
+            ),
+            requested_as_of=as_of,
         )
+
+    @staticmethod
+    def _attach_pulse_contract(payload: dict, *, requested_as_of: str | None) -> dict:
+        tabs = payload.get("tabs") if isinstance(payload.get("tabs"), dict) else {}
+        available_tabs = sum(
+            1 for value in tabs.values()
+            if isinstance(value, dict) and str(value.get("status") or "").upper() == "AVAILABLE"
+        )
+        total_tabs = len(tabs)
+        resolved_as_of = str(payload.get("asOf") or requested_as_of or "").strip() or None
+        historical = bool(resolved_as_of and resolved_as_of != vietnam_calendar_date())
+        freshness = freshness_for_status(payload.get("status"), historical=historical)
+        result = attach_data_contract(
+            payload,
+            requested_as_of=requested_as_of,
+            resolved_as_of=resolved_as_of,
+            fetched_at=datetime.now(timezone.utc),
+            freshness=freshness,
+            coverage={
+                "availableTabs": available_tabs,
+                "totalTabs": total_tabs,
+                "ratio": round(available_tabs / total_tabs, 4) if total_tabs else 0.0,
+            },
+        )
+        calendar = result.get("calendar")
+        if isinstance(calendar, dict):
+            result["calendar"] = attach_data_contract(
+                calendar,
+                requested_as_of=requested_as_of,
+                resolved_as_of=resolved_as_of,
+                fetched_at=datetime.now(timezone.utc),
+                coverage={"events": len(calendar.get("events") or [])},
+            )
+        return result
 
     def _production_import(self, user_id: int, data_type: str) -> dict | None:
         """Imports are optional for clean installs and lightweight repository doubles."""
@@ -243,6 +294,8 @@ class SmartInsightsService:
         normalized_sources = tuple(
             dict.fromkeys(code.strip().lower() for code in source_codes if code and code.strip())
         )
+        if "cbbi-public" in normalized_sources:
+            raise ValueError("retired_source_code")
         if len(normalized_sources) > 50 or any(len(code) > 120 for code in normalized_sources):
             raise ValueError("invalid_source_codes")
         run_id = self.repository.create_refresh_request(

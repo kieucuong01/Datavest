@@ -11,7 +11,6 @@ SET activation_mode = 'RUNTIME',
 WHERE code IN (
     'alternative-fng',
     'blockchaincenter-altcoin-season',
-    'cbbi-public',
     'farside-btc-etf',
     'farside-eth-etf',
     'farside-sol-etf',

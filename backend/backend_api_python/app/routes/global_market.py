@@ -44,6 +44,8 @@ from app.utils.auth import login_required
 from app.data_providers import cached_or_compute, clear_cache, invalidate
 from app.data_providers.adanos_sentiment import fetch_adanos_market_sentiment
 from app.data_providers.news import fetch_financial_news, get_economic_calendar_payload
+from app.services.smart_insights.data_contract import vietnam_iso
+from app.utils.timeutil import vietnam_calendar_date
 from app.data_providers.heatmap import generate_heatmap_data
 from app.services.global_market_data import (
     compute_market_overview,
@@ -135,6 +137,17 @@ def economic_calendar():
         else:
             data = []
             meta = {"status": "error", "source": "free_calendar_sources", "message": "Calendar payload is unavailable."}
+        requested_as_of = request.args.get("as_of") or None
+        resolved_as_of = vietnam_calendar_date()
+        status = str(meta.get("status") or "ok").lower()
+        freshness = "UNAVAILABLE" if status in {"error", "unavailable"} or not data else "PARTIAL" if meta.get("fallback_from") else "FRESH"
+        meta.update({
+            "requestedAsOf": requested_as_of,
+            "resolvedAsOf": resolved_as_of,
+            "fetchedAt": meta.get("last_success_at") or vietnam_iso(),
+            "freshness": freshness,
+            "coverage": {"events": len(data), "sourceCount": 1 if meta.get("source") else 0},
+        })
         return jsonify({"code": 1, "msg": "success", "data": data, "meta": meta})
     except Exception as e:
         logger.error("economic_calendar failed: %s", e, exc_info=True)

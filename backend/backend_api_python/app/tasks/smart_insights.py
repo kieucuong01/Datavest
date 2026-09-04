@@ -36,7 +36,13 @@ def enqueue_smart_insights_refresh() -> dict:
     repository = SmartInsightsRepository()
     configured = os.getenv("SMART_INSIGHTS_AUTO_REFRESH_SOURCE_CODES", "").strip()
     source_codes = (
-        tuple(dict.fromkeys(item.strip().lower() for item in configured.split(",") if item.strip()))
+        tuple(
+            dict.fromkeys(
+                item.strip().lower()
+                for item in configured.split(",")
+                if item.strip() and item.strip().lower() != "cbbi-public"
+            )
+        )
         if configured
         else repository.list_enabled_source_codes()
     )
@@ -55,8 +61,9 @@ def enqueue_smart_insights_refresh() -> dict:
 def enqueue_smart_insights_refresh_for_sources(source_codes: tuple[str, ...]) -> dict:
     """Queue a narrow persisted-snapshot import after the browser worker finishes."""
     normalized = tuple(dict.fromkeys(str(code).strip().lower() for code in source_codes if str(code).strip()))
+    normalized = tuple(code for code in normalized if code != "cbbi-public")
     if not normalized:
-        return {"skipped": True, "reason": "no_sources"}
+        return {"skipped": True, "reason": "no_active_sources"}
     from app.services.smart_insights.repository import SmartInsightsRepository
 
     repository = SmartInsightsRepository()

@@ -136,24 +136,8 @@ def test_farside_collector_accepts_total_rows_and_rejects_malformed_tables():
         FarsideEtfCollector("BTC", transport=Transport("<html>no table</html>")).collect(NOW)
 
 
-def test_cycle_collectors_port_cbbi_json_and_altcoin_season_page():
-    from app.services.smart_insights.cycle import AltcoinSeasonCollector, CbbiCollector
-
-    cbbi = CbbiCollector(
-        transport=Transport(
-            json.dumps(
-                {
-                    "Confidence": {"1786492800": 0.30, "1786579200": 0.42},
-                    "PiCycle": {"1786492800": 0.2, "1786579200": 0.3},
-                }
-            )
-        )
-    ).collect(datetime(2026, 8, 14, 13, 0, tzinfo=timezone.utc))
-    assert len(cbbi) == 4
-    assert {row.value["metric"] for row in cbbi} == {
-        "crypto.cycle.cbbi.confidence",
-        "crypto.cycle.cbbi.component.pi_cycle",
-    }
+def test_cycle_collector_ports_altcoin_season_page():
+    from app.services.smart_insights.cycle import AltcoinSeasonCollector
 
     html = """
       <button>Altcoin Season (61)</button><button>Month (43)</button><button>Year (37)</button>
@@ -172,4 +156,5 @@ def test_public_collectors_are_registered_without_api_keys():
     from app.services.smart_insights.collectors import default_collector_registry
 
     registry = default_collector_registry()
-    assert {"fred", "defillama-stablecoins", "alternative-fng", "mempool-space", "farside-btc-etf", "cbbi-public", "blockchaincenter-altcoin-season"} <= set(registry)
+    assert {"fred", "defillama-stablecoins", "alternative-fng", "mempool-space", "farside-btc-etf", "blockchaincenter-altcoin-season"} <= set(registry)
+    assert "cbbi-public" not in registry

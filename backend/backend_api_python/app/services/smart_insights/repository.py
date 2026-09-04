@@ -147,7 +147,7 @@ class SmartInsightsRepository:
                       s.code = 'alternative-fng'
                       AND o.effective_at >= NOW() - INTERVAL '4000 days'
                     )
-                    OR s.code IN ('blockchaincenter-altcoin-season', 'cbbi-public')
+                    OR s.code = 'blockchaincenter-altcoin-season'
                   )
                   {as_of_filter}
                   AND (o.market = 'crypto' OR s.code = 'cryptocraft')
@@ -211,7 +211,7 @@ class SmartInsightsRepository:
                           s.code = 'alternative-fng'
                           AND o.effective_at >= NOW() - INTERVAL '4000 days'
                         )
-                        OR s.code IN ('blockchaincenter-altcoin-season', 'cbbi-public')
+                        OR s.code = 'blockchaincenter-altcoin-season'
                       )
                       {as_of_filter}
                       AND (o.market = 'crypto' OR s.code = 'cryptocraft')

@@ -2,7 +2,7 @@
   <section class="market-pulse" aria-labelledby="market-pulse-title" :aria-busy="loading ? 'true' : 'false'">
     <div class="section-title-row">
       <div>
-        <h2 id="market-pulse-title">{{ $t('smartInsights.marketRhythm') }} <a-tag>{{ $t('smartInsights.currentData') }}</a-tag></h2>
+        <h2 id="market-pulse-title">{{ $t('smartInsights.marketRhythm') }} <a-tag v-if="pulseIsCurrent">{{ $t('smartInsights.currentData') }}</a-tag></h2>
         <p>{{ $t('smartInsights.marketRhythmDesc') }}</p>
       </div>
       <a-tag :color="pulse.status === 'AVAILABLE' ? 'green' : 'orange'">{{ statusLabel(pulse.status) }}</a-tag>
@@ -44,13 +44,18 @@
           <article class="pulse-tile"><span>{{ $t('smartInsights.analysisDate') }}</span><strong>{{ analysisDate }}</strong><small>{{ $t('smartInsights.equitiesSourceHint') }}</small></article>
         </div>
       </section>
+      <template v-else-if="activeKey === 'crypto' && !cryptoReady">
+        <div class="crypto-terminal-deferred" aria-live="polite">
+          <a-skeleton active :paragraph="{ rows: 8 }" />
+        </div>
+      </template>
       <template v-else>
         <fear-greed-panel v-if="fearGreed" :fear="fearGreed" />
         <div class="pulse-detail-grid">
-          <flow-terminal v-if="panel.etfFlows" :flow="panel.etfFlows" />
+          <flow-terminal v-if="panel.etfFlows" :flow="panel.etfFlows" :is-current="pulseIsCurrent" />
           <whale-flow-monitor v-if="panel.whaleFlows" :whale-flow="panel.whaleFlows" />
           <derivatives-terminal :derivatives="panel" />
-          <cycle-terminal :cycle="panel" />
+          <cycle-terminal :cycle="panel" :is-current="pulseIsCurrent" />
           <onchain-terminal :onchain="panel" />
         </div>
       </template>
@@ -60,12 +65,12 @@
 
 <script>
 import { MARKET_PULSE_TABS, buildPulsePanel, pulseTabLabel } from '../marketPulse'
-import FearGreedPanel from './FearGreedPanel'
-import FlowTerminal from './FlowTerminal'
-import CycleTerminal from './CycleTerminal'
-import OnchainTerminal from './OnchainTerminal'
-import DerivativesTerminal from './DerivativesTerminal'
-import WhaleFlowMonitor from './WhaleFlowMonitor'
+const FearGreedPanel = () => import('./FearGreedPanel')
+const FlowTerminal = () => import('./FlowTerminal')
+const CycleTerminal = () => import('./CycleTerminal')
+const OnchainTerminal = () => import('./OnchainTerminal')
+const DerivativesTerminal = () => import('./DerivativesTerminal')
+const WhaleFlowMonitor = () => import('./WhaleFlowMonitor')
 
 export default {
   name: 'MarketPulseSection',
@@ -75,12 +80,14 @@ export default {
     overview: { type: Object, default: () => ({}) },
     calendarEvents: { type: Array, default: () => [] },
     locale: { type: String, default: 'vi' },
-    loading: { type: Boolean, default: false }
+    loading: { type: Boolean, default: false },
+    cryptoReady: { type: Boolean, default: false }
   },
   data () { return { tabs: MARKET_PULSE_TABS, activeKey: 'crypto' } },
   computed: {
     activeTab () { return this.tabs.find(tab => tab.key === this.activeKey) || this.tabs[0] },
     panel () { return buildPulsePanel(this.pulse, this.activeKey) },
+    pulseIsCurrent () { return String(this.pulse && this.pulse.freshness || '').toUpperCase() === 'FRESH' },
     fearGreed () {
       if (this.activeKey !== 'crypto') return null
       const fear = this.panel.fearGreed
@@ -141,5 +148,6 @@ export default {
 .pulse-tile span, .pulse-tile small { color: var(--muted); font-size: 13px; }
 .pulse-tile strong { color: var(--ink); font-size: 21px; }
 .pulse-detail-grid { display: grid; gap: 12px; margin-top: 12px; }
+.crypto-terminal-deferred { min-height: 520px; margin-top: 12px; padding: 22px; border: 1px solid var(--line); border-radius: 12px; background: var(--card); }
 @media (max-width: 680px) { .pulse-tiles { grid-template-columns: 1fr; } }
 </style>

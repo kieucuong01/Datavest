@@ -113,14 +113,14 @@ celery_app.conf.update(
         "crypto-insights-daily-import": {
             "task": "datavest.tasks.enqueue_smart_insights_refresh_for_sources",
             "schedule": crontab(hour=9, minute=15),
-            "args": (("alternative-fng", *_CRYPTO_ETF_DAILY_SOURCES, "blockchaincenter-altcoin-season", "cbbi-public", "bitinfocharts-top-addresses", "coinmetrics-community"),),
+            "args": (("alternative-fng", *_CRYPTO_ETF_DAILY_SOURCES, "blockchaincenter-altcoin-season", "bitinfocharts-top-addresses", "coinmetrics-community"),),
         },
         "crypto-insights-daily-import-retry": {
             "task": "datavest.tasks.enqueue_smart_insights_refresh_for_sources",
             # Gives a browser worker that restarted after the morning import a
             # second, deduplicated chance to materialize its fresh snapshots.
             "schedule": crontab(hour=13, minute=15),
-            "args": (("alternative-fng", *_CRYPTO_ETF_DAILY_SOURCES, "blockchaincenter-altcoin-season", "cbbi-public", "bitinfocharts-top-addresses", "coinmetrics-community"),),
+            "args": (("alternative-fng", *_CRYPTO_ETF_DAILY_SOURCES, "blockchaincenter-altcoin-season", "bitinfocharts-top-addresses", "coinmetrics-community"),),
         },
         "crypto-derivatives-daily-import": {
             "task": "datavest.tasks.enqueue_smart_insights_refresh_for_sources",

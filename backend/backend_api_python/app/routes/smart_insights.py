@@ -9,6 +9,7 @@ from app.openapi.blueprint import HumanBlueprint as Blueprint
 from app.services.ai_assistant_insights import get_ai_assistant_insights_service
 from app.services.smart_insights import get_smart_insights_service
 from app.services.smart_insights.response_compaction import (
+    compact_overview_response,
     compact_pulse_response,
 )
 from app.utils.auth import admin_required, login_required
@@ -50,6 +51,8 @@ def overview():
             as_of=request.args.get("as_of"),
             locale=_locale(),
         )
+        if _compact_requested():
+            data = compact_overview_response(data)
         return _ok(data)
     except ValueError as exc:
         return _fail(str(exc), 400)
