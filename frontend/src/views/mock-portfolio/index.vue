@@ -49,7 +49,7 @@
             <div class="allocation-legend"><div v-for="item in analytics.byCategory" :key="item.key" class="legend-row"><span class="legend-label"><i :style="{ background: item.color }" />{{ marketLabel(item.market) }}</span><strong>{{ item.allocation }}%</strong></div></div>
           </div>
           <a-empty v-else :description="$t('mockPortfolio.allocationEmpty')" :image="simpleEmptyImage" />
-          <div v-if="analytics.bySymbol.length" class="symbol-allocation-list"><span v-for="item in analytics.bySymbol.slice(0, 6)" :key="`${item.market}-${item.symbol}`" class="symbol-allocation-chip"><b>{{ item.symbol }}</b><em>{{ item.allocation }}%</em></span></div>
+          <div v-if="analytics.bySymbol.length" class="symbol-allocation-list"><span v-for="item in analytics.bySymbol.slice(0, 6)" :key="`${item.market}-${item.symbol}`" class="symbol-allocation-chip"><CryptoAssetIcon v-if="isIdentityMarket(item.market)" :market="item.market" :symbol="item.symbol" :size="20" /><b>{{ item.symbol }}</b><em>{{ item.allocation }}%</em></span></div>
         </a-card>
       </div>
 
@@ -76,7 +76,7 @@
         :columns="columns"
         :data-source="positions"
         :scroll="{ x: 1120 }">
-        <template slot="symbol" slot-scope="value, record"><div class="symbol-cell"><span class="asset-avatar">{{ assetInitial(value) }}</span><div><strong>{{ value }}</strong><small>{{ record.name || marketLabel(record.market) }}</small></div></div></template>
+        <template slot="symbol" slot-scope="value, record"><div class="symbol-cell"><CryptoAssetIcon v-if="isIdentityMarket(record.market)" :market="record.market" :symbol="value" :size="26" /><span v-else class="asset-avatar">{{ assetInitial(value) }}</span><div><strong>{{ value }}</strong><small>{{ record.name || marketLabel(record.market) }}</small></div></div></template>
         <template slot="quantity" slot-scope="value">{{ formatNumber(value, 6) }}</template><template slot="entry_price" slot-scope="value">{{ formatNumber(value, 6) }}</template><template slot="current_price" slot-scope="value">{{ formatNumber(value, 6) }}</template><template slot="market_value" slot-scope="value">{{ formatNumber(value) }}</template>
         <template slot="allocation" slot-scope="_, record"><div class="allocation-bar"><span :style="{ width: `${allocationFor(record)}%` }" /></div><small>{{ allocationFor(record) }}%</small></template>
         <template slot="pnl" slot-scope="value, record"><span :class="value >= 0 ? 'value-positive' : 'value-negative'">{{ signedNumber(value) }}<small> {{ signedPercent(record.pnl_percent) }}</small></span></template>
@@ -113,12 +113,14 @@ import * as echarts from 'echarts'
 import { Empty } from 'ant-design-vue'
 import { addPosition, deletePosition, getPositions, getPortfolioSummary, updatePosition } from '@/api/portfolio'
 import { buildPortfolioAnalytics } from './portfolioAnalytics'
+import CryptoAssetIcon from '@/components/CryptoAssetIcon'
 
 const emptySummary = () => ({ total_market_value: 0, total_cost: 0, total_pnl: 0, total_pnl_percent: 0, position_count: 0, market_distribution: [] })
 const emptyForm = () => ({ market: 'Crypto', symbol: 'BTC/USDT', name: '', side: 'long', quantity: null, entry_price: null, group_name: '', notes: '' })
 
 export default {
   name: 'MockPortfolio',
+  components: { CryptoAssetIcon },
   data () { return { loading: false, saving: false, modalVisible: false, editingId: null, positions: [], summary: emptySummary(), form: emptyForm(), errorMessage: '', allocationChartInstance: null } },
   computed: {
     ...mapState({ navTheme: state => state.app.theme }),
@@ -149,6 +151,7 @@ export default {
   mounted () { window.addEventListener('resize', this.resizeCharts) },
   beforeDestroy () { window.removeEventListener('resize', this.resizeCharts); if (this.allocationChartInstance) this.allocationChartInstance.dispose() },
   methods: {
+    isIdentityMarket (market) { return ['crypto', 'vn', 'vnstock', 'vietnamstock', 'vietnam-stock', 'forex', 'gold', 'xau'].includes(String(market || '').toLowerCase()) },
     async loadData (refresh = false) {
       this.loading = true
       this.errorMessage = ''
@@ -209,4 +212,5 @@ export default {
 .risk-section { margin-bottom: 22px; }.risk-heading { margin-bottom: 10px; }.risk-heading > span { color: #8894aa; font-size: 9px; letter-spacing: .05em; text-transform: uppercase; }.risk-grid { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 8px; }.risk-card { min-height: 82px; padding: 13px; border: 1px solid #dce4f1; border-radius: 10px; background: #fff; }.risk-card strong { color: #173469; font-size: 20px; font-variant-numeric: tabular-nums; }.risk-card small { display: block; margin-top: 4px; color: #8793aa; font-size: 9px; line-height: 1.35; }.risk-card.unavailable strong { color: #9ca7b9; }.transaction-empty { display: flex; align-items: center; gap: 13px; padding: 23px; border-top: 1px solid #e3e9f2; background: #fbfcff; }.transaction-empty .anticon { color: #8ba1c6; font-size: 23px; }.transaction-empty strong { color: #344563; font-size: 13px; }.transaction-empty p { margin: 4px 0 0; color: #71809a; font-size: 11px; }.form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }.full-width { width: 100%; }
 .theme-dark { color: #dce7f6; background: #080d16; h1, .balance-number, .section-heading h2, .risk-heading h2, .symbol-cell strong, .legend-row strong, .comparison-tile strong { color: #e6effc; }.workspace-header p, .section-heading p, .risk-heading p, .card-topline > span, .pnl-caption, .balance-details span, .risk-card span { color: #a1b0c7; }.surface-card, .risk-card { border-color: #28364d; background: #111a29; box-shadow: none; }.comparison-tile, .comparison-tile.muted { border-color: #2a3851; background: #141f30; }.performance-empty-state { background: linear-gradient(180deg, #121c2c, #0c1421); }.empty-message { border-color: #2b3a52; background: rgba(19, 30, 47, .94); }.empty-message strong, .transaction-empty strong { color: #dce7f6; }.symbol-allocation-list, .balance-divider, .transaction-empty { border-color: #28364d; }.symbol-allocation-chip { background: #1b2940; color: #b8c8df; }.symbol-allocation-chip em { color: #edf4ff; }.allocation-bar { background: #2b3a52; }.transaction-empty { background: #0e1725; } }
 @media (max-width: 980px) { .mock-portfolio-page { padding: 20px 16px 34px; }.portfolio-hero { grid-template-columns: 1fr; }.risk-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }@media (max-width: 640px) { .workspace-header { align-items: flex-start; flex-direction: column; }.header-actions { justify-content: flex-start; }.performance-summary, .balance-details, .form-grid { grid-template-columns: 1fr; }.allocation-body { grid-template-columns: 1fr; }.allocation-legend { padding: 0 12px 12px; }.performance-card { min-height: 0; }.performance-empty-state { min-height: 230px; }.risk-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }.risk-heading { align-items: flex-start; flex-direction: column; } }
+.symbol-allocation-chip { align-items: center; }
 </style>

@@ -27,7 +27,13 @@
       </div>
       <div v-for="row in rows" :key="row.id" class="opinion-row">
         <div class="asset-cell">
-          <span class="asset-avatar" :class="assetTone(row.displaySymbol)">{{ symbolMark(row.displaySymbol) }}</span>
+          <CryptoAssetIcon
+            v-if="isIdentityMarket(row.market)"
+            :symbol="row.displaySymbol"
+            :market="row.market"
+            :size="29"
+          />
+          <span v-else class="asset-avatar" :class="assetTone(row.displaySymbol)">{{ symbolMark(row.displaySymbol) }}</span>
           <span>
             <strong>{{ row.displaySymbol }}</strong>
             <small>{{ marketLabel(row.market) }}</small>
@@ -72,9 +78,11 @@
 <script>
 import { buildOpinionPresentation } from '../opinionStatus'
 import { formatVietnamDateTime } from '@/utils/vietnamTime'
+import CryptoAssetIcon from '@/components/CryptoAssetIcon'
 
 export default {
   name: 'AssetOpinionsSection',
+  components: { CryptoAssetIcon },
   props: {
     rows: { type: Array, default: () => [] },
     mode: { type: String, default: 'live' },
@@ -119,6 +127,9 @@ export default {
     formatDateTime (value) {
       if (!value) return this.$t('smartInsights.notAvailable')
       return formatVietnamDateTime(value, { locale: this.$i18n && this.$i18n.locale === 'vi-VN' ? 'vi-VN' : 'en-GB', fallback: String(value) })
+    },
+    isIdentityMarket (market) {
+      return ['crypto', 'vn', 'vnstock', 'vietnamstock', 'vietnam-stock', 'forex', 'gold', 'xau'].includes(String(market || '').toLowerCase())
     },
     marketLabel (market) {
       return ({ crypto: 'Crypto', vn: 'VN', us: 'US', gold: this.$t('smartInsights.gold') })[String(market || '').toLowerCase()] || String(market || '').toUpperCase()

@@ -201,6 +201,12 @@
                 :label="watchlistSelectLabel(stock)"
               >
                 <span class="symbol-option wl-select-option-row">
+                  <CryptoAssetIcon
+                    v-if="isIdentityMarket(stock.market)"
+                    :symbol="stock.symbol"
+                    :market="stock.market"
+                    :size="24"
+                  />
                   <a-tag :color="getMarketColor(stock.market)" size="small">{{ getMarketName(stock.market) }}</a-tag>
                   <strong class="wl-select-symbol">{{ stock.symbol }}</strong>
                   <span v-if="stock.name" class="symbol-name wl-select-name">{{ stock.name }}</span>
@@ -352,6 +358,12 @@ class="analyze-button">
                 <div class="wl-row-main">
                   <div class="wl-info-left">
                     <div class="wl-symbol-line">
+                      <CryptoAssetIcon
+                        v-if="isIdentityMarket(stock.market)"
+                        :symbol="stock.symbol"
+                        :market="stock.market"
+                        :size="28"
+                      />
                       <span class="wl-symbol">{{ stock.symbol }}</span>
                       <span class="wl-market">{{ getMarketName(stock.market) }}</span>
                     </div>
@@ -492,6 +504,12 @@ class="analyze-button">
               <a-list-item-meta>
                 <template slot="title">
                   <div class="symbol-item-content">
+                    <CryptoAssetIcon
+                      v-if="isIdentityMarket(item.market)"
+                      :symbol="item.symbol"
+                      :market="item.market"
+                      :size="28"
+                    />
                     <span class="symbol-code">{{ item.symbol }}</span>
                     <span class="symbol-name">{{ item.name }}</span>
                     <a-tag v-if="item.exchange_id || item.exchange" size="small" color="gold" style="margin-left: 8px;">
@@ -520,6 +538,12 @@ class="analyze-button">
                 <a-list-item-meta>
                   <template slot="title">
                     <div class="symbol-item-content">
+                      <CryptoAssetIcon
+                        v-if="isIdentityMarket(item.market)"
+                        :symbol="item.symbol"
+                        :market="item.market"
+                        :size="28"
+                      />
                       <span class="symbol-code">{{ item.symbol }}</span>
                       <span class="symbol-name">{{ item.name }}</span>
                       <a-tag v-if="item.exchange" size="small" color="orange" style="margin-left: 8px;">
@@ -546,6 +570,12 @@ class="analyze-button">
           >
             <template slot="description">
               <div class="selected-symbol-info">
+                <CryptoAssetIcon
+                  v-if="isIdentityMarket(selectedSymbolForAdd.market)"
+                  :symbol="selectedSymbolForAdd.symbol"
+                  :market="selectedSymbolForAdd.market"
+                  :size="30"
+                />
                 <a-tag :color="getMarketColor(selectedSymbolForAdd.market)" style="margin-right: 8px;">
                   {{ $t(`dashboard.analysis.market.${selectedSymbolForAdd.market}`) }}
                 </a-tag>
@@ -829,6 +859,7 @@ import { fastAnalyze, getAllAnalysisHistory, deleteAnalysisHistory } from '@/api
 import { getMarketSentiment, getEconomicCalendar } from '@/api/global-market'
 import FastAnalysisReport from './components/FastAnalysisReport.vue'
 import CopilotWorkbench from './components/CopilotWorkbench.vue'
+import CryptoAssetIcon from '@/components/CryptoAssetIcon'
 import sessionCache from '@/utils/sessionCache'
 import { loadEnabledMarketOptions, firstMarketValue } from '@/utils/marketModules'
 import { CRYPTO_EXCHANGE_IDS } from '@/utils/marketContext'
@@ -870,7 +901,8 @@ export default {
   },
   components: {
     FastAnalysisReport,
-    CopilotWorkbench
+    CopilotWorkbench,
+    CryptoAssetIcon
   },
   data () {
     return {
@@ -1098,6 +1130,9 @@ export default {
     }
   },
   methods: {
+    isIdentityMarket (market) {
+      return ['crypto', 'vn', 'vnstock', 'vietnamstock', 'vietnam-stock', 'forex', 'gold', 'xau'].includes(String(market || '').toLowerCase())
+    },
     stopTaskPolling () {
       if (this.taskPollingTimer) {
         clearInterval(this.taskPollingTimer)
@@ -4377,6 +4412,7 @@ export default {
     color: #666;
   }
 }
+.wl-symbol-line .crypto-asset-icon, .wl-select-option-row .crypto-asset-icon, .symbol-item-content .crypto-asset-icon, .selected-symbol-info .crypto-asset-icon { flex: 0 0 auto; }
 </style>
 
 <style lang="less">

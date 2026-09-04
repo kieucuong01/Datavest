@@ -82,7 +82,15 @@
                 <a-select-option value="VNStock">VN</a-select-option>
                 <a-select-option value="Forex">XAU</a-select-option>
               </a-select>
-              <a-input v-model="instrument.symbol" :placeholder="$t('portfolioOptimizer.symbol')" />
+              <div class="instrument-symbol-input">
+                <CryptoAssetIcon
+                  v-if="instrument.market"
+                  :symbol="instrument.symbol"
+                  :market="instrument.market"
+                  :size="24"
+                />
+                <a-input v-model="instrument.symbol" :placeholder="$t('portfolioOptimizer.symbol')" />
+              </div>
               <a-select v-model="instrument.currency">
                 <a-select-option v-for="currency in currencies" :key="currency" :value="currency">
                   {{ currency }}
@@ -152,7 +160,15 @@
             <h3>{{ $t('portfolioOptimizer.allocation') }}</h3>
             <div class="allocation-list">
               <div v-for="item in runResult.allocations" :key="item.symbol" class="allocation-row">
-                <strong>{{ item.symbol }}</strong>
+                <span class="result-symbol-cell">
+                  <CryptoAssetIcon
+                    v-if="assetMarketForSymbol(item.symbol, item.market)"
+                    :symbol="item.symbol"
+                    :market="assetMarketForSymbol(item.symbol, item.market)"
+                    :size="24"
+                  />
+                  <strong>{{ item.symbol }}</strong>
+                </span>
                 <div class="allocation-track" aria-hidden="true">
                   <span :style="{ width: `${item.weight * 100}%` }" />
                 </div>
@@ -173,6 +189,17 @@
             >
               <template slot="coverage" slot-scope="value">
                 {{ percent(Number(value) * 100) }}
+              </template>
+              <template slot="provenanceSymbol" slot-scope="value, record">
+                <span class="result-symbol-cell">
+                  <CryptoAssetIcon
+                    v-if="assetMarketForSymbol(value, record.market)"
+                    :symbol="value"
+                    :market="assetMarketForSymbol(value, record.market)"
+                    :size="22"
+                  />
+                  <span>{{ value }}</span>
+                </span>
               </template>
               <template slot="checksum" slot-scope="value">
                 <code>{{ shortChecksum(value) }}</code>
@@ -211,7 +238,19 @@
               :columns="orderColumns"
               :data-source="preview.orders || []"
               :scroll="{ x: 720 }"
-            />
+            >
+              <template slot="orderSymbol" slot-scope="value, record">
+                <span class="result-symbol-cell">
+                  <CryptoAssetIcon
+                    v-if="assetMarketForSymbol(value, record.market)"
+                    :symbol="value"
+                    :market="assetMarketForSymbol(value, record.market)"
+                    :size="22"
+                  />
+                  <span>{{ value }}</span>
+                </span>
+              </template>
+            </a-table>
             <a-button class="apply-button" type="primary" @click="confirmVisible = true">
               {{ $t('portfolioOptimizer.apply') }}
             </a-button>
@@ -251,6 +290,7 @@ import {
   getOptimizerRun,
   previewOptimizerRun
 } from '@/api/portfolio-optimizer'
+import CryptoAssetIcon from '@/components/CryptoAssetIcon'
 
 let instrumentKey = 0
 
@@ -261,6 +301,7 @@ function newInstrument (market = 'Crypto', symbol = '', currency = 'USDT') {
 
 export default {
   name: 'PortfolioOptimizer',
+  components: { CryptoAssetIcon },
   data () {
     return {
       methods: [
@@ -307,7 +348,7 @@ export default {
     },
     provenanceColumns () {
       return [
-        { title: this.$t('portfolioOptimizer.symbol'), dataIndex: 'symbol', width: 120 },
+        { title: this.$t('portfolioOptimizer.symbol'), dataIndex: 'symbol', scopedSlots: { customRender: 'provenanceSymbol' }, width: 120 },
         { title: this.$t('portfolioOptimizer.provider'), dataIndex: 'provider', width: 170 },
         { title: this.$t('portfolioOptimizer.coverage'), dataIndex: 'coverage', scopedSlots: { customRender: 'coverage' }, width: 110 },
         { title: this.$t('portfolioOptimizer.checksum'), dataIndex: 'checksum', scopedSlots: { customRender: 'checksum' }, width: 160 }
@@ -315,7 +356,7 @@ export default {
     },
     orderColumns () {
       return [
-        { title: this.$t('portfolioOptimizer.symbol'), dataIndex: 'symbol', width: 110 },
+        { title: this.$t('portfolioOptimizer.symbol'), dataIndex: 'symbol', scopedSlots: { customRender: 'orderSymbol' }, width: 110 },
         { title: this.$t('portfolioOptimizer.side'), dataIndex: 'side', width: 90 },
         { title: this.$t('portfolioOptimizer.weight'), dataIndex: 'targetWeightBps', customRender: value => this.percent(Number(value) / 100), width: 110 },
         { title: this.$t('portfolioOptimizer.quantity'), dataIndex: 'quantity', customRender: value => this.number(value, 6), width: 130 },
@@ -418,6 +459,15 @@ export default {
       if (window.crypto && typeof window.crypto.randomUUID === 'function') return window.crypto.randomUUID()
       return `optimizer-${Date.now()}-${Math.random().toString(36).slice(2)}`
     },
+    assetMarketForSymbol (symbol, market) {
+      if (market && ['Crypto', 'VNStock', 'Forex'].includes(market)) return market
+      const normalized = this.normalizeAssetSymbol(symbol)
+      const instrument = this.instruments.find((item) => this.normalizeAssetSymbol(item.symbol) === normalized)
+      return instrument ? instrument.market : ''
+    },
+    normalizeAssetSymbol (symbol) {
+      return String(symbol || '').toUpperCase().split(/[_:-]/u)[0].split('/')[0]
+    },
     errorText (error) {
       const message = String((error && error.message) || '')
       return /unavailable/i.test(message) ? this.$t('portfolioOptimizer.unavailable') : (message || this.$t('portfolioOptimizer.unavailable'))
@@ -471,6 +521,8 @@ export default {
 .instruments-heading span { color: #7b8793; font-variant-numeric: tabular-nums; }
 .instrument-list { display: grid; gap: 8px; }
 .instrument-row { display: grid; grid-template-columns: 92px minmax(90px, 1fr) 76px 34px; gap: 6px; align-items: center; }
+.instrument-symbol-input { display: flex; min-width: 0; align-items: center; gap: 7px; }
+.instrument-symbol-input .ant-input-wrapper, .instrument-symbol-input .ant-input { min-width: 0; flex: 1; }
 .instrument-row .ant-btn { padding: 0; color: #8b96a1; }
 .add-button { margin-top: 10px; border-style: dashed; }
 .run-button { height: 42px; margin-top: 18px; font-weight: 600; }
@@ -490,6 +542,7 @@ export default {
 .metric-grid strong { font-size: 21px; font-variant-numeric: tabular-nums; }
 .allocation-list { display: grid; gap: 13px; }
 .allocation-row { display: grid; grid-template-columns: 100px minmax(100px, 1fr) 78px; gap: 12px; align-items: center; }
+.result-symbol-cell { display: inline-flex; min-width: 0; align-items: center; gap: 7px; }
 .allocation-row > span { text-align: right; font-variant-numeric: tabular-nums; }
 .allocation-track { height: 8px; overflow: hidden; border-radius: 4px; background: #e8edf1; }
 .allocation-track span { display: block; height: 100%; border-radius: inherit; background: #1677c8; transition: width .25s ease; }
@@ -532,4 +585,6 @@ export default {
 @media (prefers-reduced-motion: reduce) {
   .allocation-track span { transition: none; }
 }
+.allocation-row > .result-symbol-cell { text-align: left; }
+.result-symbol-cell strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 </style>
