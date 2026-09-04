@@ -658,6 +658,13 @@ class="analyze-button">
       placement="right"
       :wrapClassName="isDarkTheme ? 'qd-dark-drawer' : ''"
     >
+      <div class="system-daily-schedule" role="status">
+        <a-icon type="clock-circle" />
+        <div>
+          <strong>{{ $t('aiAssetAnalysis.systemDaily.title') }}</strong>
+          <p>{{ $t('aiAssetAnalysis.systemDaily.description') }}</p>
+        </div>
+      </div>
       <div v-if="monitors.length === 0" class="task-drawer-empty">
         <a-icon type="inbox" style="font-size: 40px; color: #ccc;" />
         <p>{{ $t('aiAssetAnalysis.tasks.empty') }}</p>
@@ -4099,6 +4106,23 @@ export default {
   color: #94a3b8;
   p { margin-top: 12px; font-size: 13px; }
 }
+
+.system-daily-schedule {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  margin-bottom: 14px;
+  padding: 11px 12px;
+  border: 1px solid rgba(24, 144, 255, 0.24);
+  border-radius: 8px;
+  background: rgba(24, 144, 255, 0.06);
+  color: #1d4ed8;
+
+  > .anticon { margin-top: 2px; font-size: 16px; }
+
+  strong { display: block; font-size: 13px; line-height: 1.45; }
+  p { margin: 2px 0 0; color: #5b708c; font-size: 12px; line-height: 1.45; }
+}
 .task-drawer-list {
   display: flex;
   flex-direction: column;
@@ -4422,6 +4446,7 @@ export default {
   .batch-modal-summary p { color: #d4d4d4; }
   .batch-symbols-preview .ant-tag { background: rgba(24,144,255,0.1); border-color: rgba(24,144,255,0.3); color: var(--primary-color, #1890ff); }
   .task-item { background: #1c1c1c; border-color: #2a2a2a; &:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.3); } }
+  .system-daily-schedule { background: rgba(24, 144, 255, 0.1); border-color: rgba(24, 144, 255, 0.3); color: #69b1ff; p { color: #9ca3af; } }
   .task-item-name { color: #d4d4d4; }
   .task-item-meta { color: #888; }
   .task-drawer-empty { color: #666; }

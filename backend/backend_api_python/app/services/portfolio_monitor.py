@@ -31,6 +31,8 @@ _monitor_thread: Optional[threading.Thread] = None
 _stop_event = threading.Event()
 
 MAX_ALERTS_PER_MONITOR_TICK = 300
+SYSTEM_DAILY_WATCHLIST_SCHEDULE = "daily_0700_vn"
+SYSTEM_DAILY_WATCHLIST_INTERVAL_MINUTES = 24 * 60
 
 
 def _due_monitor_batch_limit() -> int:
@@ -38,6 +40,163 @@ def _due_monitor_batch_limit() -> int:
         return max(1, min(20, int(os.getenv("PORTFOLIO_MONITOR_DUE_BATCH_LIMIT", "5"))))
     except Exception:
         return 5
+
+
+def is_system_daily_watchlist_monitor(config: Dict[str, Any] | None) -> bool:
+    """Return whether a monitor is the non-editable 07:00 Vietnam daily job."""
+    return isinstance(config, dict) and config.get("schedule_kind") == SYSTEM_DAILY_WATCHLIST_SCHEDULE
+
+
+def merge_user_monitor_config(current: Dict[str, Any] | None, updates: Dict[str, Any] | None) -> Dict[str, Any]:
+    """Merge a user schedule edit without losing its market/symbol identity."""
+    merged = dict(current) if isinstance(current, dict) else {}
+    if isinstance(updates, dict):
+        merged.update(updates)
+    # System ownership is assigned only by the server-side daily runner.
+    merged.pop("schedule_kind", None)
+    return merged
+
+
+def build_system_daily_watchlist_monitor_config(
+    *, market: str, symbol: str, language: str = "vi-VN", name: str = ""
+) -> Dict[str, Any]:
+    """Build the stable configuration used by the global 07:00 watchlist task."""
+    return {
+        "schedule_kind": SYSTEM_DAILY_WATCHLIST_SCHEDULE,
+        "run_interval_minutes": SYSTEM_DAILY_WATCHLIST_INTERVAL_MINUTES,
+        "market": str(market or "").strip(),
+        "symbol": str(symbol or "").strip(),
+        "name": str(name or symbol or "").strip(),
+        "language": str(language or "vi-VN").strip() or "vi-VN",
+    }
+
+
+def _system_monitor_name(symbol: str) -> str:
+    return f"Hệ thống · {str(symbol or '').strip()} · 07:00 VN"
+
+
+def ensure_system_daily_watchlist_monitor(
+    *, user_id: int, market: str, symbol: str, name: str = "", language: str = "vi-VN"
+) -> int | None:
+    """Create exactly one system-owned daily monitor for a watched asset.
+
+    It is deliberately stored as inactive: Celery owns its fixed 07:00 Vietnam
+    execution, while the process-local monitor loop only owns user schedules.
+    """
+    user_id = int(user_id or 0)
+    market = str(market or "").strip()
+    symbol = str(symbol or "").strip()
+    if not user_id or not market or not symbol:
+        return None
+
+    try:
+        with get_db_connection() as db:
+            cur = db.cursor()
+            cur.execute(
+                """
+                SELECT id, config
+                FROM qd_position_monitors
+                WHERE user_id = ? AND COALESCE(monitor_type, 'ai') = 'ai'
+                ORDER BY id ASC
+                """,
+                (user_id,),
+            )
+            for row in cur.fetchall() or []:
+                config = safe_json_loads(row.get("config"), {})
+                if (
+                    is_system_daily_watchlist_monitor(config)
+                    and str(config.get("market") or "").strip() == market
+                    and str(config.get("symbol") or "").strip().upper() == symbol.upper()
+                ):
+                    monitor_id = int(row.get("id") or 0)
+                    cur.close()
+                    return monitor_id or None
+
+            config = build_system_daily_watchlist_monitor_config(
+                market=market, symbol=symbol, name=name, language=language
+            )
+            cur.execute(
+                """
+                INSERT INTO qd_position_monitors
+                (user_id, name, position_ids, monitor_type, config, notification_config,
+                 is_active, next_run_at, created_at, updated_at)
+                VALUES (?, ?, ?, 'ai', ?, ?, 0, NOW(), NOW(), NOW())
+                RETURNING id
+                """,
+                (
+                    user_id,
+                    _system_monitor_name(symbol),
+                    "[]",
+                    json.dumps(config, ensure_ascii=False),
+                    json.dumps({"channels": []}, ensure_ascii=False),
+                ),
+            )
+            row = cur.fetchone()
+            db.commit()
+            cur.close()
+            return int(row.get("id") or 0) if row else None
+    except Exception as exc:
+        logger.error(
+            "Failed to ensure system daily monitor for user=%s %s:%s: %s",
+            user_id, market, symbol, exc,
+        )
+        return None
+
+
+def run_daily_watchlist_ai_analysis() -> Dict[str, Any]:
+    """Run the fixed 07:00 Vietnam AI analysis for every watched asset.
+
+    User-created schedules remain separate monitors and may run additionally.
+    The individual fast-analysis calls persist their own history, which is the
+    sole source displayed in Smart Insights.
+    """
+    try:
+        with get_db_connection() as db:
+            cur = db.cursor()
+            cur.execute(
+                """
+                SELECT user_id, market, symbol, name
+                FROM qd_watchlist
+                ORDER BY user_id ASC, id ASC
+                """
+            )
+            watchlist_rows = cur.fetchall() or []
+            cur.close()
+    except Exception as exc:
+        logger.error("Daily watchlist AI analysis could not load watchlist: %s", exc)
+        raise
+
+    completed = failed = skipped = 0
+    for asset in watchlist_rows:
+        user_id = int(asset.get("user_id") or 0)
+        monitor_id = ensure_system_daily_watchlist_monitor(
+            user_id=user_id,
+            market=asset.get("market"),
+            symbol=asset.get("symbol"),
+            name=asset.get("name") or asset.get("symbol") or "",
+        )
+        if not monitor_id:
+            failed += 1
+            continue
+        result = run_single_monitor(
+            monitor_id,
+            user_id=user_id,
+            skip_notification=True,
+        )
+        if result.get("success"):
+            completed += 1
+        elif result.get("skipped"):
+            skipped += 1
+        else:
+            failed += 1
+
+    return {
+        "schedule": SYSTEM_DAILY_WATCHLIST_SCHEDULE,
+        "watchlistCount": len(watchlist_rows),
+        "completed": completed,
+        "failed": failed,
+        "skipped": skipped,
+    }
 
 
 

@@ -190,6 +190,21 @@ def add_watchlist_item(
         )
         db.commit()
         cur.close()
+    try:
+        # Reserve the fixed 07:00 Vietnam AI report for this asset immediately.
+        # The report itself is produced by Celery Beat, not by the request.
+        from app.services.portfolio_monitor import ensure_system_daily_watchlist_monitor
+
+        ensure_system_daily_watchlist_monitor(
+            user_id=user_id,
+            market=market,
+            symbol=symbol,
+            name=name,
+        )
+    except Exception as exc:
+        # A watchlist write must never fail merely because the next daily
+        # analysis has not been reserved yet; Beat reconciles it at 07:00.
+        logger.warning("Could not reserve system daily monitor for user %s: %s", user_id, exc)
     return True, "success"
 
 

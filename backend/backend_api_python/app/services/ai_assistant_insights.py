@@ -139,7 +139,13 @@ def _monitor_public_state(monitor: dict[str, Any], now: datetime) -> dict[str, A
     last_result = _as_dict(monitor.get("last_result"))
     active = bool(monitor.get("is_active"))
     next_run_at = _as_datetime(monitor.get("next_run_at"))
-    if not active:
+    is_system_daily = config.get("schedule_kind") == "daily_0700_vn"
+    if is_system_daily:
+        # The row is inactive so the process-local monitor loop cannot drift
+        # from 07:00. Celery Beat owns its execution and the UI reports it as
+        # a standing daily schedule rather than a paused user task.
+        state = "SCHEDULED"
+    elif not active:
         state = "PAUSED"
     elif last_result.get("error"):
         state = "FAILED"
@@ -155,7 +161,7 @@ def _monitor_public_state(monitor: dict[str, Any], now: datetime) -> dict[str, A
     return {
         "id": monitor.get("id"),
         "state": state,
-        "isActive": active,
+        "isActive": active or is_system_daily,
         "lastRunAt": _iso_timestamp(monitor.get("last_run_at")),
         "nextRunAt": _iso_timestamp(monitor.get("next_run_at")),
         "intervalMinutes": interval,
@@ -164,6 +170,9 @@ def _monitor_public_state(monitor: dict[str, Any], now: datetime) -> dict[str, A
         # exception.  The UI only needs to know that a retry failed, not the
         # untrusted/raw error text.
         "hasError": bool(last_result.get("error")),
+        "isSystemDaily": is_system_daily,
+        "dailyRunAt": "07:00" if is_system_daily else None,
+        "timeZone": VIETNAM_TIME_ZONE if is_system_daily else None,
     }
 
 

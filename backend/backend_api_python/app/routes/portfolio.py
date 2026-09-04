@@ -407,12 +407,19 @@ def get_monitors():
 
         monitors = []
         for row in rows:
+            config = _safe_json_loads(row.get('config'), {})
+            # The 07:00 job is a product guarantee, not a user-editable task.
+            # Smart Insights reads it directly for status, while this endpoint
+            # deliberately exposes only schedules that the user can manage.
+            from app.services.portfolio_monitor import is_system_daily_watchlist_monitor
+            if is_system_daily_watchlist_monitor(config):
+                continue
             monitors.append({
                 'id': row.get('id'),
                 'name': row.get('name') or '',
                 'position_ids': _safe_json_loads(row.get('position_ids'), []),
                 'monitor_type': row.get('monitor_type') or 'ai',
-                'config': _safe_json_loads(row.get('config'), {}),
+                'config': config,
                 'notification_config': _safe_json_loads(row.get('notification_config'), {}),
                 'is_active': bool(row.get('is_active')),
                 'last_run_at': _serialize_monitor_ts(row.get('last_run_at')),
@@ -441,6 +448,9 @@ def add_monitor():
         position_ids = data.get('position_ids') or []
         monitor_type = (data.get('monitor_type') or 'ai').strip()
         config = data.get('config') or {}
+        if isinstance(config, dict):
+            config = dict(config)
+            config.pop('schedule_kind', None)
         notification_config = data.get('notification_config') or {}
         is_active = bool(data.get('is_active', True))
         
@@ -504,6 +514,23 @@ def update_monitor(monitor_id):
     try:
         user_id = g.user_id
         data = request.get_json() or {}
+        with get_db_connection() as db:
+            cur = db.cursor()
+            cur.execute(
+                "SELECT config FROM qd_position_monitors WHERE id = ? AND user_id = ?",
+                (monitor_id, user_id),
+            )
+            current = cur.fetchone()
+            cur.close()
+        if not current:
+            return jsonify({'code': 0, 'msg': 'Monitor not found', 'data': None}), 404
+        current_config = _safe_json_loads(current.get('config'), {})
+        from app.services.portfolio_monitor import (
+            is_system_daily_watchlist_monitor,
+            merge_user_monitor_config,
+        )
+        if is_system_daily_watchlist_monitor(current_config):
+            return jsonify({'code': 0, 'msg': 'System daily monitor cannot be changed', 'data': None}), 403
         
         updates = []
         params = []
@@ -523,9 +550,9 @@ def update_monitor(monitor_id):
         
         next_run_interval = None  # Will store interval for special handling
         if 'config' in data:
-            config = data.get('config') or {}
+            config = merge_user_monitor_config(current_config, data.get('config') or {})
             updates.append('config = ?')
-            params.append(json.dumps(config if isinstance(config, dict) else {}, ensure_ascii=False))
+            params.append(json.dumps(config, ensure_ascii=False))
             
             # Recalculate next_run_at if interval changed
             next_run_interval = int(config.get('run_interval_minutes') or config.get('interval_minutes') or 60)
@@ -574,6 +601,19 @@ def delete_monitor(monitor_id):
     """Delete a monitor for the current user."""
     try:
         user_id = g.user_id
+        with get_db_connection() as db:
+            cur = db.cursor()
+            cur.execute(
+                "SELECT config FROM qd_position_monitors WHERE id = ? AND user_id = ?",
+                (monitor_id, user_id),
+            )
+            current = cur.fetchone()
+            cur.close()
+        if not current:
+            return jsonify({'code': 0, 'msg': 'Monitor not found', 'data': None}), 404
+        from app.services.portfolio_monitor import is_system_daily_watchlist_monitor
+        if is_system_daily_watchlist_monitor(_safe_json_loads(current.get('config'), {})):
+            return jsonify({'code': 0, 'msg': 'System daily monitor cannot be deleted', 'data': None}), 403
         with get_db_connection() as db:
             cur = db.cursor()
             cur.execute(

@@ -74,6 +74,7 @@ celery_app.conf.update(
         "datavest.tasks.smart_insights_refresh": {"queue": "maintenance"},
         "datavest.tasks.enqueue_smart_insights_refresh": {"queue": "maintenance"},
         "datavest.tasks.enqueue_smart_insights_refresh_for_sources": {"queue": "maintenance"},
+        "datavest.tasks.run_daily_watchlist_ai_analysis": {"queue": "ai"},
     },
     beat_schedule={
         "reflection-cycle": {
@@ -104,6 +105,10 @@ celery_app.conf.update(
             "task": "datavest.tasks.enqueue_smart_insights_refresh_for_sources",
             "schedule": crontab(minute=20, hour="*/6"),
             "args": (("datavest-market-bars",),),
+        },
+        "daily-watchlist-ai-analysis": {
+            "task": "datavest.tasks.run_daily_watchlist_ai_analysis",
+            "schedule": crontab(hour=7, minute=0),
         },
         "crypto-insights-daily-import": {
             "task": "datavest.tasks.enqueue_smart_insights_refresh_for_sources",

@@ -1073,6 +1073,8 @@ const locale = {
   "aiAssetAnalysis.monitor.tip": "A scheduled AI monitor will be created for current positions of this symbol.",
   "aiAssetAnalysis.monitor.created": "AI scheduled task created",
   "aiAssetAnalysis.monitor.running": "Running",
+  "aiAssetAnalysis.systemDaily.title": "System daily analysis · 07:00 Vietnam time",
+  "aiAssetAnalysis.systemDaily.description": "Every asset in your watchlist is analysed each morning. Any tasks you create below run in addition to this system report.",
   "aiAssetAnalysis.monitor.paused": "Paused",
   "aiAssetAnalysis.monitor.toggle": "Toggle Task",
   "aiAssetAnalysis.monitor.nextRun": "Next Run",

@@ -35,6 +35,17 @@ def test_celery_beat_defaults_to_vietnam_timezone_for_crypto_snapshot_handoff():
     assert celery_app.conf.timezone == "Asia/Ho_Chi_Minh"
 
 
+def test_celery_beat_runs_watchlist_ai_analysis_at_7am_vietnam_time():
+    """Every watched asset receives the system daily analysis independently of user schedules."""
+    from app.celery_app import celery_app
+
+    schedule = celery_app.conf.beat_schedule["daily-watchlist-ai-analysis"]
+
+    assert schedule["task"] == "datavest.tasks.run_daily_watchlist_ai_analysis"
+    assert schedule["schedule"].hour == {7}
+    assert schedule["schedule"].minute == {0}
+
+
 def test_fast_analysis_dispatches_to_celery(monkeypatch):
     from app.services import fast_analysis_tasks
     from app.tasks.fast_analysis import execute_fast_analysis

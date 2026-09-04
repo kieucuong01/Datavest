@@ -67,4 +67,25 @@ def enqueue_smart_insights_refresh_for_sources(source_codes: tuple[str, ...]) ->
     return {"queued": True, "runId": run_id, "sourceCount": len(normalized)}
 
 
-__all__ = ["enqueue_smart_insights_refresh", "enqueue_smart_insights_refresh_for_sources", "run_smart_insights_refresh"]
+@celery_app.task(
+    bind=True,
+    name="datavest.tasks.run_daily_watchlist_ai_analysis",
+    autoretry_for=(Exception,),
+    retry_backoff=True,
+    retry_jitter=True,
+    max_retries=2,
+)
+def run_daily_watchlist_ai_analysis_task(self) -> dict:
+    """Persist one AI Assistant report per watched asset at 07:00 Vietnam time."""
+    del self
+    from app.services.portfolio_monitor import run_daily_watchlist_ai_analysis
+
+    return run_daily_watchlist_ai_analysis()
+
+
+__all__ = [
+    "enqueue_smart_insights_refresh",
+    "enqueue_smart_insights_refresh_for_sources",
+    "run_daily_watchlist_ai_analysis_task",
+    "run_smart_insights_refresh",
+]

@@ -686,6 +686,8 @@ const locale = {
   "aiAssetAnalysis.monitor.paused": "Tạm dừng",
   "aiAssetAnalysis.monitor.quickTask": "Tạo tác vụ theo lịch trình bằng AI",
   "aiAssetAnalysis.monitor.running": "Đang chạy",
+  "aiAssetAnalysis.systemDaily.title": "Phân tích hệ thống hằng ngày · 07:00 giờ Việt Nam",
+  "aiAssetAnalysis.systemDaily.description": "Mỗi tài sản trong danh sách theo dõi được phân tích vào mỗi sáng. Các lịch bạn tạo bên dưới sẽ chạy bổ sung, không thay thế bản tin hệ thống.",
   "aiAssetAnalysis.monitor.tip": "Một hệ thống giám sát AI theo lịch trình sẽ được tạo ra để theo dõi vị trí hiện tại của mã chứng khoán này.",
   "aiAssetAnalysis.monitor.toggle": "Chuyển đổi tác vụ",
   "aiAssetAnalysis.opportunities.analyze": "Phân tích",
