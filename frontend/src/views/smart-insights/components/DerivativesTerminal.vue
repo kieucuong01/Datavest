@@ -50,6 +50,7 @@
 
 <script>
 import * as echarts from 'echarts'
+import { formatVietnamDate } from '@/utils/vietnamTime'
 
 const PRICE = 'crypto.derivatives.perpetual.price_usd'
 const OI = 'crypto.derivatives.perpetual.open_interest_usd'
@@ -93,8 +94,8 @@ export default {
     latestDate (metric) { const points = this.selectedPoints.filter(point => point.metric === metric).sort((a, b) => a.date.localeCompare(b.date)); return points.length ? this.formatDate(points[points.length - 1].date) : '—' },
     historyNote (metric) { const point = this.selectedPoints.filter(item => item.metric === metric).slice(-1)[0]; return point && point.historyLimited ? this.text.limited : this.latestDate(metric) },
     valueClass (value) { return !Number.isFinite(Number(value)) ? '' : Number(value) > 0 ? 'positive' : Number(value) < 0 ? 'negative' : '' },
-    formatDate (date) { const value = new Date(`${date}T00:00:00Z`); return Number.isNaN(value.getTime()) ? date : value.toLocaleDateString(this.isVi ? 'vi-VN' : 'en-US', { day: '2-digit', month: 'short', year: 'numeric' }) },
-    shortDate (date) { const value = new Date(`${date}T00:00:00Z`); return Number.isNaN(value.getTime()) ? date : value.toLocaleDateString(this.isVi ? 'vi-VN' : 'en-US', { day: '2-digit', month: 'short' }) },
+    formatDate (date) { return formatVietnamDate(`${date}T00:00:00Z`, { locale: this.isVi ? 'vi-VN' : 'en-US', fallback: date }) },
+    shortDate (date) { return formatVietnamDate(`${date}T00:00:00Z`, { locale: this.isVi ? 'vi-VN' : 'en-US', fallback: date, short: true }) },
     renderAll () { this.$nextTick(() => { this.renderPrice(); this.renderMetric('fundingChart', FUNDING, '#7c5ce6', this.text.funding, value => `${(value * 100).toFixed(2)}%`); this.renderMetric('takerChart', TAKER, '#149f72', this.text.taker, value => `${value >= 0 ? '+' : ''}${(value * 100).toFixed(1)}%`) }) },
     baseOption (dates) { return { animationDuration: 260, grid: { left: 12, right: 15, top: 18, bottom: 30, containLabel: true }, tooltip: { trigger: 'axis', backgroundColor: '#182235', borderWidth: 0, textStyle: { color: '#f8fafc' } }, xAxis: { type: 'category', data: dates, axisTick: { show: false }, axisLine: { lineStyle: { color: '#dbe3ef' } }, axisLabel: { color: '#718096', fontSize: 11, formatter: value => this.shortDate(value) } }, yAxis: { type: 'value', splitLine: { lineStyle: { color: '#edf1f6' } }, axisLabel: { color: '#718096', fontSize: 11 } } } },
     chartFor (ref) { if (!this.$refs[ref]) return null; if (!this.charts[ref]) this.charts[ref] = echarts.init(this.$refs[ref]); return this.charts[ref] },

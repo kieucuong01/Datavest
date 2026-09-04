@@ -73,6 +73,29 @@ test('economic calendar normalizes provider rows into the table model and sorts 
   ])
 })
 
+test('economic calendar renders provider instants in Vietnam time', () => {
+  const normalized = calendarModule.normalizeEconomicCalendarEvents([{
+    id: 'utc-event',
+    eventAt: '2026-09-04T20:30:00Z',
+    name: 'US CPI y/y',
+    country: 'US',
+    impact: 'high'
+  }], 'vi-VN')
+
+  assert.deepEqual(normalized[0], {
+    id: 'utc-event',
+    name: 'CPI Hoa Kỳ (theo năm)',
+    country: 'US',
+    date: '2026-09-05',
+    time: '03:30',
+    impact: 'high',
+    actual: null,
+    forecast: null,
+    previous: null,
+    surprise: null
+  })
+})
+
 test('economic calendar localizes Chinese provider event names for Vietnamese users', () => {
   assert.ok(calendarModule)
   const normalized = calendarModule.normalizeEconomicCalendarEvents([

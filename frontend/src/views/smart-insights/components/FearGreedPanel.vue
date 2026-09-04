@@ -36,6 +36,7 @@
 
 <script>
 import * as echarts from 'echarts'
+import { formatVietnamDate } from '@/utils/vietnamTime'
 
 export default {
   name: 'FearGreedPanel',
@@ -131,8 +132,8 @@ title: { show: false },
     },
     toneClass (value) { return `tone-${value < 25 ? 'extreme-fear' : value < 45 ? 'fear' : value < 56 ? 'neutral' : value < 75 ? 'greed' : 'extreme-greed'}` },
     toneColor (value) { return value < 25 ? '#d96d3d' : value < 45 ? '#e5a744' : value < 56 ? '#718096' : value < 75 ? '#91bb34' : '#57a24e' },
-    formatDate (value) { const date = new Date(value); return Number.isNaN(date.getTime()) ? String(value || '—') : date.toLocaleDateString(this.locale, { day: '2-digit', month: 'short', year: 'numeric' }) },
-    formatDateShort (value) { const date = new Date(value); return Number.isNaN(date.getTime()) ? String(value || '') : date.toLocaleDateString(this.locale, { day: '2-digit', month: 'short' }) }
+    formatDate (value) { return formatVietnamDate(value, { locale: this.locale, fallback: String(value || '—') }) },
+    formatDateShort (value) { return formatVietnamDate(value, { locale: this.locale, fallback: String(value || ''), short: true }) }
   }
 }
 </script>

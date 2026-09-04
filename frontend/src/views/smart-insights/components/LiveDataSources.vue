@@ -40,6 +40,7 @@
 
 <script>
 import { formatLiveAssetPrice } from '../liveAssets'
+import { formatVietnamTime } from '@/utils/vietnamTime'
 
 export default {
   name: 'LiveDataSources',
@@ -53,8 +54,7 @@ export default {
     liveCount () { return this.rows.filter(item => item && (item.status === 'LIVE' || item.status === 'STALE')).length },
     fetchedAtLabel () {
       if (!this.fetchedAt) return this.$t('smartInsights.waitingForData')
-      const date = new Date(this.fetchedAt)
-      return Number.isNaN(date.getTime()) ? this.fetchedAt : date.toLocaleTimeString(this.$i18n && this.$i18n.locale === 'vi-VN' ? 'vi-VN' : 'en-US')
+      return formatVietnamTime(this.fetchedAt, { locale: this.$i18n && this.$i18n.locale === 'vi-VN' ? 'vi-VN' : 'en-US', fallback: this.fetchedAt })
     }
   },
   methods: {

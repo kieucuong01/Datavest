@@ -10,8 +10,10 @@ from __future__ import annotations
 import hashlib
 import json
 import re
-from datetime import date, datetime, timezone
+from datetime import datetime, timezone
 from typing import Any, Iterable
+
+from app.utils.timeutil import VIETNAM_TIME_ZONE, vietnam_calendar_date
 
 MAX_BRIEF_WORDS = 600
 
@@ -38,8 +40,7 @@ def report_identity(report: dict[str, Any]) -> str:
 
 
 def _report_day(report: dict[str, Any]) -> str:
-    value = str(report.get("created_at") or report.get("createdAt") or "")
-    return value[:10]
+    return vietnam_calendar_date(report.get("created_at") or report.get("createdAt"))
 
 
 def _timestamp(report: dict[str, Any]) -> str:
@@ -186,7 +187,7 @@ def _watchlist_monitor_index(monitors: Iterable[dict[str, Any]], now: datetime) 
 def _report_freshness(report: dict[str, Any] | None, monitor: dict[str, Any], selected_day: str, now: datetime) -> str:
     if not report:
         return "UNAVAILABLE"
-    if selected_day != now.date().isoformat():
+    if selected_day != vietnam_calendar_date(now):
         return "HISTORICAL"
     if monitor.get("state") in {"FAILED", "OVERDUE"}:
         return "STALE"
@@ -337,7 +338,7 @@ class AiAssistantInsightsService:
         watchlist = self.watchlist_loader(user_id)
         reports = self.memory.list_reports_for_user(user_id=user_id)
         dates = self.list_dates(user_id).get("dates") or []
-        selected_day = str(as_of or (dates[0] if dates else date.today().isoformat()))[:10]
+        selected_day = str(as_of or (dates[0] if dates else vietnam_calendar_date()))[:10]
         now = self.now_loader()
         if not isinstance(now, datetime):
             now = datetime.now(timezone.utc)
@@ -364,6 +365,7 @@ class AiAssistantInsightsService:
         status = "COMPLETE" if watchlist and available_count == len(opinions) else "PARTIAL" if available_count else "UNAVAILABLE"
         return {
             "asOf": selected_day,
+            "timeZone": VIETNAM_TIME_ZONE,
             "status": status,
             "mode": "live",
             "source": "AI_ASSISTANT_HISTORY",

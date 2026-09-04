@@ -115,6 +115,7 @@
 
 <script>
 import PulseTrendChart from './PulseTrendChart'
+import { formatVietnamDate } from '@/utils/vietnamTime'
 
 export default {
   name: 'WhaleFlowMonitor',
@@ -194,8 +195,7 @@ export default {
       return Number.isFinite(number) ? `${new Intl.NumberFormat(this.locale, { style: 'percent', maximumFractionDigits: 0 }).format(number)}` : '—'
     },
     formatDate (value) {
-      const date = new Date(value)
-      return Number.isNaN(date.getTime()) ? this.$t('smartInsights.dataUnavailableShort') : date.toLocaleDateString(this.locale, { day: '2-digit', month: 'short', year: 'numeric' })
+      return formatVietnamDate(value, { locale: this.locale, fallback: this.$t('smartInsights.dataUnavailableShort') })
     }
   }
 }

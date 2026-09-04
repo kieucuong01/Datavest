@@ -36,6 +36,7 @@
 
 <script>
 import * as echarts from 'echarts'
+import { formatVietnamDate } from '@/utils/vietnamTime'
 
 const DEFINITIONS = [
   {
@@ -130,7 +131,7 @@ export default {
       const scaled = abs >= 1e12 ? [number / 1e12, 'T'] : abs >= 1e9 ? [number / 1e9, 'B'] : abs >= 1e6 ? [number / 1e6, 'M'] : abs >= 1e3 ? [number / 1e3, 'K'] : [number, '']
       return `${new Intl.NumberFormat(this.isVietnamese ? 'vi-VN' : 'en-US', { maximumFractionDigits: 2 }).format(scaled[0])}${scaled[1]}${unit && !['count', 'addresses', 'native'].includes(unit) ? ` ${unit}` : ''}`
     },
-    formatDate (value) { const date = new Date(value); return Number.isNaN(date.getTime()) ? '—' : date.toLocaleDateString(this.isVietnamese ? 'vi-VN' : 'en-US', { day: '2-digit', month: 'short', year: 'numeric' }) },
+    formatDate (value) { return formatVietnamDate(value, { locale: this.isVietnamese ? 'vi-VN' : 'en-US' }) },
     scheduleRender () { this.$nextTick(() => this.renderCharts()) },
     resizeCharts () { Object.values(this.chartInstances).forEach(chart => chart && chart.resize()) },
     chartFor (key) { const raw = this.$refs[`chart_${key}`]; const element = Array.isArray(raw) ? raw[0] : raw; if (!element) return null; if (!this.resizeObserver && typeof ResizeObserver !== 'undefined') this.resizeObserver = new ResizeObserver(() => this.resizeCharts()); if (this.resizeObserver) this.resizeObserver.observe(element); return this.chartInstances[key] || echarts.init(element) },

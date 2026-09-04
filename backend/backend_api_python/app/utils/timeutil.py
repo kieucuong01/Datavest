@@ -21,13 +21,26 @@ without any further work on the frontend.
 from __future__ import annotations
 
 import os
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
 
 try:
     from zoneinfo import ZoneInfo  # py>=3.9
 except Exception:  # pragma: no cover - fallback for very old runtimes
     ZoneInfo = None  # type: ignore[misc,assignment]
+
+
+VIETNAM_TIME_ZONE = "Asia/Ho_Chi_Minh"
+
+
+def vietnam_timezone():
+    """Return the application business timezone, with a fixed UTC+7 fallback."""
+    if ZoneInfo is not None:
+        try:
+            return ZoneInfo(VIETNAM_TIME_ZONE)
+        except Exception:
+            pass
+    return timezone(timedelta(hours=7))
 
 
 def _db_naive_tzinfo() -> timezone:
@@ -109,4 +122,19 @@ def to_utc_iso(value: Any) -> Optional[str]:
     return dt_utc.replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
 
-__all__ = ["to_utc_iso"]
+def vietnam_calendar_date(value: Any = None) -> str:
+    """Return the Vietnam calendar date for an absolute instant.
+
+    UTC remains the storage and comparison format. This helper is for
+    user-facing report days, calendar queries, and business-day logic.
+    """
+    if value is None:
+        return datetime.now(vietnam_timezone()).date().isoformat()
+    utc_text = to_utc_iso(value)
+    if not utc_text:
+        return ""
+    parsed = datetime.fromisoformat(utc_text.replace("Z", "+00:00"))
+    return parsed.astimezone(vietnam_timezone()).date().isoformat()
+
+
+__all__ = ["VIETNAM_TIME_ZONE", "to_utc_iso", "vietnam_calendar_date", "vietnam_timezone"]

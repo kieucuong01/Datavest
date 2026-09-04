@@ -275,6 +275,7 @@ import { getEconomicCalendar } from '@/api/global-market'
 import { getSmartInsightsCryptoPulse, getSmartInsightsDataHealth, getSmartInsightsDates, getSmartInsightsEvidence, getSmartInsightsOverview } from '@/api/smart-insights'
 import { runSectionLoaders } from './loadingCoordinator'
 import { buildAssetAnalysisDetails, canShowTradingPlan } from './analysisReport'
+import { formatVietnamDate, formatVietnamDateTime } from '@/utils/vietnamTime'
 import { buildWatchlistOpinionRows } from './watchlistOpinions'
 import AssetOpinionsSection from './components/AssetOpinionsSection'
 import EconomicCalendarTable from './components/EconomicCalendarTable'
@@ -609,14 +610,11 @@ export default {
     },
     pretty (value) { return JSON.stringify(value || {}, null, 2) },
     shortChecksum (value) { const text = String(value || ''); return text ? `${text.slice(0, 10)}...${text.slice(-6)}` : this.$t('smartInsights.notAvailable') },
-    formatDate (value) { if (!value) return this.$t('smartInsights.dataUnavailableShort'); const date = new Date(value); return Number.isNaN(date.getTime()) ? String(value) : date.toLocaleDateString(this.$i18n && this.$i18n.locale === 'vi-VN' ? 'vi-VN' : 'en-GB') },
+    formatDate (value) { return formatVietnamDate(value, { locale: this.$i18n && this.$i18n.locale === 'vi-VN' ? 'vi-VN' : 'en-GB', fallback: this.$t('smartInsights.dataUnavailableShort') }) },
     formatDateTime (value) {
       if (!value) return this.$t('smartInsights.notAvailable')
-      const numeric = typeof value === 'number' ? (value < 100000000000 ? value * 1000 : value) : value
-      const date = new Date(numeric)
-      if (Number.isNaN(date.getTime())) return String(value)
       const locale = this.$i18n && this.$i18n.locale === 'vi-VN' ? 'vi-VN' : 'en-GB'
-      return date.toLocaleString(locale, { dateStyle: 'short', timeStyle: 'short' })
+      return formatVietnamDateTime(value, { locale, fallback: String(value) })
     },
     marketLabel (value) { const labels = { all: this.$t('smartInsights.all'), crypto: 'Crypto', vn: 'VN', us: 'US', gold: this.$t('smartInsights.gold') }; return labels[value] || String(value || '').toUpperCase() }
   }

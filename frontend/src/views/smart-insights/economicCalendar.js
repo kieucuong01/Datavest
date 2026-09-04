@@ -1,3 +1,5 @@
+import { vietnamDateKey, vietnamTimeKey } from '../../utils/vietnamTime.js'
+
 const IMPACTS = new Set(['high', 'medium', 'low'])
 const CJK_PATTERN = /[\u3400-\u9fff]/u
 
@@ -264,8 +266,7 @@ function eventDate (event) {
   if (raw) return String(raw).slice(0, 10)
   const eventAt = event && (event.eventAt || event.event_at)
   if (!eventAt) return ''
-  const date = new Date(eventAt)
-  return Number.isNaN(date.getTime()) ? '' : date.toISOString().slice(0, 10)
+  return vietnamDateKey(eventAt)
 }
 
 function eventTime (event) {
@@ -276,9 +277,7 @@ function eventTime (event) {
   }
   const eventAt = event && (event.eventAt || event.event_at)
   if (!eventAt) return ''
-  const date = new Date(eventAt)
-  if (Number.isNaN(date.getTime())) return ''
-  return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`
+  return vietnamTimeKey(eventAt)
 }
 
 function sortEvents (events) {
@@ -290,9 +289,8 @@ function sortEvents (events) {
 }
 
 function localDate (value) {
-  const date = value instanceof Date ? new Date(value.getTime()) : new Date(value)
-  if (Number.isNaN(date.getTime())) return null
-  return new Date(date.getFullYear(), date.getMonth(), date.getDate())
+  const key = vietnamDateKey(value)
+  return key ? new Date(`${key}T00:00:00Z`) : null
 }
 
 function addDays (date, days) {
@@ -302,7 +300,7 @@ function addDays (date, days) {
 }
 
 function dateKey (date) {
-  return [date.getFullYear(), String(date.getMonth() + 1).padStart(2, '0'), String(date.getDate()).padStart(2, '0')].join('-')
+  return [date.getUTCFullYear(), String(date.getUTCMonth() + 1).padStart(2, '0'), String(date.getUTCDate()).padStart(2, '0')].join('-')
 }
 
 function dateKeyValue (value) {

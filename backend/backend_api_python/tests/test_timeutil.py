@@ -2,7 +2,7 @@
 
 from datetime import datetime, timezone
 
-from app.utils.timeutil import to_utc_iso
+from app.utils.timeutil import to_utc_iso, vietnam_calendar_date
 
 
 def test_naive_datetime_from_pg_session_is_utc_not_container_tz():
@@ -18,3 +18,7 @@ def test_aware_utc_datetime_emits_z():
 
 def test_iso_string_with_z_re_emitted():
     assert to_utc_iso("2026-05-25T09:59:30Z") == "2026-05-25T09:59:30Z"
+
+
+def test_vietnam_calendar_date_moves_an_utc_evening_report_to_the_next_local_day():
+    assert vietnam_calendar_date("2026-09-04T20:30:00Z") == "2026-09-05"

@@ -547,6 +547,7 @@ import storage from 'store'
 import { ACCESS_TOKEN } from '@/store/mutation-types'
 import { loadEnabledMarketOptions, firstMarketValue } from '@/utils/marketModules'
 import { ACTIVE_MARKET_ORDER } from '@/utils/supportedMarkets'
+import { formatVietnamTime, vietnamDateKey, vietnamTimeKey } from '@/utils/vietnamTime'
 import FastAnalysisReport from './FastAnalysisReport.vue'
 
 let localId = 1
@@ -983,7 +984,7 @@ export default {
     },
     displayCalendarEvents () {
       const list = Array.isArray(this.calendarEvents) ? this.calendarEvents : []
-      const today = new Date().toISOString().slice(0, 10)
+      const today = vietnamDateKey(new Date())
       if (this.calendarFilter === 'today') {
         return list.filter(e => String(e.date || e.datetime || '').slice(0, 10) === today).slice(0, 12)
       }
@@ -3476,13 +3477,10 @@ export default {
       if (!raw) return ''
       const date = new Date(raw)
       if (Number.isNaN(date.getTime())) return ''
-      const pad = value => String(value).padStart(2, '0')
-      const now = new Date()
-      const sameDay = date.getFullYear() === now.getFullYear() &&
-        date.getMonth() === now.getMonth() &&
-        date.getDate() === now.getDate()
-      const time = `${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`
-      return sameDay ? time : `${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${time.slice(0, 5)}`
+      const dateKey = vietnamDateKey(date)
+      const time = vietnamTimeKey(date) || formatVietnamTime(date, { fallback: '' })
+      if (!dateKey || !time) return ''
+      return dateKey === vietnamDateKey(new Date()) ? time : `${dateKey.slice(5).replace('-', '/')} ${time}`
     },
     normalizeMessages (list = []) {
       const seenIds = new Set()

@@ -38,6 +38,7 @@
 
 <script>
 import * as echarts from 'echarts'
+import { formatVietnamDate } from '@/utils/vietnamTime'
 
 export default {
   name: 'PulseTrendChart',
@@ -166,12 +167,10 @@ itemStyle: { color: this.primaryColor },
       return `${new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 }).format(number)}${this.unit ? ` ${this.unit}` : ''}`
     },
     formatDate (value) {
-      const date = new Date(value)
-      return Number.isNaN(date.getTime()) ? String(value || '—') : date.toLocaleDateString(this.locale, { day: '2-digit', month: 'short', year: 'numeric' })
+      return formatVietnamDate(value, { locale: this.locale, fallback: String(value || '—') })
     },
     formatDateShort (value) {
-      const date = new Date(value)
-      return Number.isNaN(date.getTime()) ? String(value || '') : date.toLocaleDateString(this.locale, { day: '2-digit', month: 'short' })
+      return formatVietnamDate(value, { locale: this.locale, fallback: String(value || ''), short: true })
     }
   }
 }

@@ -88,6 +88,7 @@
 
 <script>
 import * as echarts from 'echarts'
+import { formatVietnamDate } from '@/utils/vietnamTime'
 
 const CBBI_LABELS = {
   confidence: 'CBBI', pi_cycle: 'Pi Cycle', rupl_nupl: 'RUPL / NUPL', rhodl: 'RHODL', puell: 'Puell', two_year_ma: '2Y MA', trolololo: 'Trolololo', mvrv: 'MVRV', reserve_risk: 'Reserve Risk', woobull: 'Woobull'
@@ -152,8 +153,8 @@ export default {
     formatDays (value) { return Number.isFinite(Number(value)) ? new Intl.NumberFormat(this.locale, { maximumFractionDigits: 1 }).format(Number(value)) : '—' },
     formatModelValue (model, value) { if (!Number.isFinite(Number(value))) return '—'; if (model && model.unit === 'USD') return `$${new Intl.NumberFormat(this.locale, { notation: 'compact', maximumFractionDigits: 2 }).format(Number(value))}`; return new Intl.NumberFormat(this.locale, { maximumFractionDigits: 2 }).format(Number(value)) },
     formatBlocks (value) { return Number.isFinite(Number(value)) ? new Intl.NumberFormat(this.locale, { maximumFractionDigits: 0 }).format(Number(value)) : '—' },
-    formatDate (value) { if (!value) return '—'; const date = new Date(`${value}T00:00:00Z`); return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString(this.locale, { day: '2-digit', month: 'short', year: 'numeric' }) },
-    formatShortDate (value) { const date = new Date(`${value}T00:00:00Z`); return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString(this.locale, { day: '2-digit', month: 'short' }) },
+    formatDate (value) { return value ? formatVietnamDate(`${value}T00:00:00Z`, { locale: this.locale, fallback: value }) : '—' },
+    formatShortDate (value) { return formatVietnamDate(`${value}T00:00:00Z`, { locale: this.locale, fallback: value, short: true }) },
     scheduleRender () { this.$nextTick(() => { this.renderSeasonScale(); this.renderAltChart(); this.renderCbbiChart(); this.renderComponentCharts(); this.renderModelCharts() }) },
     resizeCharts () { [this.altChartInstance, this.cbbiChartInstance, this.scaleChartInstance, ...Object.values(this.componentChartInstances), ...Object.values(this.modelChartInstances)].forEach(chart => chart && chart.resize()) },
     chartFor (ref, existing) {

@@ -826,6 +826,7 @@ import sessionCache from '@/utils/sessionCache'
 import { loadEnabledMarketOptions, firstMarketValue } from '@/utils/marketModules'
 import { CRYPTO_EXCHANGE_IDS } from '@/utils/marketContext'
 import { canonicalizeSupportedSymbol, normalizeSupportedMarket } from '@/utils/supportedMarkets'
+import { VIETNAM_TIME_ZONE, vietnamDateKey } from '@/utils/vietnamTime'
 
 // Cache only the context panels that remain on the default AI analysis screen.
 // Market heatmaps and global index tickers are not loaded by default because
@@ -1204,25 +1205,17 @@ export default {
       const width = Math.min(100, Math.max(4, pct))
       return { width: `${width}%` }
     },
-    /**
-     * Match the IANA timezone configured in profile; fallback to browser local time when missing or invalid.
-     */
+    /** Use Vietnam time consistently for reports and scheduled monitor status. */
     _displayDateTimeLocaleOptions () {
-      const tz = String((this.storeUserInfo && this.storeUserInfo.timezone) || '').trim()
       const base = {
         year: 'numeric',
         month: '2-digit',
         day: '2-digit',
         hour: '2-digit',
-        minute: '2-digit'
+        minute: '2-digit',
+        timeZone: VIETNAM_TIME_ZONE
       }
-      if (!tz) return base
-      try {
-        Intl.DateTimeFormat(undefined, { timeZone: tz }).format(new Date())
-        return { ...base, timeZone: tz }
-      } catch (e) {
-        return base
-      }
+      return base
     },
 
     /**
@@ -1709,21 +1702,20 @@ export default {
     formatCalendarDate (dateStr) {
       if (!dateStr) return ''
       try {
-        const date = new Date(dateStr)
-        const today = new Date()
-        const tomorrow = new Date(today)
-        tomorrow.setDate(tomorrow.getDate() + 1)
+        const dateKey = vietnamDateKey(dateStr)
+        if (!dateKey) return dateStr
+        const todayKey = vietnamDateKey(new Date())
+        const tomorrow = new Date(`${todayKey}T00:00:00Z`)
+        tomorrow.setUTCDate(tomorrow.getUTCDate() + 1)
+        const tomorrowKey = tomorrow.toISOString().slice(0, 10)
 
-        if (date.toDateString() === today.toDateString()) {
+        if (dateKey === todayKey) {
           return this.$t('dashboard.analysis.calendar.today')
         }
-        if (date.toDateString() === tomorrow.toDateString()) {
+        if (dateKey === tomorrowKey) {
           return this.$t('dashboard.analysis.calendar.tomorrow')
         }
-
-        const month = date.getMonth() + 1
-        const day = date.getDate()
-        return `${month}/${day}`
+        return dateKey.slice(5).replace('-', '/')
       } catch (e) {
         return dateStr
       }

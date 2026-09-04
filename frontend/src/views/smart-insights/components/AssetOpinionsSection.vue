@@ -71,6 +71,7 @@
 
 <script>
 import { buildOpinionPresentation } from '../opinionStatus'
+import { formatVietnamDateTime } from '@/utils/vietnamTime'
 
 export default {
   name: 'AssetOpinionsSection',
@@ -117,9 +118,7 @@ export default {
     },
     formatDateTime (value) {
       if (!value) return this.$t('smartInsights.notAvailable')
-      const date = new Date(value)
-      if (Number.isNaN(date.getTime())) return String(value)
-      return date.toLocaleString(this.$i18n && this.$i18n.locale === 'vi-VN' ? 'vi-VN' : 'en-GB', { dateStyle: 'short', timeStyle: 'short' })
+      return formatVietnamDateTime(value, { locale: this.$i18n && this.$i18n.locale === 'vi-VN' ? 'vi-VN' : 'en-GB', fallback: String(value) })
     },
     marketLabel (market) {
       return ({ crypto: 'Crypto', vn: 'VN', us: 'US', gold: this.$t('smartInsights.gold') })[String(market || '').toLowerCase()] || String(market || '').toUpperCase()

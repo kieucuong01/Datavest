@@ -5,7 +5,7 @@ import hashlib
 import math
 import os
 import re
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional, Tuple
 
 import requests
@@ -14,6 +14,7 @@ from app.config.api_keys import APIKeys
 from app.config.data_sources import FinnhubConfig, TradingEconomicsConfig
 from app.data_providers.investing_calendar_snapshot import get_investing_calendar_snapshot_payload
 from app.utils.logger import get_logger
+from app.utils.timeutil import vietnam_calendar_date, vietnam_timezone
 
 logger = get_logger(__name__)
 
@@ -24,6 +25,30 @@ _AKSHARE_LOOKBACK_DAYS = 1
 _AKSHARE_LOOKAHEAD_DAYS = 7
 _TRADING_ECONOMICS_LOOKBACK_DAYS = 3
 _TRADING_ECONOMICS_LOOKAHEAD_DAYS = 14
+
+
+def _vietnam_today():
+    return datetime.fromisoformat(vietnam_calendar_date()).date()
+
+
+def _vietnam_event_datetime(value: Any) -> datetime | None:
+    """Convert provider timestamps with an explicit instant to Vietnam time.
+
+    Date-only and timezone-less provider values are intentionally left alone:
+    their upstream calendar already defines the local wall-clock time.
+    """
+    if isinstance(value, (int, float)):
+        return datetime.fromtimestamp(float(value), tz=timezone.utc).astimezone(vietnam_timezone())
+    text = str(value or "").strip()
+    if not text or "T" not in text:
+        return None
+    try:
+        parsed = datetime.fromisoformat(text.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if parsed.tzinfo is None or parsed.utcoffset() is None:
+        return None
+    return parsed.astimezone(vietnam_timezone())
 
 _COUNTRY_MAP = {
     "GB": "UK",
@@ -386,7 +411,7 @@ def _public_request_error_message(exc: requests.exceptions.RequestException) -> 
 
 
 def _fetch_tradingeconomics_calendar() -> List[Dict[str, Any]]:
-    today = datetime.now().date()
+    today = _vietnam_today()
     date_from = (today - timedelta(days=_TRADING_ECONOMICS_LOOKBACK_DAYS)).isoformat()
     date_to = (today + timedelta(days=_TRADING_ECONOMICS_LOOKAHEAD_DAYS)).isoformat()
 
@@ -445,7 +470,7 @@ def _fetch_tradingeconomics_calendar() -> List[Dict[str, Any]]:
 
 
 def _fetch_finnhub_calendar(api_key: Optional[str] = None) -> List[Dict[str, Any]]:
-    today = datetime.now().date()
+    today = _vietnam_today()
     date_from = (today - timedelta(days=_CALENDAR_LOOKBACK_DAYS)).isoformat()
     date_to = (today + timedelta(days=_CALENDAR_LOOKAHEAD_DAYS)).isoformat()
     token = str(api_key or APIKeys.FINNHUB_API_KEY or "").strip()
@@ -500,7 +525,7 @@ def _fetch_akshare_calendar() -> List[Dict[str, Any]]:
     """Fetch macro calendar from AkShare WallstreetCN adapter."""
     import akshare as ak
 
-    today = datetime.now().date()
+    today = _vietnam_today()
     events: List[Dict[str, Any]] = []
     seen_keys: set = set()
     idx_seq = 0
@@ -719,7 +744,7 @@ def _normalize_akshare_event(row: Dict[str, Any], idx: int) -> Optional[Dict[str
         time_str = raw_time.strftime("%H:%M")
     else:
         time_text = str(raw_time or "").strip()
-        date_str = time_text[:10] if len(time_text) >= 10 else datetime.now().strftime("%Y-%m-%d")
+        date_str = time_text[:10] if len(time_text) >= 10 else vietnam_calendar_date()
         time_str = time_text[11:16] if len(time_text) >= 16 else "--:--"
 
     actual = _format_value(_none_if_nan(row.get(actual_col)), "")
@@ -1039,10 +1064,13 @@ def _importance_zh(importance: str) -> str:
 def _parse_date(row: Dict[str, Any]) -> str:
     raw = row.get("date") or row.get("time") or row.get("datetime") or ""
     if isinstance(raw, (int, float)):
-        return datetime.utcfromtimestamp(raw).strftime("%Y-%m-%d")
+        return vietnam_calendar_date(raw)
     text = str(raw).strip()
     if not text:
-        return datetime.now().strftime("%Y-%m-%d")
+        return vietnam_calendar_date()
+    absolute = _vietnam_event_datetime(text)
+    if absolute is not None:
+        return absolute.strftime("%Y-%m-%d")
     if "T" in text:
         return text.split("T", 1)[0]
     if " " in text and len(text) >= 10:
@@ -1052,6 +1080,9 @@ def _parse_date(row: Dict[str, Any]) -> str:
 
 def _parse_time(row: Dict[str, Any]) -> str:
     raw = row.get("time") or row.get("datetime") or ""
+    absolute = _vietnam_event_datetime(raw)
+    if absolute is not None:
+        return absolute.strftime("%H:%M")
     text = str(raw).strip()
     if not text:
         return "--:--"

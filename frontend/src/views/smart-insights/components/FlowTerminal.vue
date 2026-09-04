@@ -76,6 +76,7 @@
 
 <script>
 import * as echarts from 'echarts'
+import { formatVietnamDate } from '@/utils/vietnamTime'
 
 const ASSET_META = {
   BTC: ['Bitcoin', '#f59e0b'], ETH: ['Ethereum', '#818cf8'], SOL: ['Solana', '#a78bfa'], XRP: ['XRP', '#38bdf8'], HYPE: ['Hyperliquid', '#2563eb'], DOGE: ['Dogecoin', '#ca8a04'], LINK: ['Chainlink', '#3157c8'], AVAX: ['Avalanche', '#ef4444'], HBAR: ['Hedera', '#64748b'], LTC: ['Litecoin', '#3b82f6'], BNB: ['BNB', '#eab308'], DOT: ['Polkadot', '#db2777'], SUI: ['Sui', '#60a5fa']
@@ -153,8 +154,8 @@ grid: { left: 8, right: 10, top: 18, bottom: 30, containLabel: true },
     valueClass (value) { return Number.isFinite(Number(value)) ? (Number(value) > 0 ? 'positive' : Number(value) < 0 ? 'negative' : 'neutral') : 'neutral' },
     formatFlow (value) { return Number.isFinite(Number(value)) ? new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', notation: 'compact', maximumFractionDigits: 2, signDisplay: 'always' }).format(Number(value)) : '—' },
     formatCompact (value) { return new Intl.NumberFormat('en-US', { notation: 'compact', maximumFractionDigits: 1 }).format(Number(value)) },
-    formatDate (value) { const date = new Date(`${value}T00:00:00Z`); return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString(this.locale, { day: '2-digit', month: 'short', year: 'numeric' }) },
-    formatDateShort (value) { const date = new Date(`${value}T00:00:00Z`); return Number.isNaN(date.getTime()) ? value : date.toLocaleDateString(this.locale, { day: '2-digit', month: 'short' }) }
+    formatDate (value) { return formatVietnamDate(`${value}T00:00:00Z`, { locale: this.locale, fallback: value }) },
+    formatDateShort (value) { return formatVietnamDate(`${value}T00:00:00Z`, { locale: this.locale, fallback: value, short: true }) }
   }
 }
 </script>
