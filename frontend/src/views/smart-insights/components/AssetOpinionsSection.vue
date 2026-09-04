@@ -44,9 +44,17 @@
             <small class="muted-line">{{ $t('smartInsights.aiNoResult') }}</small>
           </template>
         </div>
-        <small class="report-status">{{ row.report ? formatDateTime(row.report.createdAt) : $t('smartInsights.notAvailable') }}</small>
+        <div class="report-status">
+          <a-tag :class="statusTone(row)">{{ statusLabel(row) }}</a-tag>
+          <small v-if="presentation(row).capturedAt">{{ $t('smartInsights.inputCapturedAt') }}: {{ formatDateTime(presentation(row).capturedAt) }}</small>
+          <small v-else-if="row.report">{{ formatDateTime(row.report.createdAt) }}</small>
+          <small v-if="presentation(row).nextRunAt">{{ $t('smartInsights.nextAiRun') }}: {{ formatDateTime(presentation(row).nextRunAt) }}</small>
+        </div>
         <div class="opinion-actions">
-          <a-button size="small" type="primary" icon="search" @click="$emit('open-analysis', row)">{{ $t('smartInsights.viewAnalysis') }}</a-button>
+          <template v-if="row.report">
+            <a-button size="small" type="primary" icon="search" @click="$emit('open-analysis', row)">{{ $t('smartInsights.viewAnalysis') }}</a-button>
+          </template>
+          <a-button v-else size="small" icon="robot" @click="$emit('open-ai-assistant', row)">{{ $t('smartInsights.openAiAssistant') }}</a-button>
         </div>
       </div>
     </div>
@@ -62,6 +70,8 @@
 </template>
 
 <script>
+import { buildOpinionPresentation } from '../opinionStatus'
+
 export default {
   name: 'AssetOpinionsSection',
   props: {
@@ -86,6 +96,24 @@ export default {
       if (text === 'SELL') return this.$t('smartInsights.sell')
       if (text === 'HOLD') return this.$t('smartInsights.neutral')
       return this.$t('smartInsights.notAvailable')
+    },
+    presentation (row) { return buildOpinionPresentation(row) },
+    statusTone (row) {
+      const status = this.presentation(row).status
+      return status === 'AVAILABLE' ? 'stance-positive' : status === 'STALE' || status === 'FAILED' || status === 'OVERDUE' ? 'stance-negative' : 'stance-neutral'
+    },
+    statusLabel (row) {
+      const labels = {
+        AVAILABLE: 'reportAvailable',
+        HISTORICAL: 'reportHistorical',
+        STALE: 'reportStale',
+        PENDING: 'reportPending',
+        PAUSED: 'reportPaused',
+        FAILED: 'reportFailed',
+        OVERDUE: 'reportOverdue',
+        UNAVAILABLE: 'reportUnavailable'
+      }
+      return this.$t(`smartInsights.${labels[this.presentation(row).status] || 'reportUnavailable'}`)
     },
     formatDateTime (value) {
       if (!value) return this.$t('smartInsights.notAvailable')
@@ -131,4 +159,5 @@ export default {
 .theme-dark & .card-heading { background: linear-gradient(var(--soft-blue), var(--card)); }.theme-dark & .opinion-table-head, .theme-dark & .opinion-row { border-color: var(--line); }.theme-dark & .opinion-table-head { background: var(--card); }
 @media (max-width: 960px) { .opinion-table-head, .opinion-row { grid-template-columns: minmax(118px, 1fr) minmax(0, 1.6fr) minmax(76px, .72fr) minmax(108px, auto); } }
 @media (max-width: 680px) { .card-heading { align-items: flex-start; flex-direction: column; }.heading-actions { justify-content: flex-start; }.opinion-table-head { display: none; }.opinion-row { grid-template-columns: 1fr auto; padding-top: 12px; padding-bottom: 10px; }.opinion-row > :nth-child(2) { grid-column: 1 / -1; }.opinion-row .opinion-actions { grid-column: 1 / -1; }.opinion-row .opinion-actions .ant-btn { width: 100%; } }
+@media (max-width: 680px) { .opinion-row { grid-template-columns: minmax(0, 1fr) auto; gap: 8px 10px; padding-right: 10px; padding-left: 10px; }.opinion-row > :nth-child(2) { min-width: 0; }.opinion-row > :nth-child(3) { grid-column: 1; align-self: center; }.opinion-row .opinion-actions { grid-column: 2; align-self: center; justify-self: stretch; }.opinion-row .opinion-actions .ant-btn { width: auto; max-width: 100%; }.opinion-row .muted-line { line-height: 1.45; }.opinion-row .report-status { line-height: 1.35; } }
 </style>

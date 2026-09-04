@@ -27,12 +27,13 @@ export function buildWatchlistOpinionRows (watchlist = [], analyses = []) {
   const indexed = new Map()
   for (const analysis of Array.isArray(analyses) ? analyses : []) {
     const key = identity(analysis)
-    if (key !== ':') indexed.set(key, analysis.report || null)
+    if (key !== ':') indexed.set(key, analysis || {})
   }
 
   return (Array.isArray(watchlist) ? watchlist : []).map(item => {
     const key = identity(item)
-    const report = indexed.get(key) || null
+    const analysis = indexed.get(key) || {}
+    const report = analysis.report || null
     return {
       id: key,
       symbol: item.symbol || item.sym,
@@ -41,7 +42,9 @@ export function buildWatchlistOpinionRows (watchlist = [], analyses = []) {
       name: item.name || item.symbol || item.sym,
       watchlistItem: item,
       report,
-      analysisStatus: report ? 'AVAILABLE' : 'UNAVAILABLE'
+      monitor: analysis && analysis.monitor ? analysis.monitor : null,
+      dataFreshness: analysis && analysis.dataFreshness ? analysis.dataFreshness : (report ? 'UNKNOWN' : 'UNAVAILABLE'),
+      analysisStatus: analysis && analysis.analysisStatus ? analysis.analysisStatus : (report ? 'AVAILABLE' : 'UNAVAILABLE')
     }
   })
 }

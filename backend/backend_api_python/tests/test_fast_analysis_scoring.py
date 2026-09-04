@@ -41,3 +41,24 @@ def test_bearish_breakdown_suppresses_oversold_buy_bias():
     assert risk["panic_breakdown"] is True
     assert score <= -20
 
+
+def test_input_provenance_is_safe_and_records_the_analysis_snapshot():
+    svc = _service()
+
+    provenance = svc._build_input_provenance(
+        {
+            "price": {"price": 101.25, "source": "binance"},
+            "kline": [{"close_time": "2026-09-04T08:00:00Z", "close": 101.25}],
+            "_meta": {"success_items": ["price", "kline", "indicators", "crypto_factors"]},
+        },
+        timeframe="1H",
+        captured_at="2026-09-04T08:05:00Z",
+    )
+
+    assert provenance["captured_at"] == "2026-09-04T08:05:00Z"
+    assert provenance["price_source"] == "binance"
+    assert provenance["kline_at"] == "2026-09-04T08:00:00Z"
+    assert provenance["components"] == ["price", "technical", "crypto_market_structure"]
+    assert len(provenance["checksum"]) == 64
+    assert "price" not in provenance
+

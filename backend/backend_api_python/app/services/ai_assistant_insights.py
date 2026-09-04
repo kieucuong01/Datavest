@@ -8,8 +8,9 @@ asked AI Assistant to produce, pinned to the requested calendar day.
 from __future__ import annotations
 
 import hashlib
+import json
 import re
-from datetime import date
+from datetime import date, datetime, timezone
 from typing import Any, Iterable
 
 MAX_BRIEF_WORDS = 600
@@ -43,6 +44,170 @@ def _report_day(report: dict[str, Any]) -> str:
 
 def _timestamp(report: dict[str, Any]) -> str:
     return str(report.get("created_at") or report.get("createdAt") or "")
+
+
+def _as_dict(value: Any) -> dict[str, Any]:
+    if isinstance(value, dict):
+        return value
+    if isinstance(value, str):
+        try:
+            parsed = json.loads(value)
+        except (TypeError, ValueError):
+            return {}
+        return parsed if isinstance(parsed, dict) else {}
+    return {}
+
+
+def _as_datetime(value: Any) -> datetime | None:
+    if isinstance(value, datetime):
+        return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
+    text = str(value or "").strip()
+    if not text:
+        return None
+    try:
+        parsed = datetime.fromisoformat(text.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    return parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
+
+
+def _iso_timestamp(value: Any) -> str | None:
+    parsed = _as_datetime(value)
+    if parsed is not None:
+        return parsed.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
+    text = str(value or "").strip()
+    return text or None
+
+
+def _public_input_data(raw: dict[str, Any]) -> dict[str, Any]:
+    """Return provenance fields that are useful to a user and safe to expose."""
+    input_data = _as_dict(raw.get("input_data") or raw.get("inputData"))
+    components = input_data.get("components")
+    if not isinstance(components, list):
+        components = []
+    allowed_components = {
+        "price", "technical", "macro", "news", "crypto_market_structure",
+    }
+    safe_components = [
+        str(item) for item in components
+        if str(item) in allowed_components
+    ]
+    source = str(input_data.get("price_source") or input_data.get("priceSource") or "").strip()
+    source = re.sub(r"[^A-Za-z0-9._-]+", "_", source)[:80] or None
+    checksum = str(input_data.get("checksum") or "").strip()
+    checksum = checksum[:128] or None
+    return {
+        "capturedAt": _iso_timestamp(input_data.get("captured_at") or input_data.get("capturedAt")),
+        "priceSource": source,
+        "timeframe": str(input_data.get("timeframe") or "").strip()[:24] or None,
+        "klineAt": _iso_timestamp(input_data.get("kline_at") or input_data.get("klineAt")),
+        "checksum": checksum,
+        "components": safe_components,
+    }
+
+
+def _default_monitor_loader(user_id: int) -> list[dict[str, Any]]:
+    """Load only AI monitor state for the authenticated user's watchlist view."""
+    if not user_id:
+        return []
+    try:
+        from app.utils.database import get_db_connection
+
+        with get_db_connection() as db:
+            cur = db.cursor()
+            cur.execute(
+                """
+                SELECT id, monitor_type, config, is_active, last_run_at, next_run_at,
+                       last_result, run_count, updated_at
+                FROM qd_position_monitors
+                WHERE user_id = ?
+                  AND COALESCE(monitor_type, 'ai') = 'ai'
+                ORDER BY updated_at DESC, id DESC
+                """,
+                (user_id,),
+            )
+            rows = cur.fetchall() or []
+            cur.close()
+        return [dict(row) for row in rows]
+    except Exception:
+        return []
+
+
+def _monitor_public_state(monitor: dict[str, Any], now: datetime) -> dict[str, Any]:
+    config = _as_dict(monitor.get("config"))
+    last_result = _as_dict(monitor.get("last_result"))
+    active = bool(monitor.get("is_active"))
+    next_run_at = _as_datetime(monitor.get("next_run_at"))
+    if not active:
+        state = "PAUSED"
+    elif last_result.get("error"):
+        state = "FAILED"
+    elif next_run_at is not None and next_run_at <= now:
+        state = "OVERDUE"
+    else:
+        state = "SCHEDULED"
+    interval = config.get("run_interval_minutes") or config.get("interval_minutes")
+    try:
+        interval = int(interval) if interval is not None else None
+    except (TypeError, ValueError):
+        interval = None
+    return {
+        "id": monitor.get("id"),
+        "state": state,
+        "isActive": active,
+        "lastRunAt": _iso_timestamp(monitor.get("last_run_at")),
+        "nextRunAt": _iso_timestamp(monitor.get("next_run_at")),
+        "intervalMinutes": interval,
+        "runCount": int(monitor.get("run_count") or 0),
+        # The monitor error can contain a provider response or an internal
+        # exception.  The UI only needs to know that a retry failed, not the
+        # untrusted/raw error text.
+        "hasError": bool(last_result.get("error")),
+    }
+
+
+def _watchlist_monitor_index(monitors: Iterable[dict[str, Any]], now: datetime) -> dict[str, dict[str, Any]]:
+    rank = {"FAILED": 4, "OVERDUE": 3, "SCHEDULED": 2, "PAUSED": 1}
+    indexed: dict[str, dict[str, Any]] = {}
+    for raw_monitor in monitors:
+        config = _as_dict(raw_monitor.get("config"))
+        market = canonical_market(config.get("market"))
+        symbol = canonical_symbol(config.get("symbol"))
+        if not market or not symbol:
+            continue
+        key = f"{market}:{symbol}"
+        current = _monitor_public_state(raw_monitor, now)
+        previous = indexed.get(key)
+        if previous is None or rank[current["state"]] > rank[previous["state"]]:
+            indexed[key] = current
+    return indexed
+
+
+def _report_freshness(report: dict[str, Any] | None, monitor: dict[str, Any], selected_day: str, now: datetime) -> str:
+    if not report:
+        return "UNAVAILABLE"
+    if selected_day != now.date().isoformat():
+        return "HISTORICAL"
+    if monitor.get("state") in {"FAILED", "OVERDUE"}:
+        return "STALE"
+    captured_at = _as_datetime((_public_input_data(report.get("full_result") or report.get("raw_result") or {})).get("capturedAt"))
+    if captured_at is None:
+        return "UNKNOWN"
+    interval = monitor.get("intervalMinutes")
+    max_age_minutes = max(30, min(int(interval or 360), 360))
+    age_seconds = (now - captured_at).total_seconds()
+    return "FRESH" if age_seconds <= max_age_minutes * 60 else "STALE"
+
+
+def _analysis_status(report: dict[str, Any] | None, freshness: str, monitor: dict[str, Any]) -> str:
+    if report:
+        return "STALE" if freshness == "STALE" else "HISTORICAL" if freshness == "HISTORICAL" else "AVAILABLE"
+    return {
+        "PAUSED": "PAUSED",
+        "FAILED": "FAILED",
+        "OVERDUE": "OVERDUE",
+        "SCHEDULED": "PENDING",
+    }.get(monitor.get("state"), "UNAVAILABLE")
 
 
 def select_watchlist_reports_for_date(
@@ -139,15 +304,19 @@ def build_daily_brief(reports: Iterable[dict[str, Any]], as_of: str, locale: str
 class AiAssistantInsightsService:
     """Tenant-scoped view of AI Assistant history for Smart Insights."""
 
-    def __init__(self, memory=None, watchlist_loader=None):
+    def __init__(self, memory=None, watchlist_loader=None, monitor_loader=None, now_loader=None):
         if memory is None:
             from app.services.analysis_memory import get_analysis_memory
             memory = get_analysis_memory()
         if watchlist_loader is None:
             from app.services.market.watchlist import get_user_watchlist_pairs
             watchlist_loader = get_user_watchlist_pairs
+        if monitor_loader is None:
+            monitor_loader = _default_monitor_loader
         self.memory = memory
         self.watchlist_loader = watchlist_loader
+        self.monitor_loader = monitor_loader
+        self.now_loader = now_loader or (lambda: datetime.now(timezone.utc))
 
     def list_dates(self, user_id: int, **_ignored: Any) -> dict[str, Any]:
         watchlist = self.watchlist_loader(user_id)
@@ -169,17 +338,27 @@ class AiAssistantInsightsService:
         reports = self.memory.list_reports_for_user(user_id=user_id)
         dates = self.list_dates(user_id).get("dates") or []
         selected_day = str(as_of or (dates[0] if dates else date.today().isoformat()))[:10]
+        now = self.now_loader()
+        if not isinstance(now, datetime):
+            now = datetime.now(timezone.utc)
+        if now.tzinfo is None:
+            now = now.replace(tzinfo=timezone.utc)
+        monitor_index = _watchlist_monitor_index(self.monitor_loader(user_id), now)
         selected = select_watchlist_reports_for_date(watchlist, reports, selected_day)
         report_rows = [item for item in selected.values() if item]
         opinions = []
         for item in watchlist:
             key = report_identity(item)
             report = selected.get(key)
+            monitor = monitor_index.get(key, {"state": "MISSING", "isActive": False, "lastRunAt": None, "nextRunAt": None, "intervalMinutes": None, "runCount": 0, "hasError": False})
+            freshness = _report_freshness(report, monitor, selected_day, now)
             opinions.append({
                 "market": item.get("market"),
                 "symbol": item.get("symbol"),
                 "report": self._public_report(report) if report else None,
-                "analysisStatus": "AVAILABLE" if report else "UNAVAILABLE",
+                "monitor": monitor,
+                "dataFreshness": freshness,
+                "analysisStatus": _analysis_status(report, freshness, monitor),
             })
         available_count = len(report_rows)
         status = "COMPLETE" if watchlist and available_count == len(opinions) else "PARTIAL" if available_count else "UNAVAILABLE"
@@ -200,6 +379,25 @@ class AiAssistantInsightsService:
         raw = report.get("full_result") or report.get("raw_result") or {}
         if not isinstance(raw, dict):
             raw = {}
+        detailed_analysis = raw.get("detailed_analysis") or raw.get("analysis") or {}
+        if not isinstance(detailed_analysis, dict):
+            detailed_analysis = {"technical": str(detailed_analysis)}
+        trading_plan = raw.get("trading_plan") or {}
+        if not isinstance(trading_plan, dict):
+            trading_plan = {}
+        market_data = raw.get("market_data") or {}
+        if not isinstance(market_data, dict):
+            market_data = {}
+        crypto_factors = raw.get("crypto_factors") or {}
+        if not isinstance(crypto_factors, dict):
+            crypto_factors = {}
+        consensus = raw.get("consensus") or {}
+        if not isinstance(consensus, dict):
+            consensus = {}
+        trend_outlook = raw.get("trend_outlook") or raw.get("trendOutlook") or {}
+        if not isinstance(trend_outlook, dict):
+            trend_outlook = {}
+        input_data = _public_input_data(raw)
         return {
             "id": report.get("id"),
             "market": report.get("market"),
@@ -212,6 +410,30 @@ class AiAssistantInsightsService:
             "summary": report.get("summary") or raw.get("summary") or raw.get("reasoning") or raw.get("trader_reasoning"),
             "reasons": report.get("reasons") or raw.get("reasons") or [],
             "scores": report.get("scores") or raw.get("scores") or {},
+            # Keep the existing compact fields above, but expose the safe,
+            # read-only detail fields needed to render the same report in Smart
+            # Insights. Never pass raw_result, prompts, or provider credentials.
+            "model": raw.get("model"),
+            "language": raw.get("language"),
+            "timeframe": raw.get("timeframe"),
+            "detailedAnalysis": detailed_analysis,
+            "tradingPlan": trading_plan,
+            "risks": report.get("risks") or raw.get("risks") or [],
+            "marketData": market_data,
+            "inputData": input_data,
+            "indicators": raw.get("indicators") if isinstance(raw.get("indicators"), dict) else {},
+            "cryptoFactors": crypto_factors,
+            "cryptoFactorScore": raw.get("crypto_factor_score"),
+            "cryptoFactorBreakdown": raw.get("crypto_factor_breakdown") if isinstance(raw.get("crypto_factor_breakdown"), list) else [],
+            "cryptoFactorSummary": raw.get("crypto_factor_summary") or "",
+            "objectiveScore": raw.get("objective_score") if isinstance(raw.get("objective_score"), dict) else {},
+            "scoreBasedDecision": raw.get("score_based_decision"),
+            "consensus": consensus,
+            "trendOutlook": trend_outlook,
+            "trendOutlookSummary": raw.get("trend_outlook_summary") or raw.get("trendOutlookSummary") or "",
+            "analysisTimeMs": raw.get("analysis_time_ms"),
+            "llmTimeMs": raw.get("llm_time_ms"),
+            "dataCollectionTimeMs": raw.get("data_collection_time_ms"),
         }
 
 

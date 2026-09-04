@@ -1,8 +1,10 @@
 """Fast analysis orchestration built on the shared market-data collector."""
+import hashlib
 import json
 import os
 import re
 import time
+from datetime import datetime, timezone
 from typing import Dict, Any, Optional, List, Tuple
 from decimal import Decimal, ROUND_HALF_UP
 
@@ -61,6 +63,56 @@ class FastAnalysisService(FastAnalysisScoringMixin):
             include_news=include_news,
             timeout=timeout,  # 增加超时时间，确保数据收集完成
         )
+
+    def _build_input_provenance(
+        self,
+        data: Dict[str, Any],
+        *,
+        timeframe: str,
+        captured_at: str | None = None,
+    ) -> Dict[str, Any]:
+        """Persist a compact, secret-free description of the input snapshot."""
+        data = data if isinstance(data, dict) else {}
+        price = data.get("price") if isinstance(data.get("price"), dict) else {}
+        meta = data.get("_meta") if isinstance(data.get("_meta"), dict) else {}
+        succeeded = set(meta.get("success_items") or [])
+        components = []
+        if price:
+            components.append("price")
+        if data.get("kline") or data.get("indicators") or "indicators" in succeeded:
+            components.append("technical")
+        if data.get("macro"):
+            components.append("macro")
+        if data.get("news"):
+            components.append("news")
+        if data.get("crypto_factors") or "crypto_factors" in succeeded:
+            components.append("crypto_market_structure")
+
+        kline_at = None
+        bars = data.get("kline") if isinstance(data.get("kline"), list) else []
+        if bars and isinstance(bars[-1], dict):
+            latest_bar = bars[-1]
+            for key in ("close_time", "closeTime", "timestamp", "time", "date", "open_time", "openTime"):
+                if latest_bar.get(key) is not None:
+                    kline_at = str(latest_bar[key])
+                    break
+
+        snapshot = {
+            "price_source": str(price.get("source") or "unknown"),
+            "timeframe": str(timeframe or data.get("timeframe") or ""),
+            "kline_at": kline_at,
+            "components": components,
+        }
+        checksum_payload = {
+            **snapshot,
+            "price": price.get("price"),
+            "change_percent": price.get("changePercent"),
+        }
+        snapshot["checksum"] = hashlib.sha256(
+            json.dumps(checksum_payload, ensure_ascii=False, sort_keys=True, default=str).encode("utf-8")
+        ).hexdigest()
+        snapshot["captured_at"] = captured_at or datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+        return snapshot
     
     def _calculate_indicators(self, kline_data: List[Dict]) -> Dict[str, Any]:
         """
@@ -1313,6 +1365,7 @@ IMPORTANT:
                     "support": data["indicators"].get("levels", {}).get("support"),
                     "resistance": data["indicators"].get("levels", {}).get("resistance"),
                 },
+                "input_data": self._build_input_provenance(data, timeframe=primary_tf),
                 "indicators": data.get("indicators", {}),
                 "consensus": analysis.get("consensus", {}),
                 "trend_outlook": trend_outlook,
