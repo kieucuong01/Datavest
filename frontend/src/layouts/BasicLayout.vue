@@ -605,7 +605,9 @@ export default {
     },
     i18nRender,
     topMenuRender (h, props) {
-      if (!props || props.layout !== 'topmenu' || props.isMobile) return null
+      // ProLayout falls back to RouteMenu only when the renderer is false.
+      // Returning null here rendered the literal text "undefined" in the mobile drawer.
+      if (!props || props.layout !== 'topmenu' || props.isMobile) return false
       return h(TopMenu, {
         props: {
           menus: this.menus,

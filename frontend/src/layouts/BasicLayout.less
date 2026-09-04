@@ -1164,3 +1164,71 @@ body.realdark .basic-layout-wrapper .ant-layout-header .ant-menu-horizontal > .a
   background: var(--header-nav-active) !important;
   background-color: var(--header-nav-active) !important;
 }
+
+/* Phone header: keep navigation and account actions inside a 375px viewport. */
+@media (max-width: 480px) {
+  .basic-layout-wrapper .ant-layout-header,
+  .basic-layout-wrapper .ant-pro-global-header,
+  .basic-layout-wrapper .ant-pro-global-header-index-right,
+  .basic-layout-wrapper .layout-top-actions {
+    height: 56px !important;
+    line-height: 56px !important;
+  }
+
+  .basic-layout-wrapper .ant-pro-global-header-logo,
+  .basic-layout-wrapper .ant-layout-header .ant-pro-sider-menu-logo {
+    flex: 0 0 104px !important;
+    width: 104px !important;
+    min-width: 104px !important;
+    padding: 0 10px !important;
+  }
+
+  .basic-layout-wrapper .ant-pro-global-header-logo img,
+  .basic-layout-wrapper .ant-layout-header .ant-pro-sider-menu-logo img,
+  .basic-layout-wrapper .ant-layout-header .sidebar-logo-wrapper .sidebar-logo {
+    width: 84px !important;
+    height: 28px !important;
+    max-width: 84px !important;
+    max-height: 28px !important;
+  }
+
+  .basic-layout-wrapper .ant-pro-global-header-trigger {
+    flex: 0 0 48px !important;
+    width: 48px !important;
+    min-width: 48px !important;
+    height: 56px !important;
+    line-height: 56px !important;
+  }
+
+  .basic-layout-wrapper .ant-pro-global-header-content {
+    display: none !important;
+  }
+
+  .basic-layout-wrapper .layout-top-actions,
+  .basic-layout-wrapper .ant-pro-global-header-index-right {
+    min-width: 0 !important;
+  }
+
+  .basic-layout-wrapper .layout-top-actions .ant-pro-global-header-index-action,
+  .basic-layout-wrapper .layout-top-actions .ant-pro-drop-down,
+  .basic-layout-wrapper .layout-top-actions .ant-pro-account-avatar {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    min-width: 44px !important;
+    height: 44px !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  .basic-layout-wrapper .layout-top-actions .language-action {
+    min-width: 52px !important;
+  }
+
+  .mobile-menu-close {
+    top: 6px;
+    left: min(202px, calc(100vw - 50px));
+    width: 44px;
+    height: 44px;
+  }
+}
