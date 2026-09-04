@@ -14,12 +14,21 @@ test('mobile header preserves 44px actions without the desktop refresh control',
 })
 
 test('asset opinion actions become full-width touch controls on narrow phones', () => {
-  assert.match(opinionsSource, /@media \(max-width: 480px\)[\s\S]*?\.opinion-row \.opinion-actions\s*\{\s*grid-column:\s*1 \/ -1/u)
-  assert.match(opinionsSource, /@media \(max-width: 480px\)[\s\S]*?\.opinion-row \.opinion-actions \.ant-btn\s*\{\s*width:\s*100%/u)
+  assert.match(opinionsSource, /@media \(max-width: 680px\)[\s\S]*?\.opinion-row \.opinion-actions\s*\{[\s\S]*?width:\s*100%/u)
+  assert.match(opinionsSource, /@media \(max-width: 680px\)[\s\S]*?\.opinion-row \.opinion-actions \.ant-btn\s*\{[\s\S]*?width:\s*100%/u)
 })
 
 test('mobile drawer falls back to the normal route menu instead of rendering undefined', () => {
   assert.match(layoutSource, /topMenuRender \(h, props\) \{[\s\S]*?if \(!props \|\| props\.layout !== 'topmenu' \|\| props\.isMobile\) return false/u)
+})
+
+test('mobile media query keeps the route menu collapsed until the user opens it', () => {
+  assert.match(layoutSource, /if \(!this\.isMobile && val\['screen-xs'\]\) \{[\s\S]*?this\.isMobile = true[\s\S]*?this\.collapsed = true/u)
+})
+
+test('asset opinion rows use a predictable one-column flow on narrow screens', () => {
+  assert.match(opinionsSource, /@media \(max-width: 680px\)[\s\S]*?\.opinion-row\s*\{[\s\S]*?display:\s*flex[\s\S]*?flex-direction:\s*column/u)
+  assert.match(opinionsSource, /@media \(max-width: 680px\)[\s\S]*?\.report-status\s+small\s*\{[\s\S]*?display:\s*block/u)
 })
 
 test('flow asset selector becomes a scrollable single-column list on phones', () => {

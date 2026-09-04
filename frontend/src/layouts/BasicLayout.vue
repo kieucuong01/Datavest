@@ -881,7 +881,10 @@ export default {
       }
       if (!this.isMobile && val['screen-xs']) {
         this.isMobile = true
-        this.collapsed = false
+        // A mobile drawer must start closed. The header trigger is the only
+        // action that should open the route menu.
+        this.collapsed = true
+        this.isDrawerOpen = false
         this.settings.contentWidth = CONTENT_WIDTH_TYPE.Fluid
         // this.settings.fixSiderbar = false
         this.$nextTick(() => {
@@ -897,6 +900,7 @@ export default {
     },
     closeMobileMenu () {
       this.handleCollapse(true)
+      this.isDrawerOpen = false
     },
     handleMobileMenuToggle () {
       this.$nextTick(() => {
