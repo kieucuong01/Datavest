@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import sys
 import types
 from functools import wraps
@@ -89,6 +90,7 @@ def test_run_is_queued_without_exposing_service_secret(monkeypatch):
         def create_run(self, **kwargs):
             assert kwargs["user_id"] == 7
             assert kwargs["request"]["market"] == "Crypto"
+            assert kwargs["config"]["native_config"]["checkpoint_enabled"] is True
             return {"run_id": "run-123", "status": "queued", "source_pin": kwargs["source_pin"]}
 
         def transition_run(self, **_kwargs):
@@ -135,3 +137,48 @@ def test_cancel_queues_idempotent_control_for_owned_run(monkeypatch):
     assert response.status_code == 202
     assert transitions == [{"run_id": "run-123", "status": "cancelled"}]
     assert controls == [("run-123", "cancel")]
+
+
+def test_completed_run_cannot_be_cancelled(monkeypatch):
+    client, route_module = _client(monkeypatch)
+    transitions = []
+    controls = []
+
+    class Repository:
+        def get_owned_run(self, **_kwargs):
+            return {"run_id": "run-123", "status": "succeeded"}
+
+        def transition_run(self, **kwargs):
+            transitions.append(kwargs)
+
+    monkeypatch.setattr(route_module, "get_repository", lambda: Repository())
+    monkeypatch.setattr(route_module, "enqueue_trading_agents_control", lambda run_id, action: controls.append((run_id, action)))
+
+    response = client.post("/api/trading-agents/runs/run-123/cancel")
+
+    assert response.status_code == 409
+    assert transitions == []
+    assert controls == []
+
+
+def test_artifact_checksum_mismatch_is_not_served(monkeypatch):
+    client, route_module = _client(monkeypatch)
+
+    class Repository:
+        def get_owned_run(self, **_kwargs):
+            return {
+                "run_id": "run-123",
+                "user_id": 7,
+                "artifacts": [{
+                    "artifact_name": "complete_report.md",
+                    "sha256": hashlib.sha256(b"expected").hexdigest(),
+                }],
+            }
+
+    monkeypatch.setattr(route_module, "get_repository", lambda: Repository())
+    monkeypatch.setattr(route_module, "fetch_artifact_from_service", lambda **_kwargs: (b"changed", "text/markdown"))
+
+    response = client.get("/api/trading-agents/runs/run-123/artifacts/complete_report.md")
+
+    assert response.status_code == 503
+    assert response.get_json()["msg"] == "trading_agents_artifact_unavailable"

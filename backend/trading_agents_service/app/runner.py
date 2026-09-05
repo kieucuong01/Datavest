@@ -36,6 +36,10 @@ class RunRequestError(ValueError):
     """Raised when an internal run request cannot safely run the full graph."""
 
 
+class RunCancelled(RuntimeError):
+    """Stop after a native graph checkpoint has been safely persisted."""
+
+
 @dataclass(frozen=True)
 class TradingAgentsRunRequest:
     run_id: str
@@ -58,6 +62,7 @@ class TradingAgentsRunResult:
 
 GraphFactory = Callable[..., Any]
 EventSink = Callable[[RunEvent], None]
+CancellationCheck = Callable[[], bool]
 
 
 def _validate_request(request: TradingAgentsRunRequest) -> None:
@@ -153,6 +158,7 @@ def run_full_graph(
     state_root: str | Path,
     graph_factory: GraphFactory | None = None,
     on_event: EventSink | None = None,
+    should_cancel: CancellationCheck | None = None,
 ) -> TradingAgentsRunResult:
     """Run every upstream role without replacing agent prompts, nodes or tools."""
 
@@ -189,11 +195,18 @@ def run_full_graph(
         if checkpoint_thread_id is not None:
             graph_args.setdefault("config", {}).setdefault("configurable", {})["thread_id"] = checkpoint_thread_id
 
+        if should_cancel is not None and should_cancel():
+            raise RunCancelled("run cancellation requested")
         for sequence, chunk in enumerate(
             graph.graph.stream(graph.checkpoint_input(initial_state), **graph_args),
             start=1,
         ):
             chunks.append(chunk)
+            # LangGraph has persisted the previous node before yielding this
+            # delta. Raising here keeps its native checkpoint intact for
+            # resume and avoids writing an incomplete report.
+            if should_cancel is not None and should_cancel():
+                raise RunCancelled("run cancellation requested")
             event = event_from_chunk(request.run_id, sequence, chunk)
             events.append(event)
             if on_event is not None:
@@ -222,3 +235,24 @@ def run_full_graph(
         executed_roles=_executed_roles(selected_analysts),
         final_state=final_state,
     )
+
+
+def clear_native_checkpoint(
+    request: TradingAgentsRunRequest,
+    *,
+    state_root: str | Path,
+    graph_factory: GraphFactory | None = None,
+) -> None:
+    """Use the pinned upstream graph method to clear only one run checkpoint."""
+
+    _validate_request(request)
+    paths = resolve_user_state(state_root, request.user_id)
+    paths.create_directories()
+    native_config = _native_config(request, paths)
+    selected_analysts = _effective_analysts(request.asset_type)
+    graph = (graph_factory or _default_graph_factory)(
+        selected_analysts=selected_analysts,
+        config=native_config,
+        callbacks=[],
+    )
+    graph.clear_checkpoint_on_success(request.ticker, request.analysis_date, request.asset_type)

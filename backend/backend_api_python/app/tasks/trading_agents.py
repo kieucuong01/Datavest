@@ -24,6 +24,10 @@ class TradingAgentsServiceUnavailable(RuntimeError):
     """Private service is unavailable or rejected a signed request."""
 
 
+class TradingAgentsServiceRejected(TradingAgentsServiceUnavailable):
+    """The trusted service declined a valid request without being unavailable."""
+
+
 def get_repository():
     from app.services.trading_agents_repository import TradingAgentsRepository
 
@@ -77,7 +81,11 @@ def post_to_service(*, path: str, payload: Mapping[str, Any]) -> dict[str, Any]:
     try:
         with urlopen(request, timeout=_service_timeout()) as response:  # noqa: S310 - fixed operator URL, not user input
             response_body = response.read(128 * 1024)
-    except (HTTPError, URLError, TimeoutError, OSError) as exc:
+    except HTTPError as exc:
+        if exc.code in {400, 401, 409, 422}:
+            raise TradingAgentsServiceRejected("TradingAgents private service rejected the request") from exc
+        raise TradingAgentsServiceUnavailable("TradingAgents private service is unavailable") from exc
+    except (URLError, TimeoutError, OSError) as exc:
         raise TradingAgentsServiceUnavailable("TradingAgents private service is unavailable") from exc
     try:
         parsed = json.loads(response_body.decode("utf-8")) if response_body else {}
@@ -86,20 +94,29 @@ def post_to_service(*, path: str, payload: Mapping[str, Any]) -> dict[str, Any]:
     return parsed if isinstance(parsed, dict) else {}
 
 
-def fetch_artifact_from_service(*, run_id: str, artifact_name: str) -> tuple[bytes, str]:
+def fetch_artifact_from_service(*, user_id: int, run_id: str, artifact_name: str) -> tuple[bytes, str]:
     """Retrieve one approved artifact through the same signed private boundary."""
     secret = _service_secret()
-    safe_path = "/internal/runs/{}/artifacts/{}".format(quote(str(run_id), safe=""), quote(str(artifact_name), safe=""))
-    body = b""
+    body = json.dumps(
+        {"user_id": str(int(user_id)), "run_id": str(run_id), "artifact_name": str(artifact_name)},
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
     request = Request(
-        urljoin(_service_url(), safe_path.lstrip("/")),
+        urljoin(_service_url(), "internal/artifacts"),
+        data=body,
         headers=_signed_headers(secret, body=body),
-        method="GET",
+        method="POST",
     )
     try:
         with urlopen(request, timeout=30) as response:  # noqa: S310 - fixed operator URL, not user input
             return response.read(4 * 1024 * 1024), str(response.headers.get_content_type() or "text/plain")
-    except (HTTPError, URLError, TimeoutError, OSError) as exc:
+    except HTTPError as exc:
+        if exc.code in {400, 401, 404, 409, 422}:
+            raise TradingAgentsServiceRejected("TradingAgents artifact is unavailable") from exc
+        raise TradingAgentsServiceUnavailable("TradingAgents artifact is unavailable") from exc
+    except (URLError, TimeoutError, OSError) as exc:
         raise TradingAgentsServiceUnavailable("TradingAgents artifact is unavailable") from exc
 
 
@@ -138,6 +155,13 @@ def execute_trading_agents_run(run_id: str) -> None:
     try:
         repository.transition_run(run_id=str(run_id), status="running")
         post_to_service(path="/internal/runs", payload=_service_run_payload(record))
+    except TradingAgentsServiceRejected:
+        repository.transition_run(
+            run_id=str(run_id),
+            status="failed",
+            failure_code="service_rejected",
+            failure_message="TradingAgents private service rejected the run",
+        )
     except TradingAgentsServiceUnavailable:
         repository.transition_run(
             run_id=str(run_id),
@@ -159,7 +183,12 @@ def execute_trading_agents_control(run_id: str, action: str) -> None:
     if clean_action == "cancel":
         repository.transition_run(run_id=str(run_id), status="cancelled")
     try:
-        post_to_service(path=f"/internal/runs/{quote(str(run_id), safe='')}/{clean_action}", payload={"run_id": str(run_id)})
+        post_to_service(
+            path=f"/internal/runs/{quote(str(run_id), safe='')}/{clean_action}",
+            payload=_service_run_payload(record),
+        )
+    except TradingAgentsServiceRejected:
+        return
     except TradingAgentsServiceUnavailable:
         if clean_action != "cancel":
             repository.transition_run(

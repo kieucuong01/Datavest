@@ -86,3 +86,83 @@ def test_run_dispatch_signs_private_service_request_without_returning_secret(mon
     assert json.loads(request.data.decode("utf-8"))["user_id"] == "7"
     assert request.get_header("X-datavest-trading-agents-request-signature") != "private-signing-secret"
     assert "private-signing-secret" not in repr(request.headers)
+
+
+def test_resume_control_reuses_the_immutable_run_payload(monkeypatch):
+    _install_task_dependencies()
+    sys.modules.pop("app.tasks.trading_agents", None)
+    from app.tasks import trading_agents as task_module
+
+    class Repository:
+        def get_run_for_worker(self, *, run_id):
+            return {
+                "run_id": run_id,
+                "user_id": 7,
+                "status": "queued",
+                "request_json": json.dumps({
+                    "market": "Crypto",
+                    "symbol": "BTC/USDT",
+                    "analysis_date": "2026-09-05",
+                }),
+                "config_json": json.dumps({"native_config": {"checkpoint_enabled": True}}),
+            }
+
+        def transition_run(self, **_kwargs):
+            raise AssertionError("successful resume must not alter the run status")
+
+    sent = []
+    monkeypatch.setattr(task_module, "get_repository", lambda: Repository())
+    monkeypatch.setattr(task_module, "post_to_service", lambda **kwargs: sent.append(kwargs) or {"accepted": True})
+
+    task_module.execute_trading_agents_control("run-123", "resume")
+
+    assert sent == [{
+        "path": "/internal/runs/run-123/resume",
+        "payload": {
+            "run_id": "run-123",
+            "user_id": "7",
+            "market": "Crypto",
+            "symbol": "BTC/USDT",
+            "analysis_date": "2026-09-05",
+            "native_config": {"checkpoint_enabled": True},
+            "selected_analysts": [],
+        },
+    }]
+
+
+def test_artifact_fetch_signs_owner_scoped_body(monkeypatch):
+    _install_task_dependencies()
+    sys.modules.pop("app.tasks.trading_agents", None)
+    from app.tasks import trading_agents as task_module
+
+    class Response:
+        headers = types.SimpleNamespace(get_content_type=lambda: "text/markdown")
+
+        def read(self, _limit):
+            return b"# Native report"
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+    sent = []
+    monkeypatch.setenv("DATAVEST_TRADING_AGENTS_SERVICE_SECRET", "private-signing-secret")
+    monkeypatch.setattr(task_module, "urlopen", lambda request, timeout: sent.append((request, timeout)) or Response())
+
+    content, content_type = task_module.fetch_artifact_from_service(
+        user_id=7,
+        run_id="run-123",
+        artifact_name="complete_report.md",
+    )
+
+    assert (content, content_type) == (b"# Native report", "text/markdown")
+    request, _timeout = sent[0]
+    assert request.full_url == "http://trading-agents:8080/internal/artifacts"
+    assert json.loads(request.data.decode("utf-8")) == {
+        "user_id": "7",
+        "run_id": "run-123",
+        "artifact_name": "complete_report.md",
+    }
+    assert "private-signing-secret" not in repr(request.headers)

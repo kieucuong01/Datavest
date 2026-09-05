@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import re
@@ -76,6 +77,11 @@ def _validate_request(payload: Any) -> tuple[dict[str, Any], dict[str, Any]]:
     native_config = payload.get("nativeConfig") or payload.get("native_config") or {}
     if not isinstance(native_config, Mapping) or not _safe_native_config(native_config):
         raise ValueError("invalid_native_config")
+    native_config = dict(native_config)
+    # Checkpointing remains native upstream behavior, but is enabled by default
+    # in this asynchronous product surface so an interrupted full graph can be
+    # resumed instead of replaying completed agent work.
+    native_config.setdefault("checkpoint_enabled", True)
     requested_analysts = payload.get("selectedAnalysts") or payload.get("selected_analysts") or FULL_ANALYST_SELECTION
     if tuple(requested_analysts) != FULL_ANALYST_SELECTION:
         raise ValueError("full_upstream_analyst_selection_required")
@@ -87,7 +93,7 @@ def _validate_request(payload: Any) -> tuple[dict[str, Any], dict[str, Any]]:
         "evidence_ref": str(payload.get("evidenceRef") or payload.get("evidence_ref") or "")[:160],
     }
     config_record = {
-        "native_config": dict(native_config),
+        "native_config": native_config,
         "selected_analysts": list(FULL_ANALYST_SELECTION),
     }
     return request_record, config_record
@@ -215,8 +221,8 @@ def resume_run(run_id: str):
     record = repository.get_owned_run(user_id=_user_id(), run_id=run_id)
     if record is None:
         return _fail("trading_agents_run_not_found", 404)
-    if str(record.get("status")) == "succeeded":
-        return _fail("trading_agents_run_already_completed", 409)
+    if str(record.get("status")) not in {"failed", "cancelled"}:
+        return _fail("trading_agents_run_not_resumable", 409)
     repository.transition_run(run_id=run_id, status="queued")
     enqueue_trading_agents_control(run_id, "resume")
     return _ok({"run_id": run_id, "status": "queued"}, status=202)
@@ -229,7 +235,10 @@ def cancel_run(run_id: str):
     record = repository.get_owned_run(user_id=_user_id(), run_id=run_id)
     if record is None:
         return _fail("trading_agents_run_not_found", 404)
-    if str(record.get("status")) != "cancelled":
+    status = str(record.get("status"))
+    if status in {"succeeded", "failed"}:
+        return _fail("trading_agents_run_already_completed", 409)
+    if status != "cancelled":
         repository.transition_run(run_id=run_id, status="cancelled")
         enqueue_trading_agents_control(run_id, "cancel")
     return _ok({"run_id": run_id, "status": "cancelled"}, status=202)
@@ -238,8 +247,11 @@ def cancel_run(run_id: str):
 @trading_agents_blp.route("/runs/<string:run_id>/clear-checkpoint", methods=["POST"])
 @login_required
 def clear_checkpoint(run_id: str):
-    if get_repository().get_owned_run(user_id=_user_id(), run_id=run_id) is None:
+    record = get_repository().get_owned_run(user_id=_user_id(), run_id=run_id)
+    if record is None:
         return _fail("trading_agents_run_not_found", 404)
+    if str(record.get("status")) in {"queued", "running"}:
+        return _fail("trading_agents_run_active", 409)
     enqueue_trading_agents_control(run_id, "clear-checkpoint")
     return _ok({"run_id": run_id, "checkpoint": "clear_requested"}, status=202)
 
@@ -254,8 +266,15 @@ def get_artifact(run_id: str, artifact_name: str):
     if artifact is None:
         return _fail("trading_agents_artifact_not_found", 404)
     try:
-        content, content_type = fetch_artifact_from_service(run_id=run_id, artifact_name=artifact_name)
+        content, content_type = fetch_artifact_from_service(
+            user_id=int(record["user_id"]),
+            run_id=run_id,
+            artifact_name=artifact_name,
+        )
     except TradingAgentsServiceUnavailable:
+        return _fail("trading_agents_artifact_unavailable", 503)
+    expected_sha256 = str(artifact.get("sha256") or "").lower()
+    if len(expected_sha256) != 64 or hashlib.sha256(content).hexdigest() != expected_sha256:
         return _fail("trading_agents_artifact_unavailable", 503)
     return Response(content, content_type=content_type)
 

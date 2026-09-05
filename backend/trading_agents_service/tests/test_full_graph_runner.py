@@ -9,7 +9,9 @@ SERVICE_ROOT = Path(__file__).resolve().parents[1]
 if str(SERVICE_ROOT) not in sys.path:
     sys.path.insert(0, str(SERVICE_ROOT))
 
-from app.runner import FULL_UPSTREAM_ROLES, TradingAgentsRunRequest, run_full_graph
+import pytest
+
+from app.runner import FULL_UPSTREAM_ROLES, RunCancelled, TradingAgentsRunRequest, run_full_graph
 
 
 class _FakePropagator:
@@ -148,3 +150,38 @@ def test_full_run_uses_native_asset_mode_roles_and_lifecycle(tmp_path: Path) -> 
     assert result.tool_events == ()
     assert result.artifact.path.name == "complete_report.md"
     assert result.artifact.sha256
+
+
+def test_cancellation_keeps_native_checkpoint_and_does_not_write_report(tmp_path: Path) -> None:
+    created: list[_FakeUpstreamGraph] = []
+
+    def graph_factory(**kwargs: Any) -> _FakeUpstreamGraph:
+        graph = _FakeUpstreamGraph(**kwargs)
+        created.append(graph)
+        return graph
+
+    checks = iter((False, True))
+    request = TradingAgentsRunRequest(
+        run_id="run-123",
+        user_id="user-a",
+        ticker="BTC-USD",
+        asset_type="crypto",
+        analysis_date="2026-09-05",
+        native_config={"checkpoint_enabled": True},
+    )
+
+    with pytest.raises(RunCancelled):
+        run_full_graph(
+            request,
+            state_root=tmp_path,
+            graph_factory=graph_factory,
+            should_cancel=lambda: next(checks),
+        )
+
+    assert created[0].calls == [
+        "resolve_instrument_context",
+        "begin_checkpoint",
+        "checkpoint_input",
+        "stream",
+        "end_checkpoint",
+    ]

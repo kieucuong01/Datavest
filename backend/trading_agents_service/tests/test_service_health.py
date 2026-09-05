@@ -34,5 +34,4 @@ def test_health_is_private_and_does_not_expose_credentials() -> None:
     assert health.endpoint() == {
         "status": "ok",
         "service": "trading-agents",
-        "stateRoot": "/var/lib/tradingagents",
     }

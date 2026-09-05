@@ -16,11 +16,13 @@ from typing import Any, Mapping
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
-from fastapi import FastAPI, HTTPException, Request as FastAPIRequest
+from fastapi import FastAPI, HTTPException, Request as FastAPIRequest, Response
 
 from .config import Settings, load_settings
 from .instruments import resolve_instrument
-from .runner import TradingAgentsRunRequest, run_full_graph
+from .reporting import ReportArtifactError, read_native_report
+from .runner import RunCancelled, TradingAgentsRunRequest, clear_native_checkpoint, run_full_graph
+from .state import resolve_user_state
 
 
 _REQUEST_TIMESTAMP_HEADER = "x-datavest-trading-agents-request-timestamp"
@@ -32,7 +34,6 @@ _MAX_AGE_SECONDS = 300
 
 @dataclass
 class _ActiveRun:
-    request: dict[str, Any]
     cancelled: threading.Event
 
 
@@ -110,16 +111,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     active_runs: dict[str, _ActiveRun] = {}
     active_lock = threading.Lock()
 
-    @app.get("/internal/health", include_in_schema=False)
-    def health() -> dict[str, str]:
-        return {
-            "status": "ok",
-            "service": "trading-agents",
-            "stateRoot": str(runtime_settings.state_root),
-        }
-
-    @app.post("/internal/runs", include_in_schema=False, status_code=202)
-    async def start_run(request: FastAPIRequest) -> dict[str, Any]:
+    async def verified_payload(request: FastAPIRequest) -> dict[str, Any]:
         body = await request.body()
         _verify_private_request(runtime_settings, request, body)
         try:
@@ -128,14 +120,23 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             raise HTTPException(status_code=422, detail="invalid_request") from exc
         if not isinstance(payload, dict):
             raise HTTPException(status_code=422, detail="invalid_request")
+        return payload
+
+    def graph_request_for(payload: Mapping[str, Any], *, expected_run_id: str | None = None) -> TradingAgentsRunRequest:
         try:
             graph_request = _run_payload(payload)
         except ValueError as exc:
             raise HTTPException(status_code=422, detail="invalid_request") from exc
+        if expected_run_id is not None and graph_request.run_id != expected_run_id:
+            raise HTTPException(status_code=422, detail="invalid_request")
+        return graph_request
+
+    def submit(graph_request: TradingAgentsRunRequest) -> bool:
         with active_lock:
             if graph_request.run_id in active_runs:
-                return {"accepted": True, "run_id": graph_request.run_id}
-            active_runs[graph_request.run_id] = _ActiveRun(request=dict(payload), cancelled=threading.Event())
+                return False
+            active = _ActiveRun(cancelled=threading.Event())
+            active_runs[graph_request.run_id] = active
 
         def execute() -> None:
             sequence = 0
@@ -155,6 +156,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     graph_request,
                     state_root=runtime_settings.state_root,
                     on_event=lambda event: publish(event.kind, event.payload),
+                    should_cancel=active.cancelled.is_set,
                 )
                 for tool_event in result.tool_events:
                     publish("tool", tool_event.__dict__)
@@ -166,13 +168,82 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     "content_type": "text/markdown",
                 })
                 publish("run_status", {"status": "succeeded"})
+            except RunCancelled:
+                publish("run_status", {"status": "cancelled"})
             except Exception:
                 publish("run_status", {"status": "failed", "failure_code": "runner_failed"})
             finally:
                 with active_lock:
-                    active_runs.pop(graph_request.run_id, None)
+                    if active_runs.get(graph_request.run_id) is active:
+                        active_runs.pop(graph_request.run_id, None)
 
         threading.Thread(target=execute, name=f"trading-agents-{graph_request.run_id[:12]}", daemon=True).start()
+        return True
+
+    @app.get("/internal/health", include_in_schema=False)
+    def health() -> dict[str, str]:
+        return {
+            "status": "ok",
+            "service": "trading-agents",
+        }
+
+    @app.post("/internal/runs", include_in_schema=False, status_code=202)
+    async def start_run(request: FastAPIRequest) -> dict[str, Any]:
+        payload = await verified_payload(request)
+        graph_request = graph_request_for(payload)
+        submit(graph_request)
         return {"accepted": True, "run_id": graph_request.run_id}
+
+    @app.post("/internal/runs/{run_id}/resume", include_in_schema=False, status_code=202)
+    async def resume_run(run_id: str, request: FastAPIRequest) -> dict[str, Any]:
+        payload = await verified_payload(request)
+        graph_request = graph_request_for(payload, expected_run_id=run_id)
+        accepted = submit(graph_request)
+        return {
+            "accepted": True,
+            "run_id": graph_request.run_id,
+            "status": "resuming" if accepted else "already_running",
+        }
+
+    @app.post("/internal/runs/{run_id}/cancel", include_in_schema=False, status_code=202)
+    async def cancel_run(run_id: str, request: FastAPIRequest) -> dict[str, Any]:
+        payload = await verified_payload(request)
+        graph_request = graph_request_for(payload, expected_run_id=run_id)
+        with active_lock:
+            active = active_runs.get(graph_request.run_id)
+            if active is not None:
+                active.cancelled.set()
+        return {
+            "accepted": True,
+            "run_id": graph_request.run_id,
+            "status": "cancellation_requested" if active is not None else "not_running",
+        }
+
+    @app.post("/internal/runs/{run_id}/clear-checkpoint", include_in_schema=False, status_code=202)
+    async def clear_checkpoint(run_id: str, request: FastAPIRequest) -> dict[str, Any]:
+        payload = await verified_payload(request)
+        graph_request = graph_request_for(payload, expected_run_id=run_id)
+        with active_lock:
+            if graph_request.run_id in active_runs:
+                raise HTTPException(status_code=409, detail="run_active")
+        clear_native_checkpoint(graph_request, state_root=runtime_settings.state_root)
+        return {"accepted": True, "run_id": graph_request.run_id, "status": "checkpoint_cleared"}
+
+    @app.post("/internal/artifacts", include_in_schema=False)
+    async def read_artifact(request: FastAPIRequest) -> Response:
+        payload = await verified_payload(request)
+        try:
+            user_id = str(payload.get("user_id") or "")
+            run_id = str(payload.get("run_id") or "")
+            artifact_name = str(payload.get("artifact_name") or "")
+            paths = resolve_user_state(runtime_settings.state_root, user_id)
+            content, content_type = read_native_report(
+                paths=paths,
+                run_id=run_id,
+                artifact_name=artifact_name,
+            )
+        except (ValueError, ReportArtifactError) as exc:
+            raise HTTPException(status_code=422, detail="artifact_unavailable") from exc
+        return Response(content, media_type=content_type)
 
     return app
