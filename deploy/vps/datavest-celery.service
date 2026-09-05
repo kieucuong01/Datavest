@@ -9,7 +9,7 @@ EnvironmentFile=/opt/datavest/shared/.env
 Environment=PYTHONUNBUFFERED=1
 Environment=OPENBLAS_NUM_THREADS=1
 Environment=OMP_NUM_THREADS=1
-ExecStart=/opt/datavest/current/.venv/bin/celery -A app.celery_app:celery_app worker --loglevel=WARNING -Q jobs,ai,maintenance --concurrency=1
+ExecStart=/opt/datavest/current/.venv/bin/celery -A app.celery_app:celery_app worker --loglevel=WARNING -Q jobs,ai,maintenance,trading-agents --concurrency=1
 Restart=on-failure
 RestartSec=8
 TimeoutStopSec=60

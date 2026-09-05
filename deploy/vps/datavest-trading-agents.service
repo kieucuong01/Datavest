@@ -1,0 +1,28 @@
+[Unit]
+Description=DataVest private TradingAgents research runtime
+After=network-online.target datavest-api.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/datavest/current/backend/trading_agents_service
+EnvironmentFile=/opt/datavest/shared/.env
+Environment=PYTHONUNBUFFERED=1
+Environment=TZ=Asia/Ho_Chi_Minh
+ExecStart=/opt/datavest/shared/trading-agents-venv/bin/uvicorn app.main:create_app --factory --host 127.0.0.1 --port 8080 --no-access-log
+Restart=on-failure
+RestartSec=12
+TimeoutStopSec=75
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/datavest/shared/data/trading-agents
+RestrictSUIDSGID=true
+LockPersonality=true
+MemoryMax=2G
+CPUQuota=150%
+TasksMax=256
+
+[Install]
+WantedBy=default.target
