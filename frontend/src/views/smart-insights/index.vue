@@ -106,6 +106,7 @@
         @refresh="retrySection('opinions')"
         @open-analysis="openAssetAnalysis"
         @open-ai-assistant="openAiAssistant"
+        @open-deep-analysis="openDeepAnalysis"
       />
 
       <economic-calendar-table
@@ -125,6 +126,14 @@
         :loading="pulseLoading"
         :crypto-ready="cryptoTerminalsReady"
         @open-evidence="openEvidence"
+      />
+
+      <deep-analysis-panel
+        :visible="deepAnalysisVisible"
+        :target="deepAnalysisTarget"
+        :analysis-date="asOf || ''"
+        :dark="isDarkTheme"
+        @close="closeDeepAnalysis"
       />
     </main>
 
@@ -323,10 +332,11 @@ import { isCurrentRequest as isCurrentRequestToken, summarizeReadiness, vietnamT
 import AssetOpinionsSection from './components/AssetOpinionsSection'
 import EconomicCalendarTable from './components/EconomicCalendarTable'
 import MarketPulseSection from './components/MarketPulseSection'
+import DeepAnalysisPanel from '@/components/TradingAgents/DeepAnalysisPanel'
 
 export default {
   name: 'SmartInsights',
-  components: { AssetOpinionsSection, EconomicCalendarTable, MarketPulseSection },
+  components: { AssetOpinionsSection, EconomicCalendarTable, MarketPulseSection, DeepAnalysisPanel },
   data () {
     return {
       asOf: undefined,
@@ -356,6 +366,8 @@ export default {
       evidenceLoading: false,
       evidenceVisible: false,
       analysisModalVisible: false,
+      deepAnalysisVisible: false,
+      deepAnalysisTarget: null,
       healthVisible: false,
       requestSequence: 0,
       smartInsightsCache: {
@@ -757,6 +769,16 @@ export default {
     },
     openAiAssistant (row) {
       this.$router.push({ path: '/ai-asset-analysis', query: { market: row.market, symbol: row.displaySymbol, action: 'analyze' } })
+    },
+    openDeepAnalysis (row) {
+      this.deepAnalysisTarget = {
+        market: row && row.market,
+        symbol: row && (row.displaySymbol || row.symbol)
+      }
+      this.deepAnalysisVisible = true
+    },
+    closeDeepAnalysis () {
+      this.deepAnalysisVisible = false
     },
     closeAssetAnalysis () {
       this.analysisModalVisible = false
