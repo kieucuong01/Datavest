@@ -143,6 +143,10 @@ def _resolve_supported_markets_scope_sql_path() -> Path:
     return Path(__file__).resolve().parent.parent.parent / 'migrations' / '20260827_supported_markets_scope.sql'
 
 
+def _resolve_trading_agents_sql_path() -> Path:
+    return Path(__file__).resolve().parent.parent.parent / 'migrations' / '20260905_trading_agents.sql'
+
+
 def _apply_init_sql(logger, *, strict: bool = False):
     """Run ``migrations/init.sql`` idempotently.
 
@@ -200,6 +204,9 @@ def _apply_init_sql(logger, *, strict: bool = False):
         supported_markets_scope_sql = _resolve_supported_markets_scope_sql_path()
         if supported_markets_scope_sql.exists():
             sql_parts.append(supported_markets_scope_sql.read_text(encoding='utf-8'))
+        trading_agents_sql = _resolve_trading_agents_sql_path()
+        if trading_agents_sql.exists():
+            sql_parts.append(trading_agents_sql.read_text(encoding='utf-8'))
         sql_text = "\n\n".join(sql_parts)
         with get_db_connection() as conn:
             cur = conn.cursor()
@@ -233,6 +240,8 @@ def _apply_init_sql(logger, *, strict: bool = False):
             total_size += production_account_import_sql.stat().st_size
         if supported_markets_scope_sql.exists():
             total_size += supported_markets_scope_sql.stat().st_size
+        if trading_agents_sql.exists():
+            total_size += trading_agents_sql.stat().st_size
         logger.info("Applied migrations seed SQL (%d bytes)", total_size)
     except Exception as exc:
         if strict:
