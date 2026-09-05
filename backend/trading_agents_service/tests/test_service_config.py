@@ -15,6 +15,8 @@ from app.config import ConfigurationError, load_settings
 
 def _set_required_environment(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("DATAVEST_TRADING_AGENTS_CALLBACK_SECRET", "test-callback-secret")
+    monkeypatch.setenv("DATAVEST_TRADING_AGENTS_SERVICE_SECRET", "test-service-secret")
+    monkeypatch.setenv("DATAVEST_TRADING_AGENTS_CALLBACK_URL", "http://backend:5000/api/internal/trading-agents/callback")
     monkeypatch.setenv("DATAVEST_TRADING_AGENTS_STATE_ROOT", "/var/lib/tradingagents")
 
 
@@ -23,6 +25,16 @@ def test_service_rejects_missing_callback_secret(monkeypatch: pytest.MonkeyPatch
     monkeypatch.setenv("DATAVEST_TRADING_AGENTS_STATE_ROOT", "/var/lib/tradingagents")
 
     with pytest.raises(ConfigurationError, match="DATAVEST_TRADING_AGENTS_CALLBACK_SECRET"):
+        load_settings()
+
+
+def test_service_rejects_missing_private_request_secret(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("DATAVEST_TRADING_AGENTS_CALLBACK_SECRET", "test-callback-secret")
+    monkeypatch.delenv("DATAVEST_TRADING_AGENTS_SERVICE_SECRET", raising=False)
+    monkeypatch.setenv("DATAVEST_TRADING_AGENTS_CALLBACK_URL", "http://backend:5000/api/internal/trading-agents/callback")
+    monkeypatch.setenv("DATAVEST_TRADING_AGENTS_STATE_ROOT", "/var/lib/tradingagents")
+
+    with pytest.raises(ConfigurationError, match="DATAVEST_TRADING_AGENTS_SERVICE_SECRET"):
         load_settings()
 
 
@@ -40,6 +52,8 @@ def test_service_preserves_upstream_provider_config(monkeypatch: pytest.MonkeyPa
 
 def test_service_rejects_relative_state_root(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("DATAVEST_TRADING_AGENTS_CALLBACK_SECRET", "test-callback-secret")
+    monkeypatch.setenv("DATAVEST_TRADING_AGENTS_SERVICE_SECRET", "test-service-secret")
+    monkeypatch.setenv("DATAVEST_TRADING_AGENTS_CALLBACK_URL", "http://backend:5000/api/internal/trading-agents/callback")
     monkeypatch.setenv("DATAVEST_TRADING_AGENTS_STATE_ROOT", "state")
 
     with pytest.raises(ConfigurationError, match="absolute"):

@@ -16,6 +16,8 @@ class ConfigurationError(ValueError):
 @dataclass(frozen=True)
 class Settings:
     callback_secret: str
+    service_secret: str
+    callback_url: str
     state_root: PurePosixPath
     upstream_env: Mapping[str, str]
     host: str
@@ -49,6 +51,13 @@ def _state_root(environment: Mapping[str, str]) -> PurePosixPath:
     return root
 
 
+def _callback_url(environment: Mapping[str, str]) -> str:
+    value = _required(environment, "DATAVEST_TRADING_AGENTS_CALLBACK_URL")
+    if not value.startswith(("http://", "https://")) or "@" in value:
+        raise ConfigurationError("DATAVEST_TRADING_AGENTS_CALLBACK_URL must be an internal HTTP URL")
+    return value
+
+
 def _upstream_environment(environment: Mapping[str, str]) -> Mapping[str, str]:
     """Forward native upstream and DeepSeek environment keys without mutation."""
 
@@ -67,6 +76,8 @@ def load_settings(environment: Mapping[str, str] | None = None) -> Settings:
     source = os.environ if environment is None else environment
     return Settings(
         callback_secret=_required(source, "DATAVEST_TRADING_AGENTS_CALLBACK_SECRET"),
+        service_secret=_required(source, "DATAVEST_TRADING_AGENTS_SERVICE_SECRET"),
+        callback_url=_callback_url(source),
         state_root=_state_root(source),
         upstream_env=_upstream_environment(source),
         host=source.get("DATAVEST_TRADING_AGENTS_HOST", "0.0.0.0"),

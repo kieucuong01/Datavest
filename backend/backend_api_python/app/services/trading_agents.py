@@ -95,6 +95,22 @@ class TradingAgentsCallbackService:
             event_type=event_type,
             payload=redact_callback_payload(payload),
         )
+        if event_type == "artifact":
+            self._repository.store_artifact(
+                run_id=run_id,
+                artifact_name=str(payload.get("artifact_name") or ""),
+                storage_path=str(payload.get("storage_path") or ""),
+                sha256=str(payload.get("sha256") or ""),
+                byte_size=payload.get("byte_size", -1),
+                content_type=str(payload.get("content_type") or "text/markdown"),
+            )
+        elif event_type == "run_status":
+            self._repository.transition_run(
+                run_id=run_id,
+                status=str(payload.get("status") or ""),
+                failure_code=str(payload.get("failure_code") or "") or None,
+                failure_message=str(payload.get("failure_message") or "") or None,
+            )
 
     def _verify_signature(self, *, timestamp: str, signature: str, body: bytes) -> None:
         try:

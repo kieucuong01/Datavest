@@ -17,6 +17,8 @@ def test_health_is_private_and_does_not_expose_credentials() -> None:
     app = create_app(
         Settings(
             callback_secret="internal-only",
+            service_secret="private-service-only",
+            callback_url="http://backend:5000/api/internal/trading-agents/callback",
             state_root=PurePosixPath("/var/lib/tradingagents"),
             upstream_env=MappingProxyType({"DEEPSEEK_API_KEY": "must-not-leak"}),
             host="0.0.0.0",

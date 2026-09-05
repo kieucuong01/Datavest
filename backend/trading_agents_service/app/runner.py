@@ -57,6 +57,7 @@ class TradingAgentsRunResult:
 
 
 GraphFactory = Callable[..., Any]
+EventSink = Callable[[RunEvent], None]
 
 
 def _validate_request(request: TradingAgentsRunRequest) -> None:
@@ -151,6 +152,7 @@ def run_full_graph(
     *,
     state_root: str | Path,
     graph_factory: GraphFactory | None = None,
+    on_event: EventSink | None = None,
 ) -> TradingAgentsRunResult:
     """Run every upstream role without replacing agent prompts, nodes or tools."""
 
@@ -192,7 +194,10 @@ def run_full_graph(
             start=1,
         ):
             chunks.append(chunk)
-            events.append(event_from_chunk(request.run_id, sequence, chunk))
+            event = event_from_chunk(request.run_id, sequence, chunk)
+            events.append(event)
+            if on_event is not None:
+                on_event(event)
 
         graph.clear_checkpoint_on_success(
             request.ticker,
