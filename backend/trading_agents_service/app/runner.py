@@ -11,6 +11,7 @@ from typing import Any
 from .events import RunEvent, event_from_chunk
 from .reporting import RunArtifact, save_native_report
 from .state import UserStatePaths, require_safe_identifier, resolve_user_state
+from .upstream_config import NativeToolEvent, NativeToolObserver
 
 
 FULL_ANALYST_SELECTION = ("market", "social", "news", "fundamentals")
@@ -49,6 +50,7 @@ class TradingAgentsRunRequest:
 @dataclass(frozen=True)
 class TradingAgentsRunResult:
     events: tuple[RunEvent, ...]
+    tool_events: tuple[NativeToolEvent, ...]
     artifact: RunArtifact
     executed_roles: tuple[str, ...]
     final_state: dict[str, Any]
@@ -77,10 +79,45 @@ def _validate_request(request: TradingAgentsRunRequest) -> None:
         raise RunRequestError("native_config must be a mapping")
 
 
-def _default_graph_factory(*, selected_analysts: tuple[str, ...], config: dict[str, Any]) -> Any:
+def _default_graph_factory(
+    *,
+    selected_analysts: tuple[str, ...],
+    config: dict[str, Any],
+    callbacks: list[Any],
+) -> Any:
     from tradingagents.graph.trading_graph import TradingAgentsGraph
 
-    return TradingAgentsGraph(selected_analysts=selected_analysts, config=config)
+    return TradingAgentsGraph(
+        selected_analysts=selected_analysts,
+        config=config,
+        callbacks=callbacks,
+    )
+
+
+def _effective_analysts(asset_type: str) -> tuple[str, ...]:
+    """Use TradingAgents' own asset-mode filter instead of a DataVest variant."""
+
+    from cli.models import AnalystType, AssetType
+    from cli.utils import filter_analysts_for_asset_type
+
+    analysts = [
+        AnalystType.MARKET,
+        AnalystType.SOCIAL,
+        AnalystType.NEWS,
+        AnalystType.FUNDAMENTALS,
+    ]
+    return tuple(
+        analyst.value
+        for analyst in filter_analysts_for_asset_type(analysts, AssetType(asset_type))
+    )
+
+
+def _executed_roles(selected_analysts: tuple[str, ...]) -> tuple[str, ...]:
+    return tuple(
+        role
+        for role in FULL_UPSTREAM_ROLES
+        if role != "fundamentals" or "fundamentals" in selected_analysts
+    )
 
 
 def _native_config(request: TradingAgentsRunRequest, paths: UserStatePaths) -> dict[str, Any]:
@@ -120,9 +157,14 @@ def run_full_graph(
     _validate_request(request)
     paths = resolve_user_state(state_root, request.user_id)
     paths.create_directories()
+    native_config = _native_config(request, paths)
+    tool_observer = NativeToolObserver(native_config)
+    callbacks = [tool_observer]
+    selected_analysts = _effective_analysts(request.asset_type)
     graph = (graph_factory or _default_graph_factory)(
-        selected_analysts=FULL_ANALYST_SELECTION,
-        config=_native_config(request, paths),
+        selected_analysts=selected_analysts,
+        config=native_config,
+        callbacks=callbacks,
     )
 
     instrument_context = graph.resolve_instrument_context(request.ticker, request.asset_type)
@@ -132,7 +174,7 @@ def run_full_graph(
         asset_type=request.asset_type,
         instrument_context=instrument_context,
     )
-    graph_args = graph.propagator.get_graph_args()
+    graph_args = graph.propagator.get_graph_args(callbacks=callbacks)
     chunks: list[Mapping[str, Any]] = []
     events: list[RunEvent] = []
 
@@ -170,7 +212,8 @@ def run_full_graph(
     )
     return TradingAgentsRunResult(
         events=tuple(events),
+        tool_events=tool_observer.events(),
         artifact=artifact,
-        executed_roles=FULL_UPSTREAM_ROLES,
+        executed_roles=_executed_roles(selected_analysts),
         final_state=final_state,
     )

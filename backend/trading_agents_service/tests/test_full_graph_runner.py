@@ -13,6 +13,9 @@ from app.runner import FULL_UPSTREAM_ROLES, TradingAgentsRunRequest, run_full_gr
 
 
 class _FakePropagator:
+    def __init__(self, owner: "_FakeUpstreamGraph") -> None:
+        self._owner = owner
+
     def create_initial_state(
         self,
         ticker: str,
@@ -28,8 +31,11 @@ class _FakePropagator:
             "instrument_context": instrument_context,
         }
 
-    def get_graph_args(self) -> dict[str, Any]:
-        return {"stream_mode": "values", "config": {"recursion_limit": 100}}
+    def get_graph_args(self, callbacks: list[Any] | None = None) -> dict[str, Any]:
+        config: dict[str, Any] = {"recursion_limit": 100}
+        if callbacks:
+            config["callbacks"] = callbacks
+        return {"stream_mode": "values", "config": config}
 
 
 class _FakeCompiledGraph:
@@ -48,13 +54,20 @@ class _FakeCompiledGraph:
 
 
 class _FakeUpstreamGraph:
-    def __init__(self, *, selected_analysts: tuple[str, ...], config: dict[str, Any]) -> None:
+    def __init__(
+        self,
+        *,
+        selected_analysts: tuple[str, ...],
+        config: dict[str, Any],
+        callbacks: list[Any],
+    ) -> None:
         self.selected_analysts = selected_analysts
         self.config = config
+        self.callbacks = callbacks
         self.calls: list[str] = []
         self.graph_input: dict[str, str] | None = None
         self.graph_args: dict[str, Any] | None = None
-        self.propagator = _FakePropagator()
+        self.propagator = _FakePropagator(self)
         self.graph = _FakeCompiledGraph(self)
 
     def resolve_instrument_context(self, ticker: str, asset_type: str) -> str:
@@ -83,11 +96,20 @@ class _FakeUpstreamGraph:
         return report
 
 
-def test_full_run_uses_every_upstream_role_and_native_lifecycle(tmp_path: Path) -> None:
+def test_full_run_uses_native_asset_mode_roles_and_lifecycle(tmp_path: Path) -> None:
     created: list[_FakeUpstreamGraph] = []
 
-    def graph_factory(*, selected_analysts: tuple[str, ...], config: dict[str, Any]) -> _FakeUpstreamGraph:
-        graph = _FakeUpstreamGraph(selected_analysts=selected_analysts, config=config)
+    def graph_factory(
+        *,
+        selected_analysts: tuple[str, ...],
+        config: dict[str, Any],
+        callbacks: list[Any],
+    ) -> _FakeUpstreamGraph:
+        graph = _FakeUpstreamGraph(
+            selected_analysts=selected_analysts,
+            config=config,
+            callbacks=callbacks,
+        )
         created.append(graph)
         return graph
 
@@ -103,15 +125,16 @@ def test_full_run_uses_every_upstream_role_and_native_lifecycle(tmp_path: Path) 
     result = run_full_graph(request, state_root=tmp_path, graph_factory=graph_factory)
 
     graph = created[0]
-    assert set(result.executed_roles) == set(FULL_UPSTREAM_ROLES)
-    assert graph.selected_analysts == ("market", "social", "news", "fundamentals")
+    assert set(result.executed_roles) == set(FULL_UPSTREAM_ROLES) - {"fundamentals"}
+    assert graph.selected_analysts == ("market", "social", "news")
     assert graph.config["results_dir"].startswith(str(tmp_path))
     assert graph.config["data_cache_dir"].startswith(str(tmp_path))
     assert graph.config["memory_log_path"].startswith(str(tmp_path))
-    assert graph.graph_args == {
-        "stream_mode": "values",
-        "config": {"recursion_limit": 100, "configurable": {"thread_id": "checkpoint-thread"}},
-    }
+    assert len(graph.callbacks) == 1
+    assert graph.graph_args["stream_mode"] == "values"
+    assert graph.graph_args["config"]["recursion_limit"] == 100
+    assert graph.graph_args["config"]["callbacks"] == graph.callbacks
+    assert graph.graph_args["config"]["configurable"] == {"thread_id": "checkpoint-thread"}
     assert graph.calls == [
         "resolve_instrument_context",
         "begin_checkpoint",
@@ -122,5 +145,6 @@ def test_full_run_uses_every_upstream_role_and_native_lifecycle(tmp_path: Path) 
         "save_reports",
     ]
     assert [event.sequence for event in result.events] == [1, 2]
+    assert result.tool_events == ()
     assert result.artifact.path.name == "complete_report.md"
     assert result.artifact.sha256
