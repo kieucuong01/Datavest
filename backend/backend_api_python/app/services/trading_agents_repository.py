@@ -242,6 +242,31 @@ class TradingAgentsRepository:
             finally:
                 cur.close()
 
+    def get_run_for_worker(self, *, run_id: str) -> dict[str, Any] | None:
+        """Load one durable run for a trusted Celery worker only.
+
+        Human routes must use :meth:`get_owned_run`; this method deliberately
+        stays in the private task boundary where there is no caller-supplied
+        user identity to authorize.
+        """
+        clean_run_id = self._validate_run_id(run_id)
+        with get_db_connection() as db:
+            cur = db.cursor()
+            try:
+                cur.execute(
+                    """
+                    SELECT run_id, user_id, status, request_json, config_json, config_checksum, source_pin,
+                           failure_code, failure_message, created_at, started_at, finished_at
+                    FROM trading_agents_runs
+                    WHERE run_id = ?
+                    """,
+                    (clean_run_id,),
+                )
+                row = cur.fetchone()
+                return dict(row) if row else None
+            finally:
+                cur.close()
+
     @staticmethod
     def _validate_run_id(value: str) -> str:
         clean_value = str(value or "").strip()

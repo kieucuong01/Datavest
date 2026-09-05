@@ -62,6 +62,7 @@ celery_app.conf.update(
         "app.tasks.fast_analysis",
         "app.tasks.maintenance",
         "app.tasks.smart_insights",
+        "app.tasks.trading_agents",
     ),
     task_routes={
         "quantdinger.tasks.fast_analysis": {"queue": "ai"},
@@ -75,6 +76,8 @@ celery_app.conf.update(
         "datavest.tasks.enqueue_smart_insights_refresh": {"queue": "maintenance"},
         "datavest.tasks.enqueue_smart_insights_refresh_for_sources": {"queue": "maintenance"},
         "datavest.tasks.run_daily_watchlist_ai_analysis": {"queue": "ai"},
+        "datavest.tasks.trading_agents_run": {"queue": "trading-agents"},
+        "datavest.tasks.trading_agents_control": {"queue": "trading-agents"},
     },
     beat_schedule={
         "reflection-cycle": {

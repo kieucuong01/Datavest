@@ -17,6 +17,7 @@ FAST_ANALYSIS = "FastAnalysis"
 GLOBAL_MARKET = "GlobalMarket"
 AI_CHAT = "AIChat"
 SMART_INSIGHTS = "SmartInsights"
+TRADING_AGENTS = "TradingAgents"
 
 ALL_TAGS = [
     {"name": HEALTH, "description": "Liveness and API metadata (Public)"},
@@ -36,4 +37,5 @@ ALL_TAGS = [
     {"name": GLOBAL_MARKET, "description": "Global market overview (Public)"},
     {"name": AI_CHAT, "description": "Legacy AI chat compatibility (Internal)"},
     {"name": SMART_INSIGHTS, "description": "Source-backed market intelligence (Internal)"},
+    {"name": TRADING_AGENTS, "description": "Full multi-agent research runs (Public)"},
 ]

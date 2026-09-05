@@ -1,0 +1,137 @@
+"""Owner-scoped public TradingAgents gateway contracts."""
+
+from __future__ import annotations
+
+import sys
+import types
+from functools import wraps
+from pathlib import Path
+
+from flask import Blueprint as FlaskBlueprint
+from flask import Flask, g
+
+
+BACKEND_ROOT = Path(__file__).resolve().parents[1]
+
+
+def _install_route_dependencies() -> None:
+    if "app" not in sys.modules:
+        package = types.ModuleType("app")
+        package.__path__ = [str(BACKEND_ROOT / "app")]
+        sys.modules["app"] = package
+    if "app.utils" not in sys.modules:
+        package = types.ModuleType("app.utils")
+        package.__path__ = [str(BACKEND_ROOT / "app" / "utils")]
+        sys.modules["app.utils"] = package
+    if "app.openapi" not in sys.modules:
+        package = types.ModuleType("app.openapi")
+        package.__path__ = [str(BACKEND_ROOT / "app" / "openapi")]
+        sys.modules["app.openapi"] = package
+
+    blueprint_module = types.ModuleType("app.openapi.blueprint")
+    blueprint_module.HumanBlueprint = FlaskBlueprint
+    sys.modules["app.openapi.blueprint"] = blueprint_module
+
+    auth_module = types.ModuleType("app.utils.auth")
+
+    def login_required(function):
+        @wraps(function)
+        def wrapped(*args, **kwargs):
+            g.user_id = 7
+            return function(*args, **kwargs)
+
+        return wrapped
+
+    auth_module.login_required = login_required
+    sys.modules["app.utils.auth"] = auth_module
+
+    tasks_module = types.ModuleType("app.tasks.trading_agents")
+    class TradingAgentsServiceUnavailable(RuntimeError):
+        pass
+
+    tasks_module.TradingAgentsServiceUnavailable = TradingAgentsServiceUnavailable
+    tasks_module.enqueue_trading_agents_run = types.SimpleNamespace(delay=lambda *_args, **_kwargs: None)
+    tasks_module.enqueue_trading_agents_control = types.SimpleNamespace(delay=lambda *_args, **_kwargs: None)
+    tasks_module.fetch_artifact_from_service = lambda **_kwargs: (b"", "text/plain")
+    sys.modules["app.tasks.trading_agents"] = tasks_module
+
+
+def _client(monkeypatch):
+    _install_route_dependencies()
+    sys.modules.pop("app.routes.trading_agents", None)
+    from app.routes import trading_agents as route_module
+
+    app = Flask(__name__)
+    app.register_blueprint(route_module.trading_agents_blp, url_prefix="/api/trading-agents")
+    return app.test_client(), route_module
+
+
+def test_user_cannot_read_another_users_run(monkeypatch):
+    client, route_module = _client(monkeypatch)
+
+    class Repository:
+        def get_owned_run(self, **_kwargs):
+            return None
+
+    monkeypatch.setattr(route_module, "get_repository", lambda: Repository())
+
+    response = client.get("/api/trading-agents/runs/other-users-run")
+
+    assert response.status_code == 404
+    assert response.get_json()["data"] is None
+
+
+def test_run_is_queued_without_exposing_service_secret(monkeypatch):
+    client, route_module = _client(monkeypatch)
+    queued = []
+
+    class Repository:
+        def create_run(self, **kwargs):
+            assert kwargs["user_id"] == 7
+            assert kwargs["request"]["market"] == "Crypto"
+            return {"run_id": "run-123", "status": "queued", "source_pin": kwargs["source_pin"]}
+
+        def transition_run(self, **_kwargs):
+            raise AssertionError("queue should succeed")
+
+    monkeypatch.setenv("DATAVEST_TRADING_AGENTS_SERVICE_SECRET", "must-not-reach-client")
+    monkeypatch.setattr(route_module, "get_repository", lambda: Repository())
+    monkeypatch.setattr(route_module, "enqueue_run", lambda run_id: queued.append(run_id))
+
+    response = client.post(
+        "/api/trading-agents/runs",
+        json={
+            "market": "Crypto",
+            "symbol": "BTC/USDT",
+            "analysisDate": "2026-09-05",
+            "nativeConfig": {"quick_think_llm": "deepseek-chat"},
+        },
+    )
+
+    assert response.status_code == 202
+    assert queued == ["run-123"]
+    assert response.get_json()["data"] == {"run_id": "run-123", "status": "queued"}
+    assert "DATAVEST_TRADING_AGENTS" not in response.get_data(as_text=True)
+    assert "must-not-reach-client" not in response.get_data(as_text=True)
+
+
+def test_cancel_queues_idempotent_control_for_owned_run(monkeypatch):
+    client, route_module = _client(monkeypatch)
+    transitions = []
+    controls = []
+
+    class Repository:
+        def get_owned_run(self, **_kwargs):
+            return {"run_id": "run-123", "status": "running"}
+
+        def transition_run(self, **kwargs):
+            transitions.append(kwargs)
+
+    monkeypatch.setattr(route_module, "get_repository", lambda: Repository())
+    monkeypatch.setattr(route_module, "enqueue_trading_agents_control", lambda run_id, action: controls.append((run_id, action)))
+
+    response = client.post("/api/trading-agents/runs/run-123/cancel")
+
+    assert response.status_code == 202
+    assert transitions == [{"run_id": "run-123", "status": "cancelled"}]
+    assert controls == [("run-123", "cancel")]
