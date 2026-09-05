@@ -35,9 +35,12 @@ try {
 } finally { Pop-Location }
 
 $sourceTar = Join-Path $work 'source.tar'
-git -c "safe.directory=$repo" -C $repo archive --format=tar --output=$sourceTar HEAD backend/backend_api_python
+git -c "safe.directory=$repo" -C $repo archive --format=tar --output=$sourceTar HEAD backend/backend_api_python backend/trading_agents_service backend/third_party/tradingagents
 tar.exe -xf $sourceTar -C $work
 Copy-Item -Path (Join-Path $work 'backend/backend_api_python/*') -Destination (Join-Path $package 'backend') -Recurse -Force
+Copy-Item -LiteralPath (Join-Path $work 'backend/trading_agents_service') -Destination (Join-Path $package 'backend/trading_agents_service') -Recurse -Force
+New-Item -ItemType Directory -Force -Path (Join-Path $package 'backend/third_party') | Out-Null
+Copy-Item -LiteralPath (Join-Path $work 'backend/third_party/tradingagents') -Destination (Join-Path $package 'backend/third_party/tradingagents') -Recurse -Force
 Copy-Item -LiteralPath (Join-Path $repo 'frontend/dist') -Destination (Join-Path $package 'frontend/dist') -Recurse -Force
 Set-Content -LiteralPath (Join-Path $package 'RELEASE_SHA') -Encoding ascii -Value $sha
 tar.exe -czf $archive -C $package .
@@ -47,10 +50,10 @@ $digest = (Get-FileHash -Algorithm SHA256 -LiteralPath $archive).Hash.ToLowerInv
 
 $target = "$($settings.DATAVEST_VPS_USER)@$($settings.DATAVEST_VPS_HOST)"
 $scpArgs = @('-i',$keyPath,'-P',$settings.DATAVEST_VPS_PORT,'-o','BatchMode=yes','-o','IdentitiesOnly=yes','-o','StrictHostKeyChecking=yes')
-scp @scpArgs $archive $checksum (Join-Path $repo 'deploy/vps/deploy.sh') (Join-Path $repo 'deploy/vps/datavest-crypto-insights-browser.service') (Join-Path $repo 'deploy/vps/datavest-trading-agents.service') "${target}:/opt/datavest/incoming/"
+scp @scpArgs $archive $checksum (Join-Path $repo 'deploy/vps/deploy.sh') (Join-Path $repo 'deploy/vps/configure_env.py') (Join-Path $repo 'deploy/vps/datavest-crypto-insights-browser.service') (Join-Path $repo 'deploy/vps/datavest-trading-agents.service') "${target}:/opt/datavest/incoming/"
 if ($LASTEXITCODE) { throw "Upload failed" }
 $sshArgs = @('-i',$keyPath,'-p',$settings.DATAVEST_VPS_PORT,'-o','BatchMode=yes','-o','IdentitiesOnly=yes','-o','StrictHostKeyChecking=yes')
-ssh @sshArgs $target "install -m 0755 /opt/datavest/incoming/deploy.sh /opt/datavest/shared/deploy.sh && install -m 0644 /opt/datavest/incoming/datavest-crypto-insights-browser.service /opt/datavest/shared/datavest-crypto-insights-browser.service && install -m 0644 /opt/datavest/incoming/datavest-trading-agents.service /opt/datavest/shared/datavest-trading-agents.service && /opt/datavest/shared/deploy.sh /opt/datavest/incoming/$(Split-Path -Leaf $archive) $sha"
+ssh @sshArgs $target "install -m 0755 /opt/datavest/incoming/deploy.sh /opt/datavest/shared/deploy.sh && install -m 0755 /opt/datavest/incoming/configure_env.py /opt/datavest/shared/configure_env.py && install -m 0644 /opt/datavest/incoming/datavest-crypto-insights-browser.service /opt/datavest/shared/datavest-crypto-insights-browser.service && install -m 0644 /opt/datavest/incoming/datavest-trading-agents.service /opt/datavest/shared/datavest-trading-agents.service && /opt/datavest/shared/deploy.sh /opt/datavest/incoming/$(Split-Path -Leaf $archive) $sha"
 if ($LASTEXITCODE) { throw "Remote deployment failed" }
 Remove-Item -LiteralPath $archive,$checksum,$work -Recurse -Force
 Write-Host "Deployed $sha to https://$($settings.DATAVEST_DOMAIN)/"

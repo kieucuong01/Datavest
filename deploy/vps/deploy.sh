@@ -28,6 +28,12 @@ sha="$2"
 
 exec 9>"$shared/deploy.lock"
 flock -n 9 || { echo 'deploy_status=already_running' >&2; exit 1; }
+[[ -x "$shared/configure_env.py" ]] || { echo 'deploy_status=environment_configurator_missing' >&2; exit 2; }
+
+# This is deliberately default-only: existing production credentials stay
+# untouched while newly introduced runtime settings are added before services
+# are restarted.
+python3 "$shared/configure_env.py" /dev/null "$env_file" >/dev/null
 cd "$incoming"
 sha256sum --check "$(basename -- "$archive").sha256" >/dev/null
 
