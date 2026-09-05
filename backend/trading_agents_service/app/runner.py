@@ -62,6 +62,7 @@ class TradingAgentsRunResult:
 
 GraphFactory = Callable[..., Any]
 EventSink = Callable[[RunEvent], None]
+ToolProgressSink = Callable[[Mapping[str, Any]], None]
 CancellationCheck = Callable[[], bool]
 
 
@@ -158,6 +159,7 @@ def run_full_graph(
     state_root: str | Path,
     graph_factory: GraphFactory | None = None,
     on_event: EventSink | None = None,
+    on_tool_progress: ToolProgressSink | None = None,
     should_cancel: CancellationCheck | None = None,
 ) -> TradingAgentsRunResult:
     """Run every upstream role without replacing agent prompts, nodes or tools."""
@@ -166,7 +168,7 @@ def run_full_graph(
     paths = resolve_user_state(state_root, request.user_id)
     paths.create_directories()
     native_config = _native_config(request, paths)
-    tool_observer = NativeToolObserver(native_config)
+    tool_observer = NativeToolObserver(native_config, on_progress=on_tool_progress)
     callbacks = [tool_observer]
     selected_analysts = _effective_analysts(request.asset_type)
     graph = (graph_factory or _default_graph_factory)(

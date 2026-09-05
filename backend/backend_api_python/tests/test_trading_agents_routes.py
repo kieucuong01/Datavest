@@ -114,21 +114,78 @@ def test_run_history_is_filtered_to_the_current_owner_asset_and_day(monkeypatch)
         "analysis_date": "2026-09-05",
         "limit": 1,
     }]
-    assert response.get_json()["data"]["runs"] == [{
-        "run_id": "run-123",
-        "status": "succeeded",
-        "market": "Crypto",
-        "symbol": "BTC/USDT",
-        "analysis_date": "2026-09-05",
-        "source_pin": "9dee508",
-        "created_at": None,
-        "started_at": None,
-        "finished_at": None,
-        "failure_code": None,
-        "failure_message": None,
-        "artifacts": [],
-        "proposal": None,
-    }]
+    public_run = response.get_json()["data"]["runs"][0]
+    assert public_run["run_id"] == "run-123"
+    assert public_run["status"] == "succeeded"
+    assert public_run["market"] == "Crypto"
+    assert public_run["symbol"] == "BTC/USDT"
+    assert public_run["analysis_date"] == "2026-09-05"
+    assert public_run["source_pin"] == "9dee508"
+    assert public_run["events"] == []
+    assert public_run["progress"]["percent"] < 100
+
+
+def test_create_reuses_an_exact_active_run_for_repeated_clicks(monkeypatch):
+    client, route_module = _client(monkeypatch)
+    created = []
+
+    class Repository:
+        def get_active_run(self, **kwargs):
+            assert kwargs == {
+                "user_id": 7,
+                "market": "Crypto",
+                "symbol": "BTC/USDT",
+                "analysis_date": "2026-09-05",
+            }
+            return {"run_id": "already-running", "status": "running"}
+
+        def create_run(self, **kwargs):
+            created.append(kwargs)
+            raise AssertionError("an active exact run must be reused")
+
+    monkeypatch.setattr(route_module, "get_repository", lambda: Repository())
+
+    response = client.post(
+        "/api/trading-agents/runs",
+        json={"market": "Crypto", "symbol": "BTC/USDT", "analysisDate": "2026-09-05"},
+    )
+
+    assert response.status_code == 202
+    assert response.get_json()["data"] == {
+        "run_id": "already-running",
+        "status": "running",
+        "reused": True,
+    }
+    assert created == []
+
+
+def test_event_stream_exposes_progress_metadata_without_raw_model_payload(monkeypatch):
+    client, route_module = _client(monkeypatch)
+
+    class Repository:
+        def get_owned_run(self, **_kwargs):
+            return {
+                "run_id": "run-123",
+                "status": "succeeded",
+                "events": [{
+                    "sequence": 1,
+                    "event_type": "upstream_chunk",
+                    "created_at": "2026-09-05T00:00:00+00:00",
+                    "payload_json": {
+                        "stage_id": "market",
+                        "market_report": "private report body",
+                    },
+                }],
+            }
+
+    monkeypatch.setattr(route_module, "get_repository", lambda: Repository())
+
+    response = client.get("/api/trading-agents/runs/run-123/events")
+
+    body = response.get_data(as_text=True)
+    assert response.status_code == 200
+    assert '"stage_id": "market"' in body
+    assert "private report body" not in body
 
 
 def test_run_is_queued_without_exposing_service_secret(monkeypatch):

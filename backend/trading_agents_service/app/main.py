@@ -156,10 +156,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     graph_request,
                     state_root=runtime_settings.state_root,
                     on_event=lambda event: publish(event.kind, event.payload),
+                    on_tool_progress=lambda event: publish(str(event.get("event_type") or "tool"), event),
                     should_cancel=active.cancelled.is_set,
                 )
-                for tool_event in result.tool_events:
-                    publish("tool", tool_event.__dict__)
                 publish("artifact", {
                     "artifact_name": result.artifact.path.name,
                     "storage_path": f"runs/{graph_request.run_id}/{result.artifact.path.name}",

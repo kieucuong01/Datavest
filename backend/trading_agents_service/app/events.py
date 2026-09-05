@@ -11,6 +11,19 @@ from typing import Any
 JsonValue = None | bool | int | float | str | list["JsonValue"] | dict[str, "JsonValue"]
 
 
+_CHUNK_STAGE_KEYS = (
+    ("market_report", "market"),
+    ("sentiment_report", "social"),
+    ("news_report", "news"),
+    ("fundamentals_report", "fundamentals"),
+    ("investment_debate_state", "investment_debate"),
+    ("investment_plan", "research_manager"),
+    ("trader_investment_plan", "trader"),
+    ("risk_debate_state", "risk_debate"),
+    ("final_trade_decision", "portfolio_manager"),
+)
+
+
 @dataclass(frozen=True)
 class RunEvent:
     run_id: str
@@ -35,9 +48,10 @@ def _json_value(value: Any) -> JsonValue:
 
 
 def event_from_chunk(run_id: str, sequence: int, chunk: Mapping[str, Any]) -> RunEvent:
+    stage_id = next((stage for key, stage in _CHUNK_STAGE_KEYS if key in chunk), None)
     return RunEvent(
         run_id=run_id,
         sequence=sequence,
         kind="upstream_chunk",
-        payload={str(key): _json_value(value) for key, value in chunk.items()},
+        payload={"stage_id": stage_id} if stage_id else {},
     )

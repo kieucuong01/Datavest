@@ -508,7 +508,7 @@ export default {
     'smartInsights.pricePosition': 'Vị trí giá trong 20 nến',
     'smartInsights.volume24h': 'Khối lượng 24 giờ',
     'smartInsights.volumeChange24h': 'Biến động khối lượng 24 giờ',
-    'smartInsights.fundingRate': 'Funding rate',
+    'smartInsights.fundingRate': 'Phí tài trợ',
     'smartInsights.openInterest': 'Open Interest',
     'smartInsights.openInterestChange24h': 'Biến động Open Interest 24 giờ',
     'smartInsights.longShortRatio': 'Tỷ lệ Long/Short',

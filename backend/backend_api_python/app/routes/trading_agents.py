@@ -21,6 +21,7 @@ from app.tasks.trading_agents import (
     enqueue_trading_agents_run,
     fetch_artifact_from_service,
 )
+from app.services.trading_agents_progress import build_public_progress, public_event
 from app.utils.auth import login_required
 from app.utils.logger import get_logger
 
@@ -141,6 +142,8 @@ def _public_run(record: Mapping[str, Any]) -> dict[str, Any]:
             request_json = json.loads(request_json)
         except (TypeError, ValueError):
             request_json = {}
+    events = [public_event(event) for event in (record.get("events") or [])]
+    artifacts = record.get("artifacts") or []
     return {
         "run_id": record.get("run_id"),
         "status": record.get("status"),
@@ -153,8 +156,15 @@ def _public_run(record: Mapping[str, Any]) -> dict[str, Any]:
         "finished_at": record.get("finished_at"),
         "failure_code": record.get("failure_code"),
         "failure_message": record.get("failure_message"),
-        "artifacts": record.get("artifacts") or [],
+        "artifacts": artifacts,
         "proposal": record.get("proposal"),
+        "events": events,
+        "progress": build_public_progress(
+            status=str(record.get("status") or "queued"),
+            market=str(request_json.get("market") or ""),
+            events=record.get("events") or [],
+            artifacts=artifacts,
+        ),
     }
 
 
@@ -178,6 +188,19 @@ def create_run():
     try:
         request_record, config_record = _validate_request(request.get_json(silent=True) or {})
         repository = get_repository()
+        find_active = getattr(repository, "get_active_run", None)
+        active = find_active(
+            user_id=_user_id(),
+            market=request_record["market"],
+            symbol=request_record["symbol"],
+            analysis_date=request_record["analysis_date"],
+        ) if callable(find_active) else None
+        if active:
+            return _ok({
+                "run_id": active["run_id"],
+                "status": active.get("status") or "queued",
+                "reused": True,
+            }, status=202)
         run = repository.create_run(
             user_id=_user_id(),
             request=request_record,
@@ -236,7 +259,7 @@ def stream_events(run_id: str):
             for event in record.get("events") or []:
                 sequence = int(event.get("sequence") or 0)
                 if sequence > last_sequence:
-                    yield "event: progress\ndata: {}\n\n".format(json.dumps(event, ensure_ascii=False, default=str))
+                    yield "event: progress\ndata: {}\n\n".format(json.dumps(public_event(event), ensure_ascii=False, default=str))
                     last_sequence = sequence
             status = str(record.get("status") or "queued")
             yield "event: status\ndata: {}\n\n".format(json.dumps({"status": status, "after": last_sequence}))

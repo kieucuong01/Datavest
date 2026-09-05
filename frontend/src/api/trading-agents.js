@@ -4,12 +4,12 @@ export function createTradingAgentsRun (payload) {
   return request({ url: '/api/trading-agents/runs', method: 'post', data: payload, timeout: 30000 })
 }
 
-export function getTradingAgentsRun (runId) {
-  return request({ url: `/api/trading-agents/runs/${encodeURIComponent(runId)}`, method: 'get' })
+export function getTradingAgentsRun (runId, timeout = 30000) {
+  return request({ url: `/api/trading-agents/runs/${encodeURIComponent(runId)}`, method: 'get', timeout })
 }
 
-export function getTradingAgentsRuns (params) {
-  return request({ url: '/api/trading-agents/runs', method: 'get', params })
+export function getTradingAgentsRuns (params, timeout = 8000) {
+  return request({ url: '/api/trading-agents/runs', method: 'get', params, timeout })
 }
 
 export function cancelTradingAgentsRun (runId) {

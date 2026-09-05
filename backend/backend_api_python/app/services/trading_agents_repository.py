@@ -285,6 +285,43 @@ class TradingAgentsRepository:
             finally:
                 cur.close()
 
+    def get_active_run(
+        self,
+        *,
+        user_id: int,
+        market: str,
+        symbol: str,
+        analysis_date: str,
+    ) -> dict[str, Any] | None:
+        """Return an exact queued/running run so repeated clicks are safe."""
+
+        clean_user_id = int(user_id)
+        clean_market = self._validate_short_text(market, "market", 40)
+        clean_symbol = self._validate_short_text(symbol, "symbol", 80)
+        clean_analysis_date = self._validate_short_text(analysis_date, "analysis_date", 10)
+        with get_db_connection() as db:
+            cur = db.cursor()
+            try:
+                cur.execute(
+                    """
+                    SELECT run_id, user_id, status, request_json, config_checksum, source_pin,
+                           failure_code, failure_message, created_at, started_at, finished_at
+                    FROM trading_agents_runs
+                    WHERE user_id = ?
+                      AND status IN ('queued', 'running')
+                      AND request_json->>'market' = ?
+                      AND request_json->>'symbol' = ?
+                      AND request_json->>'analysis_date' = ?
+                    ORDER BY created_at DESC
+                    LIMIT 1
+                    """,
+                    (clean_user_id, clean_market, clean_symbol, clean_analysis_date),
+                )
+                row = cur.fetchone()
+                return dict(row) if row else None
+            finally:
+                cur.close()
+
     def get_run_for_worker(self, *, run_id: str) -> dict[str, Any] | None:
         """Load one durable run for a trusted Celery worker only.
 

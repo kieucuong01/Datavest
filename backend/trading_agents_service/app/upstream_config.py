@@ -7,7 +7,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from threading import Lock
 from time import monotonic
-from typing import Any
+from typing import Any, Callable
 
 from langchain_core.callbacks.base import BaseCallbackHandler
 
@@ -80,9 +80,10 @@ class NativeToolEvent:
 class NativeToolObserver(BaseCallbackHandler):
     """Capture tool provenance without intercepting or replacing upstream tools."""
 
-    def __init__(self, config: Mapping[str, Any]) -> None:
+    def __init__(self, config: Mapping[str, Any], on_progress: Callable[[dict[str, Any]], None] | None = None) -> None:
         super().__init__()
         self._config = dict(config)
+        self._on_progress = on_progress
         self._starts: dict[str, tuple[str, float]] = {}
         self._events: list[NativeToolEvent] = []
         self._lock = Lock()
@@ -96,8 +97,16 @@ class NativeToolObserver(BaseCallbackHandler):
         **_: Any,
     ) -> None:
         tool_name = str(serialized.get("name", "unknown"))
+        category = _category_for_tool(tool_name)
+        vendor_chain = _vendor_chain(self._config, tool_name)
         with self._lock:
             self._starts[str(run_id)] = (tool_name, monotonic())
+        self._emit_progress({
+            "event_type": "tool_started",
+            "tool_name": tool_name[:160],
+            "category": category,
+            "vendor_chain": vendor_chain,
+        })
 
     def on_tool_end(self, output: Any, *, run_id: Any, **_: Any) -> None:
         self._record_completion(str(run_id), _output_text(output), status=None)
@@ -108,16 +117,34 @@ class NativeToolObserver(BaseCallbackHandler):
     def _record_completion(self, run_id: str, output: str, status: str | None) -> None:
         with self._lock:
             tool_name, started_at = self._starts.pop(run_id, ("unknown", monotonic()))
-            self._events.append(
-                NativeToolEvent(
-                    tool_name=tool_name,
-                    category=_category_for_tool(tool_name),
-                    vendor_chain=_vendor_chain(self._config, tool_name),
-                    status=status or _result_status(output),
-                    duration_ms=max(0, round((monotonic() - started_at) * 1000)),
-                    result_checksum=hashlib.sha256(output.encode("utf-8")).hexdigest(),
-                )
+            event = NativeToolEvent(
+                tool_name=tool_name,
+                category=_category_for_tool(tool_name),
+                vendor_chain=_vendor_chain(self._config, tool_name),
+                status=status or _result_status(output),
+                duration_ms=max(0, round((monotonic() - started_at) * 1000)),
+                result_checksum=hashlib.sha256(output.encode("utf-8")).hexdigest(),
             )
+            self._events.append(event)
+        self._emit_progress({
+            "event_type": "tool_completed",
+            "tool_name": event.tool_name[:160],
+            "category": event.category,
+            "vendor_chain": event.vendor_chain,
+            "status": event.status,
+            "duration_ms": event.duration_ms,
+            "result_checksum": event.result_checksum,
+        })
+
+    def _emit_progress(self, payload: dict[str, Any]) -> None:
+        if self._on_progress is None:
+            return
+        try:
+            self._on_progress(payload)
+        except Exception:
+            # Progress is observability only. A callback failure must never
+            # interrupt the native TradingAgents tool or graph.
+            return
 
     def events(self) -> tuple[NativeToolEvent, ...]:
         with self._lock:
