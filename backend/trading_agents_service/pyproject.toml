@@ -1,0 +1,23 @@
+[project]
+name = "datavest-trading-agents-service"
+version = "0.1.0"
+description = "Private DataVest runtime boundary for the vendored TradingAgents graph."
+readme = "README.md"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "fastapi>=0.115,<1.0",
+    "tradingagents==0.4.0",
+    "uvicorn[standard]>=0.30,<1.0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0,<10.0",
+]
+
+[tool.uv.sources]
+tradingagents = { path = "../third_party/tradingagents" }
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra --strict-markers"
