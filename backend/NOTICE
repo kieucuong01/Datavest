@@ -14,3 +14,10 @@ Pinned source commit: 6f9ce97fe4730355c39a72610f5dbda3f05d3db7
 DataVest modifications include removal of live execution and paid marketplace
 services, Smart Insights provenance pipelines, and a paper-only Portfolio
 Optimizer. The original LICENSE and copyright notices remain in this repository.
+
+DataVest also includes an unmodified vendored copy of TradingAgents from
+https://github.com/TauricResearch/TradingAgents at commit
+9dee508c44662702281a8dbaad1f7b42179b5ba7. TradingAgents is Apache-2.0
+licensed; its complete license and provenance are retained at
+backend/third_party/tradingagents/LICENSE and
+backend/third_party/tradingagents/UPSTREAM.md.

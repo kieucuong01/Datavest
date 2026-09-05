@@ -33,3 +33,13 @@ services:
     <<: *locked-backend
     mem_limit: ${CELERY_BEAT_MEMORY_LIMIT:-512m}
     cpus: ${CELERY_BEAT_CPU_LIMIT:-0.5}
+
+  trading-agents:
+    user: "10002:10002"
+    read_only: true
+    cap_drop:
+      - ALL
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=${TRADING_AGENTS_TMPFS_SIZE:-128m}
+    mem_limit: ${TRADING_AGENTS_MEMORY_LIMIT:-2g}
+    cpus: ${TRADING_AGENTS_CPU_LIMIT:-1.5}

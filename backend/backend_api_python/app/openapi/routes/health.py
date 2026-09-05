@@ -1,6 +1,8 @@
 """Health and status routes (OpenAPI-documented via flask-smorest)."""
 import os
 from datetime import datetime, timezone
+from urllib.error import URLError
+from urllib.request import urlopen
 
 import redis
 from flask import Response
@@ -73,6 +75,8 @@ def api_health_check():
 @blp.doc(summary="Readiness check", tags=["Health"], operationId="getReadiness")
 def readiness_check():
     checks = {"postgres": _postgres_ready(), "celery_broker": _celery_broker_ready()}
+    if os.getenv("DATAVEST_TRADING_AGENTS_ENABLED", "").strip().lower() in {"1", "true", "yes", "on"}:
+        checks["trading_agents"] = _trading_agents_ready()
     payload = _health_payload()
     payload["checks"] = checks
     if not all(checks.values()):
@@ -152,3 +156,15 @@ def _celery_broker_ready() -> bool:
     finally:
         if client is not None:
             client.close()
+
+
+def _trading_agents_ready() -> bool:
+    """Probe only the private liveness endpoint; do not expose its config."""
+    base_url = os.getenv("DATAVEST_TRADING_AGENTS_SERVICE_URL", "http://trading-agents:8080").strip()
+    if not base_url.startswith(("http://", "https://")):
+        return False
+    try:
+        with urlopen(f"{base_url.rstrip('/')}/internal/health", timeout=1) as response:  # noqa: S310 - operator config only
+            return 200 <= int(response.status) < 300
+    except (URLError, TimeoutError, OSError):
+        return False

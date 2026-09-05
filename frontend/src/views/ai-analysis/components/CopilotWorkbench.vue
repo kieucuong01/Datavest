@@ -177,6 +177,9 @@
               </a-select-option>
             </a-select>
           </div>
+          <a-button class="deep-analysis-trigger" icon="apartment" :disabled="!selectedContextTarget" @click="openDeepAnalysis(context)">
+            {{ $t('tradingAgents.trigger') }}
+          </a-button>
         </div>
         <div v-if="strategyComposerGuide" class="composer-coach">
           <span class="composer-coach-icon"><a-icon :type="strategyComposerGuide.icon" /></span>
@@ -515,6 +518,12 @@
         </div>
       </div>
     </a-modal>
+
+    <deep-analysis-panel
+      :visible="deepAnalysisVisible"
+      :target="deepAnalysisTarget"
+      @close="closeDeepAnalysis"
+    />
   </div>
 </template>
 
@@ -549,13 +558,15 @@ import { loadEnabledMarketOptions, firstMarketValue } from '@/utils/marketModule
 import { ACTIVE_MARKET_ORDER } from '@/utils/supportedMarkets'
 import { formatVietnamTime, vietnamDateKey, vietnamTimeKey } from '@/utils/vietnamTime'
 import FastAnalysisReport from './FastAnalysisReport.vue'
+import DeepAnalysisPanel from '@/components/TradingAgents/DeepAnalysisPanel.vue'
 
 let localId = 1
 
 export default {
   name: 'CopilotWorkbench',
   components: {
-    FastAnalysisReport
+    FastAnalysisReport,
+    DeepAnalysisPanel
   },
   data () {
     return {
@@ -613,7 +624,9 @@ export default {
       draftContextLock: null,
       localizedDraft: null,
       printReportId: '',
-      quickToolsVisible: false
+      quickToolsVisible: false,
+      deepAnalysisVisible: false,
+      deepAnalysisTarget: null
     }
   },
   watch: {
@@ -1567,6 +1580,21 @@ export default {
       this.context.symbol = normalized.symbol
       this.selectedSymbolValue = this.symbolOptionValue(normalized)
       this.seedSymbolOptions()
+    },
+    openDeepAnalysis (item) {
+      const target = this.normalizeSymbolOption(item || this.context)
+      if (!target || !target.symbol) {
+        this.$message.warning(this.$t('tradingAgents.noSymbol'))
+        return
+      }
+      this.context.market = target.market
+      this.context.symbol = target.symbol
+      this.selectedSymbolValue = this.symbolOptionValue(target)
+      this.deepAnalysisTarget = target
+      this.deepAnalysisVisible = true
+    },
+    closeDeepAnalysis () {
+      this.deepAnalysisVisible = false
     },
     askWatch (item) {
       this.selectWatch(item)
@@ -4423,7 +4451,7 @@ export default {
 
 .context-bar {
   display: grid;
-  grid-template-columns: max-content minmax(220px, 420px);
+  grid-template-columns: max-content minmax(220px, 420px) max-content;
   gap: 10px;
   align-items: center;
   justify-content: start;
@@ -4435,6 +4463,13 @@ export default {
   width: 100%;
   max-width: 760px;
   margin: 0 0 8px;
+}
+
+.deep-analysis-trigger {
+  min-height: 32px;
+  border-color: var(--qd-accent) !important;
+  color: var(--qd-accent) !important;
+  font-weight: 750;
 }
 
 .context-status {
@@ -5838,6 +5873,10 @@ export default {
     width: 100%;
     grid-template-columns: 1fr;
     margin-right: 0;
+  }
+  .deep-analysis-trigger {
+    width: 100%;
+    min-height: 44px;
   }
   .strategy-type-grid {
     grid-template-columns: 1fr;

@@ -12,6 +12,7 @@ from app.openapi.schemas.common import HumanErrorEnvelopeSchema, HumanSuccessEnv
 # Path suffixes that return text/event-stream instead of JSON envelopes.
 _SSE_RULE_SUFFIXES = (
     "/aiGenerate",
+    "/events",
 )
 
 

@@ -60,6 +60,12 @@ jobs:
             --exclude='.env' --exclude='.venv' --exclude='tests' \
             --exclude='__pycache__' --exclude='.pytest_cache' \
             backend/backend_api_python/ package/backend/
+          rsync -a --delete \
+            --exclude='.venv' --exclude='tests' --exclude='__pycache__' --exclude='.pytest_cache' \
+            backend/trading_agents_service/ package/backend/trading_agents_service/
+          rsync -a --delete \
+            --exclude='tests' --exclude='__pycache__' --exclude='.pytest_cache' \
+            backend/third_party/tradingagents/ package/backend/third_party/tradingagents/
           rsync -a frontend/dist/ package/frontend/dist/
           printf '%s\n' "$GITHUB_SHA" > package/RELEASE_SHA
           archive="datavest-release-${GITHUB_SHA::12}.tar.gz"
@@ -85,9 +91,9 @@ jobs:
           archive="datavest-release-${GITHUB_SHA::12}.tar.gz"
           ssh_args=(-i ~/.ssh/datavest_ci -p "$VPS_PORT" -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes)
           scp_args=(-i ~/.ssh/datavest_ci -P "$VPS_PORT" -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes)
-          scp "${scp_args[@]}" "$archive" "$archive.sha256" deploy/vps/deploy.sh deploy/vps/datavest-crypto-insights-browser.service "$VPS_USER@$VPS_HOST:/opt/datavest/incoming/"
+          scp "${scp_args[@]}" "$archive" "$archive.sha256" deploy/vps/deploy.sh deploy/vps/datavest-crypto-insights-browser.service deploy/vps/datavest-trading-agents.service "$VPS_USER@$VPS_HOST:/opt/datavest/incoming/"
           ssh "${ssh_args[@]}" "$VPS_USER@$VPS_HOST" \
-            "install -m 0755 /opt/datavest/incoming/deploy.sh /opt/datavest/shared/deploy.sh && install -m 0644 /opt/datavest/incoming/datavest-crypto-insights-browser.service /opt/datavest/shared/datavest-crypto-insights-browser.service && /opt/datavest/shared/deploy.sh /opt/datavest/incoming/$archive $GITHUB_SHA"
+            "install -m 0755 /opt/datavest/incoming/deploy.sh /opt/datavest/shared/deploy.sh && install -m 0644 /opt/datavest/incoming/datavest-crypto-insights-browser.service /opt/datavest/shared/datavest-crypto-insights-browser.service && install -m 0644 /opt/datavest/incoming/datavest-trading-agents.service /opt/datavest/shared/datavest-trading-agents.service && /opt/datavest/shared/deploy.sh /opt/datavest/incoming/$archive $GITHUB_SHA"
 
       - name: Public HTTPS smoke
         run: |

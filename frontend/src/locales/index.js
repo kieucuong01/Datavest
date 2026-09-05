@@ -13,6 +13,7 @@ import strategyTradeRecordMessages from './lang/strategy-trade-records'
 import generatedLocaleOverrides from './generated-locale-overrides'
 import portfolioOptimizerMessages from './portfolio-optimizer'
 import smartInsightsMessages from './smart-insights'
+import tradingAgentsMessages from './trading-agents'
 import productLocaleOverrides from './product-locale-overrides'
 
 Vue.use(VueI18n)
@@ -34,6 +35,7 @@ const messages = {
     ...(strategyTradeRecordMessages[defaultLang] || {}),
     ...(portfolioOptimizerMessages[defaultLang] || {}),
     ...(smartInsightsMessages[defaultLang] || {}),
+    ...(tradingAgentsMessages[defaultLang] || {}),
     ...(productLocaleOverrides[defaultLang] || {}),
     ...(generatedLocaleOverrides[defaultLang] || {})
   }
@@ -103,6 +105,7 @@ function mergeLocaleOverrides (lang) {
     ...(strategyTradeRecordMessages[lang] || {}),
     ...(portfolioOptimizerMessages[lang] || {}),
     ...(smartInsightsMessages[lang] || {}),
+    ...(tradingAgentsMessages[lang] || {}),
     ...(productLocaleOverrides[lang] || {}),
     ...(generatedLocaleOverrides[lang] || {})
   }
@@ -135,6 +138,7 @@ export async function loadLanguageAsync (lang = defaultLang) {
       ...(strategyTradeRecordMessages[nextLang] || {}),
       ...(portfolioOptimizerMessages[nextLang] || {}),
       ...(smartInsightsMessages[nextLang] || {}),
+      ...(tradingAgentsMessages[nextLang] || {}),
       ...(productLocaleOverrides[nextLang] || {}),
       ...(generatedLocaleOverrides[nextLang] || {})
     })

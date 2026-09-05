@@ -33,6 +33,7 @@ _PREFIX_TAGS: list[tuple[str, str]] = [
     ("/api/community", "Community"),
     ("/api/fast-analysis", "FastAnalysis"),
     ("/api/smart-insights", "SmartInsights"),
+    ("/api/trading-agents", "TradingAgents"),
 ]
 
 
@@ -102,6 +103,10 @@ def register_human_blueprints(api: Api) -> None:
         from app.routes.smart_insights import smart_insights_blp
 
         registrations.append((smart_insights_blp, "/api/smart-insights"))
+    if is_enabled("DATAVEST_TRADING_AGENTS_ENABLED"):
+        from app.routes.trading_agents import trading_agents_blp
+
+        registrations.append((trading_agents_blp, "/api/trading-agents"))
 
     for blp, prefix in registrations:
         api.register_blueprint(blp, url_prefix=prefix)
@@ -114,12 +119,15 @@ def register_human_blueprints(api: Api) -> None:
             continue
         if tag["name"] == "Community" and not is_enabled("DATAVEST_COMMUNITY_ENABLED"):
             continue
+        if tag["name"] == "TradingAgents" and not is_enabled("DATAVEST_TRADING_AGENTS_ENABLED"):
+            continue
         if tag["name"] not in existing:
             opts.append(tag)
 
 
 _SSE_PATHS = frozenset({
     "/api/indicator/aiGenerate",
+    "/api/trading-agents/runs/{run_id}/events",
 })
 
 
@@ -253,7 +261,7 @@ def enrich_spec(spec_dict: dict) -> dict:
             if "x-visibility" not in op:
                 if path == "/metrics":
                     op["x-visibility"] = "internal"
-                elif tag in ("Community", "Market", "Indicator", "Backtest", "Auth", "GlobalMarket", "FastAnalysis", "Health"):
+                elif tag in ("Community", "Market", "Indicator", "Backtest", "Auth", "GlobalMarket", "FastAnalysis", "TradingAgents", "Health"):
                     op["x-visibility"] = "public"
                 else:
                     op["x-visibility"] = "internal"

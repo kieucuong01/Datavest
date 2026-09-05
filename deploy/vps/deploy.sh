@@ -10,6 +10,8 @@ readonly backups="$root/backups"
 readonly env_file="$shared/.env"
 readonly browser_venv="$shared/crypto-insights-venv"
 readonly browser_requirements_stamp="$shared/crypto-insights-requirements.sha256"
+readonly trading_agents_venv="$shared/trading-agents-venv"
+readonly trading_agents_requirements_stamp="$shared/trading-agents-requirements.sha256"
 readonly runtime_uid="$(id -u)"
 export XDG_RUNTIME_DIR="/run/user/$runtime_uid"
 export DBUS_SESSION_BUS_ADDRESS="unix:path=$XDG_RUNTIME_DIR/bus"
@@ -51,7 +53,7 @@ with tarfile.open(archive, "r:gz") as bundle:
             raise SystemExit("archive links are not allowed")
     bundle.extractall(target, filter="data")
 PY
-[[ -f "$staging/backend/requirements.lock" && -f "$staging/frontend/dist/index.html" ]] || {
+[[ -f "$staging/backend/requirements.lock" && -f "$staging/backend/trading_agents_service/requirements.lock" && -f "$staging/backend/third_party/tradingagents/pyproject.toml" && -f "$staging/frontend/dist/index.html" ]] || {
   echo 'deploy_status=release_layout_invalid' >&2
   exit 2
 }
@@ -76,6 +78,19 @@ if [[ ! -x "$browser_venv/bin/python" || ! -f "$browser_requirements_stamp" || "
   printf '%s\n' "$browser_hash" > "$browser_requirements_stamp"
 fi
 install -d -m 0750 "$shared/data/crypto-insights" "$shared/data/browser-profiles/crypto-insights" "$shared/browser-home/cache" "$shared/browser-home/config"
+
+# TradingAgents has a deliberately separate, locked environment: it carries
+# the full vendored graph and never joins the API/Celery dependency surface.
+trading_agents_requirements="$release/backend/trading_agents_service/requirements.lock"
+trading_agents_hash="$(sha256sum "$trading_agents_requirements" | awk '{print $1}')"
+if [[ ! -x "$trading_agents_venv/bin/python" || ! -f "$trading_agents_requirements_stamp" || "$(cat "$trading_agents_requirements_stamp")" != "$trading_agents_hash" ]]; then
+  rm -rf -- "$trading_agents_venv"
+  python3 -m venv "$trading_agents_venv"
+  "$trading_agents_venv/bin/pip" install --disable-pip-version-check --require-hashes --only-binary=:all: -r "$trading_agents_requirements"
+  "$trading_agents_venv/bin/pip" install --disable-pip-version-check --no-build-isolation --no-deps "$release/backend/third_party/tradingagents"
+  printf '%s\n' "$trading_agents_hash" > "$trading_agents_requirements_stamp"
+fi
+install -d -m 0750 "$shared/data/trading-agents"
 
 install -d -m 0700 "$backups"
 backup="$backups/datavest-$(date -u +%Y%m%dT%H%M%SZ)-${sha:0:12}.sql.gz"
@@ -107,7 +122,7 @@ rollback() {
   if [[ -n "$old_release" && -d "$old_release" ]]; then
     ln -sfn "$old_release" "$root/current.new"
     mv -Tf "$root/current.new" "$root/current"
-    user_systemctl restart datavest-api datavest-celery datavest-beat datavest-scheduler datavest-crypto-insights-browser || true
+    user_systemctl restart datavest-api datavest-celery datavest-beat datavest-scheduler datavest-crypto-insights-browser datavest-trading-agents || true
   fi
   echo 'deploy_status=failed' >&2
   exit "$status"
@@ -116,9 +131,10 @@ trap rollback ERR
 
 user_systemctl daemon-reload
 install -m 0644 "$shared/datavest-crypto-insights-browser.service" "$HOME/.config/systemd/user/datavest-crypto-insights-browser.service"
+install -m 0644 "$shared/datavest-trading-agents.service" "$HOME/.config/systemd/user/datavest-trading-agents.service"
 user_systemctl daemon-reload
-user_systemctl enable datavest-api datavest-celery datavest-beat datavest-scheduler datavest-crypto-insights-browser >/dev/null
-user_systemctl restart datavest-api datavest-celery datavest-beat datavest-scheduler datavest-crypto-insights-browser
+user_systemctl enable datavest-api datavest-celery datavest-beat datavest-scheduler datavest-crypto-insights-browser datavest-trading-agents >/dev/null
+user_systemctl restart datavest-api datavest-celery datavest-beat datavest-scheduler datavest-crypto-insights-browser datavest-trading-agents
 
 for _ in {1..36}; do
   if curl -fsS --max-time 5 http://127.0.0.1:5100/api/health/ready >/dev/null && \
@@ -131,7 +147,9 @@ curl -fsS --max-time 10 http://127.0.0.1:5100/api/health/ready >/dev/null
 curl -fsS --max-time 10 http://127.0.0.1/health -H 'Host: datavest.vn' >/dev/null
 curl -kfsS --max-time 10 https://127.0.0.1/ -H 'Host: datavest.vn' >/dev/null
 user_systemctl is-active --quiet datavest-crypto-insights-browser
-user_systemctl --no-pager --full status datavest-api datavest-celery datavest-beat datavest-scheduler datavest-crypto-insights-browser | sed -n '1,75p'
+curl -fsS --max-time 10 http://127.0.0.1:8080/internal/health >/dev/null
+user_systemctl is-active --quiet datavest-trading-agents
+user_systemctl --no-pager --full status datavest-api datavest-celery datavest-beat datavest-scheduler datavest-crypto-insights-browser datavest-trading-agents | sed -n '1,90p'
 
 trap - ERR
 printf '%s\n' "$sha" > "$shared/current-release"
