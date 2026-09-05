@@ -29,6 +29,7 @@ sha="$2"
 exec 9>"$shared/deploy.lock"
 flock -n 9 || { echo 'deploy_status=already_running' >&2; exit 1; }
 [[ -x "$shared/configure_env.py" ]] || { echo 'deploy_status=environment_configurator_missing' >&2; exit 2; }
+[[ -f "$shared/datavest-celery.service" ]] || { echo 'deploy_status=celery_unit_missing' >&2; exit 2; }
 
 # This is deliberately default-only: existing production credentials stay
 # untouched while newly introduced runtime settings are added before services
@@ -136,9 +137,11 @@ rollback() {
 trap rollback ERR
 
 user_systemctl daemon-reload
+install -m 0644 "$shared/datavest-celery.service" "$HOME/.config/systemd/user/datavest-celery.service"
 install -m 0644 "$shared/datavest-crypto-insights-browser.service" "$HOME/.config/systemd/user/datavest-crypto-insights-browser.service"
 install -m 0644 "$shared/datavest-trading-agents.service" "$HOME/.config/systemd/user/datavest-trading-agents.service"
 user_systemctl daemon-reload
+user_systemctl cat datavest-celery | grep -F -- '-Q jobs,ai,maintenance,trading-agents' >/dev/null
 user_systemctl enable datavest-api datavest-celery datavest-beat datavest-scheduler datavest-crypto-insights-browser datavest-trading-agents >/dev/null
 user_systemctl restart datavest-api datavest-celery datavest-beat datavest-scheduler datavest-crypto-insights-browser datavest-trading-agents
 
