@@ -8,6 +8,10 @@ export function getTradingAgentsRun (runId) {
   return request({ url: `/api/trading-agents/runs/${encodeURIComponent(runId)}`, method: 'get' })
 }
 
+export function getTradingAgentsRuns (params) {
+  return request({ url: '/api/trading-agents/runs', method: 'get', params })
+}
+
 export function cancelTradingAgentsRun (runId) {
   return request({ url: `/api/trading-agents/runs/${encodeURIComponent(runId)}/cancel`, method: 'post', timeout: 30000 })
 }

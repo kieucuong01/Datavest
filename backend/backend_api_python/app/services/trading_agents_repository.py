@@ -242,6 +242,49 @@ class TradingAgentsRepository:
             finally:
                 cur.close()
 
+    def list_owned_runs(
+        self,
+        *,
+        user_id: int,
+        market: str,
+        symbol: str,
+        analysis_date: str,
+        limit: int = 12,
+    ) -> list[dict[str, Any]]:
+        """Return bounded run summaries for one owner and one exact research input.
+
+        The UI uses this only to recover a persisted full-graph run after a
+        refresh. It intentionally does not load events, artifacts or native
+        state until it has selected a single owner-scoped run id.
+        """
+        clean_user_id = int(user_id)
+        clean_market = self._validate_short_text(market, "market", 40)
+        clean_symbol = self._validate_short_text(symbol, "symbol", 80)
+        clean_analysis_date = self._validate_short_text(analysis_date, "analysis_date", 10)
+        if isinstance(limit, bool) or not 1 <= int(limit) <= 12:
+            raise ValueError("limit must be between 1 and 12")
+
+        with get_db_connection() as db:
+            cur = db.cursor()
+            try:
+                cur.execute(
+                    """
+                    SELECT run_id, user_id, status, request_json, config_checksum, source_pin,
+                           failure_code, failure_message, created_at, started_at, finished_at
+                    FROM trading_agents_runs
+                    WHERE user_id = ?
+                      AND request_json->>'market' = ?
+                      AND request_json->>'symbol' = ?
+                      AND request_json->>'analysis_date' = ?
+                    ORDER BY created_at DESC
+                    LIMIT ?
+                    """,
+                    (clean_user_id, clean_market, clean_symbol, clean_analysis_date, int(limit)),
+                )
+                return [dict(row) for row in (cur.fetchall() or [])]
+            finally:
+                cur.close()
+
     def get_run_for_worker(self, *, run_id: str) -> dict[str, Any] | None:
         """Load one durable run for a trusted Celery worker only.
 

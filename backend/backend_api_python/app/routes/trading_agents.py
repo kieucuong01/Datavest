@@ -115,6 +115,25 @@ def _safe_native_config(value: Mapping[str, Any], *, depth: int = 0) -> bool:
     return True
 
 
+def _validate_history_query(args: Mapping[str, Any]) -> dict[str, Any]:
+    market = str(args.get("market") or "").strip()
+    symbol = str(args.get("symbol") or "").strip()
+    analysis_date = str(args.get("analysisDate") or args.get("analysis_date") or "").strip()
+    if market not in _SUPPORTED_MARKETS or not symbol or len(symbol) > 80:
+        raise ValueError("unsupported_market_or_symbol")
+    try:
+        date.fromisoformat(analysis_date)
+    except ValueError as exc:
+        raise ValueError("invalid_analysis_date") from exc
+    try:
+        limit = int(args.get("limit") or 12)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("invalid_history_limit") from exc
+    if not 1 <= limit <= 12:
+        raise ValueError("invalid_history_limit")
+    return {"market": market, "symbol": symbol, "analysis_date": analysis_date, "limit": limit}
+
+
 def _public_run(record: Mapping[str, Any]) -> dict[str, Any]:
     request_json = record.get("request_json") or {}
     if isinstance(request_json, str):
@@ -137,6 +156,20 @@ def _public_run(record: Mapping[str, Any]) -> dict[str, Any]:
         "artifacts": record.get("artifacts") or [],
         "proposal": record.get("proposal"),
     }
+
+
+@trading_agents_blp.route("/runs", methods=["GET"])
+@login_required
+def list_runs():
+    try:
+        filters = _validate_history_query(request.args)
+        records = get_repository().list_owned_runs(user_id=_user_id(), **filters)
+        return _ok({"runs": [_public_run(record) for record in records]})
+    except ValueError as exc:
+        return _fail(str(exc), 400)
+    except Exception:
+        logger.exception("TradingAgents run history failed")
+        return _fail("trading_agents_unavailable", 503)
 
 
 @trading_agents_blp.route("/runs", methods=["POST"])

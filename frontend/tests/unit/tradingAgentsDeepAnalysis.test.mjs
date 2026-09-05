@@ -18,10 +18,13 @@ test('deep analysis is a shared, owner-scoped TradingAgents panel', () => {
   const copilot = read('src/views/ai-analysis/components/CopilotWorkbench.vue')
 
   assert.match(api, /\/api\/trading-agents\/runs/u)
+  assert.match(api, /getTradingAgentsRuns/u)
   assert.match(api, /cancelTradingAgentsRun/u)
   assert.match(panel, /v-text="reportContent"/u)
   assert.doesNotMatch(panel, /v-html=/u)
   assert.match(panel, /getTradingAgentsRun/u)
+  assert.match(panel, /getTradingAgentsRuns/u)
+  assert.match(panel, /loadLatestRun/u)
   assert.match(panel, /setInterval/u)
   assert.match(panel, /FULL_ANALYSTS = \['market', 'social', 'news', 'fundamentals'\]/u)
   assert.match(panel, /analysisDate/u)

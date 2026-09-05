@@ -82,6 +82,55 @@ def test_user_cannot_read_another_users_run(monkeypatch):
     assert response.get_json()["data"] is None
 
 
+def test_run_history_is_filtered_to_the_current_owner_asset_and_day(monkeypatch):
+    client, route_module = _client(monkeypatch)
+    calls = []
+
+    class Repository:
+        def list_owned_runs(self, **kwargs):
+            calls.append(kwargs)
+            return [{
+                "run_id": "run-123",
+                "status": "succeeded",
+                "request_json": {
+                    "market": "Crypto",
+                    "symbol": "BTC/USDT",
+                    "analysis_date": "2026-09-05",
+                },
+                "source_pin": "9dee508",
+            }]
+
+    monkeypatch.setattr(route_module, "get_repository", lambda: Repository())
+
+    response = client.get(
+        "/api/trading-agents/runs?market=Crypto&symbol=BTC%2FUSDT&analysisDate=2026-09-05&limit=1"
+    )
+
+    assert response.status_code == 200
+    assert calls == [{
+        "user_id": 7,
+        "market": "Crypto",
+        "symbol": "BTC/USDT",
+        "analysis_date": "2026-09-05",
+        "limit": 1,
+    }]
+    assert response.get_json()["data"]["runs"] == [{
+        "run_id": "run-123",
+        "status": "succeeded",
+        "market": "Crypto",
+        "symbol": "BTC/USDT",
+        "analysis_date": "2026-09-05",
+        "source_pin": "9dee508",
+        "created_at": None,
+        "started_at": None,
+        "finished_at": None,
+        "failure_code": None,
+        "failure_message": None,
+        "artifacts": [],
+        "proposal": None,
+    }]
+
+
 def test_run_is_queued_without_exposing_service_secret(monkeypatch):
     client, route_module = _client(monkeypatch)
     queued = []
