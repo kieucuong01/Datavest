@@ -129,7 +129,7 @@
           <div class="report-heading">
             <div class="report-heading-copy">
               <span class="report-eyebrow"><a-icon type="file-text" /> {{ $t('tradingAgents.reportTitle') }}</span>
-              <h4 id="deep-analysis-report-title">{{ targetLabel }}</h4>
+              <h4 id="deep-analysis-report-title">{{ localizeHeading(reportDocumentTitle) }}</h4>
               <span>{{ $t('tradingAgents.reportProvenance') }}</span>
             </div>
             <div class="report-heading-tags">
@@ -178,6 +178,42 @@
                       </table>
                     </div>
                     <p v-else>{{ block.text }}</p>
+                  </div>
+                  <div v-if="section.subsections && section.subsections.length" class="report-subsections">
+                    <article v-for="(subsection, subsectionIndex) in section.subsections" :key="`${sectionIndex}-${subsection.title}-${subsectionIndex}`" class="report-subsection" :class="{ 'is-open': isReportSubsectionOpen(sectionIndex, subsectionIndex) }">
+                      <button
+                        type="button"
+                        class="report-subsection-heading"
+                        :aria-expanded="isReportSubsectionOpen(sectionIndex, subsectionIndex)"
+                        :aria-controls="`report-subsection-content-${sectionIndex}-${subsectionIndex}`"
+                        :aria-label="$t('tradingAgents.toggleReportSection', { section: localizeHeading(subsection.title) })"
+                        @click="toggleReportSubsection(sectionIndex, subsectionIndex)"
+                      >
+                        <span class="report-subsection-number">{{ sectionIndex + 1 }}.{{ subsectionIndex + 1 }}</span>
+                        <span class="report-subsection-heading-copy"><h6>{{ localizeHeading(subsection.title) }}</h6></span>
+                        <a-icon class="report-section-chevron" :type="isReportSubsectionOpen(sectionIndex, subsectionIndex) ? 'up' : 'down'" aria-hidden="true" />
+                      </button>
+                      <div
+                        :id="`report-subsection-content-${sectionIndex}-${subsectionIndex}`"
+                        v-show="isReportSubsectionOpen(sectionIndex, subsectionIndex)"
+                        class="report-subsection-content"
+                        :aria-hidden="!isReportSubsectionOpen(sectionIndex, subsectionIndex)"
+                      >
+                        <div v-for="(block, blockIndex) in subsection.blocks" :key="`${sectionIndex}-${subsectionIndex}-${block.type}-${blockIndex}`" class="report-block" :class="`report-block--${block.type}`">
+                          <h6 v-if="block.type === 'heading'">{{ localizeHeading(block.text) }}</h6>
+                          <ul v-else-if="block.type === 'list'" class="report-list">
+                            <li v-for="(item, itemIndex) in block.items" :key="`${sectionIndex}-${subsectionIndex}-${blockIndex}-${itemIndex}`">{{ item }}</li>
+                          </ul>
+                          <div v-else-if="block.type === 'table'" class="report-table-wrap">
+                            <table class="report-table">
+                              <thead><tr><th v-for="(header, headerIndex) in block.headers" :key="`${sectionIndex}-${subsectionIndex}-${blockIndex}-header-${headerIndex}`">{{ header }}</th></tr></thead>
+                              <tbody><tr v-for="(row, rowIndex) in block.rows" :key="`${sectionIndex}-${subsectionIndex}-${blockIndex}-row-${rowIndex}`"><td v-for="(cell, cellIndex) in row" :key="`${sectionIndex}-${subsectionIndex}-${rowIndex}-${cellIndex}`">{{ cell }}</td></tr></tbody>
+                            </table>
+                          </div>
+                          <p v-else>{{ block.text }}</p>
+                        </div>
+                      </div>
+                    </article>
                   </div>
                 </div>
               </article>
@@ -254,7 +290,8 @@ export default {
       historyLoading: false,
       historyRequestId: 0,
       historyError: '',
-      openReportSections: {}
+      openReportSections: {},
+      openReportSubsections: {}
     }
   },
   computed: {
@@ -334,8 +371,14 @@ export default {
     reportBlocks () {
       return parseTradingAgentsReport(this.reportContent)
     },
+    reportDocument () {
+      return groupTradingAgentsReportSections(this.reportBlocks)
+    },
+    reportDocumentTitle () {
+      return this.reportDocument.title || this.targetLabel
+    },
     reportSections () {
-      return groupTradingAgentsReportSections(this.reportBlocks).sections
+      return this.reportDocument.sections
     },
     progressElapsedSeconds () {
       const reported = Number(this.progressSnapshot.elapsed_seconds) || 0
@@ -419,12 +462,28 @@ export default {
     toggleReportSection (index) {
       this.$set(this.openReportSections, index, !this.isReportSectionOpen(index))
     },
+    reportSubsectionKey (sectionIndex, subsectionIndex) {
+      return `${sectionIndex}:${subsectionIndex}`
+    },
+    isReportSubsectionOpen (sectionIndex, subsectionIndex) {
+      return Boolean(this.openReportSubsections[this.reportSubsectionKey(sectionIndex, subsectionIndex)])
+    },
+    toggleReportSubsection (sectionIndex, subsectionIndex) {
+      const key = this.reportSubsectionKey(sectionIndex, subsectionIndex)
+      this.$set(this.openReportSubsections, key, !this.isReportSubsectionOpen(sectionIndex, subsectionIndex))
+    },
     resetReportSections () {
       const openSections = {}
+      const openSubsections = {}
       this.reportSections.forEach((section, index) => {
         openSections[index] = index === 0
+        const subsections = section.subsections || []
+        subsections.forEach((subsection, subsectionIndex) => {
+          openSubsections[this.reportSubsectionKey(index, subsectionIndex)] = index === 0 && subsectionIndex === 0
+        })
       })
       this.openReportSections = openSections
+      this.openReportSubsections = openSubsections
     },
     formatDuration (seconds) {
       const value = Math.max(0, Number(seconds) || 0)
@@ -931,6 +990,78 @@ export default {
   padding: 10px 14px 14px;
 }
 
+.trading-agents-modal .report-subsections {
+  display: grid;
+  gap: 8px;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line, #dbe4ef);
+}
+
+.trading-agents-modal .report-subsection {
+  overflow: hidden;
+  border: 1px solid var(--line, #dbe4ef);
+  border-radius: 10px;
+  background: var(--card, #fff);
+}
+
+.trading-agents-modal .report-subsection-heading {
+  appearance: none;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  width: 100%;
+  gap: 9px;
+  padding: 10px 12px;
+  border: 0;
+  border-bottom: 1px solid var(--line, #dbe4ef);
+  color: inherit;
+  background: var(--soft-blue, #f5f9ff);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background .18s ease, box-shadow .18s ease;
+}
+
+.trading-agents-modal .report-subsection:not(.is-open) .report-subsection-heading {
+  border-bottom: 0;
+}
+
+.trading-agents-modal .report-subsection-heading:hover {
+  background: #eef5ff;
+}
+
+.trading-agents-modal .report-subsection-heading:focus-visible {
+  outline: 2px solid var(--blue, #2563eb);
+  outline-offset: -2px;
+}
+
+.trading-agents-modal .report-subsection-number {
+  color: var(--blue, #2563eb);
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.trading-agents-modal .report-subsection-heading-copy {
+  min-width: 0;
+}
+
+.trading-agents-modal .report-subsection-heading h6 {
+  overflow: hidden;
+  margin: 0;
+  color: var(--ink, #1f2d3d);
+  font-size: 13px;
+  font-weight: 650;
+  line-height: 1.4;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.trading-agents-modal .report-subsection-content {
+  padding: 10px 12px 12px;
+}
+
 .trading-agents-modal .report-block + .report-block {
   margin-top: 10px;
 }
@@ -1015,6 +1146,24 @@ export default {
   background: #18202c;
 }
 
+.trading-agents-modal .theme-dark .report-subsection {
+  background: #18202c;
+  border-color: #334155;
+}
+
+.trading-agents-modal .theme-dark .report-subsection-heading {
+  border-color: #334155;
+  background: #1b2b41;
+}
+
+.trading-agents-modal .theme-dark .report-subsection-heading h6 {
+  color: #e6edf6;
+}
+
+.trading-agents-modal .theme-dark .report-subsection-heading:hover {
+  background: #20385c;
+}
+
 .trading-agents-modal .theme-dark .report-section-heading,
 .trading-agents-modal .theme-dark .report-table th {
   background: #152334;
@@ -1073,6 +1222,15 @@ export default {
 
   .trading-agents-modal .report-section-content {
     padding: 10px 12px 12px;
+  }
+
+  .trading-agents-modal .report-subsections {
+    margin-top: 12px;
+    padding-top: 12px;
+  }
+
+  .trading-agents-modal .report-subsection-heading {
+    padding: 10px;
   }
 
   .trading-agents-modal .report-block--paragraph p,

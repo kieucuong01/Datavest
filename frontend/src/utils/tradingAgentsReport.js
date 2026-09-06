@@ -130,32 +130,40 @@ export function groupTradingAgentsReportSections (blocks) {
   const sections = []
   const intro = []
   let title = ''
-  let current = null
+  const headingStack = []
+
+  const createSection = (block) => ({
+    title: block.text,
+    level: block.level,
+    blocks: [],
+    subsections: []
+  })
 
   for (const block of Array.isArray(blocks) ? blocks : []) {
     if (block.type === 'heading' && block.level === 1 && !title) {
       title = block.text
       continue
     }
-    if (block.type === 'heading' && block.level <= 2) {
-      if (current) sections.push(current)
-      current = {
-        title: block.text,
-        level: block.level,
-        blocks: []
-      }
+    if (block.type === 'heading' && block.level <= 3) {
+      while (headingStack.length && headingStack[headingStack.length - 1].level >= block.level) headingStack.pop()
+      const section = createSection(block)
+      const parent = headingStack[headingStack.length - 1]
+      if (parent) parent.subsections.push(section)
+      else sections.push(section)
+      headingStack.push(section)
       continue
     }
+    const current = headingStack[headingStack.length - 1]
     if (current) current.blocks.push(block)
     else intro.push(block)
   }
 
-  if (current) sections.push(current)
   if (intro.length) {
     sections.unshift({
       title: title || 'Overview',
       level: 1,
-      blocks: intro
+      blocks: intro,
+      subsections: []
     })
   }
 

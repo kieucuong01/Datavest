@@ -12,8 +12,9 @@ test('groups the native report into readable top-level sections and tables', () 
 
   assert.equal(report.title, 'Báo cáo BTC')
   assert.deepEqual(report.sections.map(section => section.title), ['Thị trường', 'Rủi ro'])
-  assert.equal(report.sections[0].blocks[0].text, 'Xu hướng')
-  assert.deepEqual(report.sections[0].blocks[2], {
+  assert.deepEqual(report.sections[0].subsections.map(section => section.title), ['Xu hướng'])
+  assert.equal(report.sections[0].subsections[0].blocks[0].text, 'Tăng nhẹ.')
+  assert.deepEqual(report.sections[0].subsections[0].blocks[1], {
     type: 'table',
     headers: ['Chỉ báo', 'Giá trị'],
     rows: [['RSI', '62']]
