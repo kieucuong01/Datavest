@@ -93,3 +93,23 @@ def test_private_run_payload_preserves_supported_locale():
     })
 
     assert request.language == "vi-VN"
+
+
+def test_callback_transient_failure_retries_same_signed_event(monkeypatch):
+    from app import main
+    from urllib.error import URLError
+    from contextlib import nullcontext
+    from unittest.mock import Mock
+    requests = []
+
+    def deliver(request, timeout):
+        requests.append(request)
+        if len(requests) == 1:
+            raise URLError("temporary")
+        return nullcontext(Mock(read=lambda _size: b'{}'))
+
+    monkeypatch.setattr(main, "urlopen", deliver)
+    main._callback(_settings(), {"run_id": "run-test", "sequence": 43, "event_type": "run_status", "payload": {"status": "succeeded"}})
+    assert len(requests) == 2
+    assert requests[0].data == requests[1].data
+    assert json.loads(requests[1].data)["sequence"] == 43

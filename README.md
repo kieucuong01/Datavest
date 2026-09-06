@@ -28,6 +28,22 @@ docker compose @Compose up --build
 The product is research and simulation only. Live broker execution, billing,
 and paid marketplace surfaces remain disabled.
 
+## Code graph (Graphify)
+
+On this Windows workspace, use the project wrapper rather than the global
+`graphify` command. It keeps Graphify's tool environment in `.tooling/` and
+avoids the restricted global `uv` runtime under AppData.
+
+```powershell
+.\tools\test-graphify.ps1
+.\tools\graphify.ps1 query "fast analysis Smart Insights"
+.\tools\graphify.ps1 . --update
+```
+
+The wrapper bootstraps with the bundled Codex Python runtime. Outside Codex,
+set `DATAVEST_GRAPHIFY_PYTHON` to a Python 3.12 executable before the first
+run.
+
 ## Source provenance
 
 This monorepo preserves the current DataVest working snapshot. QuantDinger

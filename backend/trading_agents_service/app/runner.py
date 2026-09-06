@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
+from functools import wraps
 from datetime import date
 from pathlib import Path
 from typing import Any
@@ -51,6 +52,7 @@ class TradingAgentsRunRequest:
     language: str = "vi-VN"
     selected_analysts: tuple[str, ...] = FULL_ANALYST_SELECTION
     native_config: Mapping[str, Any] = field(default_factory=dict)
+    event_sequence: int = 0
 
 
 @dataclass(frozen=True)
@@ -65,7 +67,17 @@ class TradingAgentsRunResult:
 GraphFactory = Callable[..., Any]
 EventSink = Callable[[RunEvent], None]
 ToolProgressSink = Callable[[Mapping[str, Any]], None]
+DetailProgressSink = Callable[[Mapping[str, Any]], None]
 CancellationCheck = Callable[[], bool]
+
+
+def _isolated_run(function):
+    @wraps(function)
+    def wrapped(*args, **kwargs):
+        from tradingagents.dataflows.config import isolated_config
+        with isolated_config():
+            return function(*args, **kwargs)
+    return wrapped
 
 
 def _validate_request(request: TradingAgentsRunRequest) -> None:
@@ -78,6 +90,8 @@ def _validate_request(request: TradingAgentsRunRequest) -> None:
         raise RunRequestError("ticker is required")
     if request.asset_type not in _SUPPORTED_ASSET_TYPES:
         raise RunRequestError("asset_type must be stock or crypto")
+    if isinstance(request.event_sequence, bool) or not isinstance(request.event_sequence, int) or not 0 <= request.event_sequence <= 2_147_000_000:
+        raise RunRequestError("event_sequence must be a non-negative integer")
     if request.language not in _SUPPORTED_LANGUAGES:
         raise RunRequestError("language must be vi-VN or en-US")
     try:
@@ -149,15 +163,7 @@ def _native_config(request: TradingAgentsRunRequest, paths: UserStatePaths) -> d
     return config
 
 
-def _merge_chunks(chunks: list[Mapping[str, Any]]) -> dict[str, Any]:
-    """Match the upstream CLI's state-delta merge behavior exactly."""
-
-    final_state: dict[str, Any] = {}
-    for chunk in chunks:
-        final_state.update(chunk)
-    return final_state
-
-
+@_isolated_run
 def run_full_graph(
     request: TradingAgentsRunRequest,
     *,
@@ -165,6 +171,7 @@ def run_full_graph(
     graph_factory: GraphFactory | None = None,
     on_event: EventSink | None = None,
     on_tool_progress: ToolProgressSink | None = None,
+    on_detail_progress: DetailProgressSink | None = None,
     should_cancel: CancellationCheck | None = None,
 ) -> TradingAgentsRunResult:
     """Run every upstream role without replacing agent prompts, nodes or tools."""
@@ -190,7 +197,7 @@ def run_full_graph(
         instrument_context=instrument_context,
     )
     graph_args = graph.propagator.get_graph_args(callbacks=callbacks)
-    chunks: list[Mapping[str, Any]] = []
+    final_state: dict[str, Any] = {}
     events: list[RunEvent] = []
 
     try:
@@ -204,20 +211,23 @@ def run_full_graph(
 
         if should_cancel is not None and should_cancel():
             raise RunCancelled("run cancellation requested")
-        for sequence, chunk in enumerate(
-            graph.graph.stream(graph.checkpoint_input(initial_state), **graph_args),
-            start=1,
-        ):
-            chunks.append(chunk)
-            # LangGraph has persisted the previous node before yielding this
-            # delta. Raising here keeps its native checkpoint intact for
-            # resume and avoids writing an incomplete report.
-            if should_cancel is not None and should_cancel():
-                raise RunCancelled("run cancellation requested")
-            event = event_from_chunk(request.run_id, sequence, chunk)
-            events.append(event)
-            if on_event is not None:
-                on_event(event)
+        from tradingagents.agents.utils.progress import bind_progress_sink
+
+        with bind_progress_sink(on_detail_progress):
+            for sequence, chunk in enumerate(
+                graph.graph.stream(graph.checkpoint_input(initial_state), **graph_args),
+                start=1,
+            ):
+                final_state.update(chunk)
+                # LangGraph has persisted the previous node before yielding this
+                # delta. Raising here keeps its native checkpoint intact for
+                # resume and avoids writing an incomplete report.
+                if should_cancel is not None and should_cancel():
+                    raise RunCancelled("run cancellation requested")
+                event = event_from_chunk(request.run_id, sequence, final_state)
+                events.append(event)
+                if on_event is not None:
+                    on_event(event)
 
         graph.clear_checkpoint_on_success(
             request.ticker,
@@ -227,7 +237,6 @@ def run_full_graph(
     finally:
         graph.end_checkpoint()
 
-    final_state = _merge_chunks(chunks)
     artifact = save_native_report(
         graph,
         final_state=final_state,
@@ -244,6 +253,7 @@ def run_full_graph(
     )
 
 
+@_isolated_run
 def clear_native_checkpoint(
     request: TradingAgentsRunRequest,
     *,

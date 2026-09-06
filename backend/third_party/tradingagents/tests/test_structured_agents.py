@@ -432,3 +432,14 @@ class TestSentimentAnalystAgent:
         llm.with_structured_output.return_value = structured
         llm.invoke.return_value = MagicMock(content=plain)
         assert create_sentiment_analyst(llm)(_make_sentiment_state())["sentiment_report"] == plain
+
+    def test_does_not_repeat_a_timed_out_model_request(self):
+        structured = MagicMock()
+        structured.invoke.side_effect = TimeoutError("provider read timed out")
+        llm = MagicMock()
+        llm.with_structured_output.return_value = structured
+
+        with pytest.raises(TimeoutError, match="timed out"):
+            create_sentiment_analyst(llm)(_make_sentiment_state())
+
+        llm.invoke.assert_not_called()

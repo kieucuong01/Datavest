@@ -99,6 +99,7 @@ class TradingAgentsRepository:
                     SELECT ?, user_id, ?, ?, ?::jsonb, NOW()
                     FROM trading_agents_runs
                     WHERE run_id = ?
+                    ON CONFLICT (run_id, sequence) DO NOTHING
                     """,
                     (clean_run_id, clean_sequence, clean_event_type, payload_json, clean_run_id),
                 )
@@ -335,10 +336,11 @@ class TradingAgentsRepository:
             try:
                 cur.execute(
                     """
-                    SELECT run_id, user_id, status, request_json, config_json, config_checksum, source_pin,
-                           failure_code, failure_message, created_at, started_at, finished_at
-                    FROM trading_agents_runs
-                    WHERE run_id = ?
+                    SELECT r.run_id, r.user_id, r.status, r.request_json, r.config_json, r.config_checksum, r.source_pin,
+                           r.failure_code, r.failure_message, r.created_at, r.started_at, r.finished_at,
+                           (SELECT COALESCE(MAX(e.sequence), 0) FROM trading_agents_events e WHERE e.run_id = r.run_id) AS event_sequence
+                    FROM trading_agents_runs r
+                    WHERE r.run_id = ?
                     """,
                     (clean_run_id,),
                 )

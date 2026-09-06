@@ -20,6 +20,8 @@ _ENV_OVERRIDES = {
     "TRADINGAGENTS_TEMPERATURE":          "temperature",
     "TRADINGAGENTS_LLM_MAX_RETRIES":      "llm_max_retries",
     "TRADINGAGENTS_MAX_TOKENS":           "max_tokens",
+    "TRADINGAGENTS_LLM_TIMEOUT_SEC":      "llm_timeout",
+    "TRADINGAGENTS_SOCIAL_FETCH_TIMEOUT_SEC": "social_fetch_timeout",
     # Provider-specific reasoning/thinking knobs (None = each provider's own
     # default). Settable here for non-interactive runs; the CLI also offers an
     # interactive choice, which is skipped when the matching var is set.
@@ -106,6 +108,14 @@ DEFAULT_CONFIG = _apply_env_overrides({
     # unbounded reasoning/output and hangs or trips a gateway idle timeout
     # (e.g. some deepseek-v4-flash deployments, #1204).
     "max_tokens": None,
+    # Per-request timeout for provider SDK calls. A bounded call lets the
+    # private runtime fail a stalled provider cleanly instead of leaving one
+    # graph stage loading forever. Override with TRADINGAGENTS_LLM_TIMEOUT_SEC.
+    "llm_timeout": 180,
+    # Maximum time for each external social/news fetch inside the sentiment
+    # analyst. A timed-out fetch is represented as unavailable evidence so the
+    # native graph can continue to the model instead of waiting indefinitely.
+    "social_fetch_timeout": 45.0,
     # Checkpoint/resume: when True, LangGraph saves state after each node
     # so a crashed run can resume from the last successful step.
     "checkpoint_enabled": False,

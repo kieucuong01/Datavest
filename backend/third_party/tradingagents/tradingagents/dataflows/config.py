@@ -1,9 +1,22 @@
 from copy import deepcopy
+from contextlib import contextmanager
+from contextvars import ContextVar
 
 import tradingagents.default_config as default_config
 
 # Use default config but allow it to be overridden
 _config: dict | None = None
+_run_config: ContextVar[dict | None] = ContextVar("tradingagents_run_config", default=None)
+
+
+@contextmanager
+def isolated_config():
+    """Isolate language, providers and cache paths for one hosted graph run."""
+    token = _run_config.set(deepcopy(default_config.DEFAULT_CONFIG))
+    try:
+        yield
+    finally:
+        _run_config.reset(token)
 
 
 def initialize_config():
@@ -22,19 +35,24 @@ def set_config(config: dict):
     """
     global _config
     initialize_config()
+    target = deepcopy(_run_config.get() if _run_config.get() is not None else _config)
     incoming = deepcopy(config)
     for key, value in incoming.items():
-        if isinstance(value, dict) and isinstance(_config.get(key), dict):
-            _config[key].update(value)
+        if isinstance(value, dict) and isinstance(target.get(key), dict):
+            target[key].update(value)
         else:
-            _config[key] = value
+            target[key] = value
+    if _run_config.get() is not None:
+        _run_config.set(target)
+    else:
+        _config = target
 
 
 def get_config() -> dict:
     """Get the current configuration."""
     if _config is None:
         initialize_config()
-    return deepcopy(_config)
+    return deepcopy(_run_config.get() if _run_config.get() is not None else _config)
 
 
 # Initialize with default config

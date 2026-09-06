@@ -9,7 +9,19 @@ if str(SERVICE_ROOT) not in sys.path:
     sys.path.insert(0, str(SERVICE_ROOT))
 
 from app.events import RunEvent
+from app.events import event_from_chunk
 from app.progress import StageProgressTracker
+
+
+def test_cumulative_values_stream_does_not_stall_at_social():
+    published = []
+    tracker = StageProgressTracker(asset_type="crypto", publish=lambda kind, payload: published.append((kind, payload)))
+    tracker.start()
+    tracker.on_graph_event(event_from_chunk("run", 1, {"market_report": ""}))
+    assert published[-1][1]["stage_id"] == "market"
+    tracker.on_graph_event(event_from_chunk("run", 2, {"market_report": "m", "sentiment_report": "s", "news_report": "n"}))
+    assert published[-1][1]["stage_id"] == "investment_debate"
+    assert published[-1][1]["completed_count"] == 3
 
 
 def test_stage_tracker_announces_current_stage_and_heartbeat_without_fake_completion() -> None:

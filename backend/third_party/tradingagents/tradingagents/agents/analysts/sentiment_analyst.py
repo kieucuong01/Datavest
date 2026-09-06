@@ -24,7 +24,13 @@ See: https://github.com/TauricResearch/TradingAgents/issues/557
 See: https://github.com/TauricResearch/TradingAgents/issues/796
 """
 
+import logging
+import math
+import queue
+import threading
 from datetime import datetime, timedelta
+from contextvars import copy_context
+from time import monotonic
 
 from langchain_core.messages import AIMessage
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
@@ -35,6 +41,7 @@ from tradingagents.agents.utils.agent_utils import (
     get_language_instruction,
     get_news,
 )
+from tradingagents.agents.utils.progress import emit_progress
 from tradingagents.agents.utils.structured import (
     NO_EXTERNAL_TOOLS,
     bind_structured,
@@ -42,6 +49,66 @@ from tradingagents.agents.utils.structured import (
 )
 from tradingagents.dataflows.reddit import fetch_reddit_posts
 from tradingagents.dataflows.stocktwits import fetch_stocktwits_messages
+from tradingagents.dataflows.config import get_config
+
+
+logger = logging.getLogger(__name__)
+_fetch_slots = threading.BoundedSemaphore(6)
+
+
+class _SocialFetchTimeout(Exception):
+    """Internal sentinel: one slow public source must not abort the graph."""
+
+
+def _social_fetch_timeout_seconds() -> float:
+    """Return the configured per-source timeout, rejecting unsafe values."""
+    value = get_config().get("social_fetch_timeout", 45.0)
+    try:
+        timeout = float(value)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"social_fetch_timeout must be a number, got {value!r}") from exc
+    if isinstance(value, bool) or not math.isfinite(timeout) or timeout <= 0:
+        raise ValueError(f"social_fetch_timeout must be > 0, got {timeout}")
+    return timeout
+
+
+def _run_bounded_fetch(operation, *, label: str, timeout_seconds: float):
+    """Return before a blocking public fetch can stall the graph indefinitely."""
+    result_queue: queue.Queue[tuple[str, object]] = queue.Queue(maxsize=1)
+    # Python cannot stop an HTTP client thread. Keep timed-out workers bounded
+    # until their own network calls return; never accumulate a thread per retry.
+    if not _fetch_slots.acquire(blocking=False):
+        raise _SocialFetchTimeout(f"<{label} unavailable: source workers busy>")
+    context = copy_context()
+
+    def worker() -> None:
+        try:
+            result_queue.put(("result", operation()))
+        except BaseException as exc:  # propagate the original graph error
+            result_queue.put(("error", exc))
+        finally:
+            _fetch_slots.release()
+
+    thread = threading.Thread(
+        target=lambda: context.run(worker),
+        name=f"trading-agents-fetch-{label}",
+        daemon=True,
+    )
+    try:
+        thread.start()
+    except BaseException:
+        _fetch_slots.release()
+        raise
+    try:
+        kind, value = result_queue.get(timeout=timeout_seconds)
+    except queue.Empty as exc:
+        logger.warning("%s fetch timed out after %.1fs", label, timeout_seconds)
+        raise _SocialFetchTimeout(
+            f"<{label} unavailable: timed out after {timeout_seconds:g}s>"
+        ) from exc
+    if kind == "error":
+        raise value  # type: ignore[misc]
+    return value
 
 
 def _seven_days_back(trade_date: str) -> str:
@@ -58,6 +125,36 @@ def create_sentiment_analyst(llm):
     """
     structured_llm = bind_structured(llm, SentimentReport, "Sentiment Analyst")
 
+    def run_step(substage: str, operation):
+        """Run one social-analysis step while exposing only lifecycle metadata."""
+        started_at = monotonic()
+        emit_progress({"stage_id": "social", "substage_id": substage, "status": "started"})
+        try:
+            result = operation()
+        except _SocialFetchTimeout as exc:
+            emit_progress({
+                "stage_id": "social",
+                "substage_id": substage,
+                "status": "failed",
+                "duration_ms": max(0, round((monotonic() - started_at) * 1000)),
+            })
+            return str(exc)
+        except Exception:
+            emit_progress({
+                "stage_id": "social",
+                "substage_id": substage,
+                "status": "failed",
+                "duration_ms": max(0, round((monotonic() - started_at) * 1000)),
+            })
+            raise
+        emit_progress({
+            "stage_id": "social",
+            "substage_id": substage,
+            "status": "completed",
+            "duration_ms": max(0, round((monotonic() - started_at) * 1000)),
+        })
+        return result
+
     def sentiment_analyst_node(state):
         ticker = state["company_of_interest"]
         end_date = state["trade_date"]
@@ -67,13 +164,35 @@ def create_sentiment_analyst(llm):
         # Pre-fetch all three sources. Each fetcher degrades gracefully and
         # returns a string (no exceptions surface from here), so the LLM
         # always sees something — either real data or a clear placeholder.
-        news_block = get_news.func(ticker, start_date, end_date)
+        fetch_timeout = _social_fetch_timeout_seconds()
+        news_block = run_step(
+            "news",
+            lambda: _run_bounded_fetch(
+                lambda: get_news.func(ticker, start_date, end_date),
+                label="news",
+                timeout_seconds=fetch_timeout,
+            ),
+        )
         # Pass the analysis window so a historical run trims social posts to it
         # instead of leaking today's chatter into a backtest (#1220).
-        stocktwits_block = fetch_stocktwits_messages(
-            ticker, limit=30, start_date=start_date, end_date=end_date
+        stocktwits_block = run_step(
+            "stocktwits",
+            lambda: _run_bounded_fetch(
+                lambda: fetch_stocktwits_messages(
+                    ticker, limit=30, start_date=start_date, end_date=end_date
+                ),
+                label="stocktwits",
+                timeout_seconds=fetch_timeout,
+            ),
         )
-        reddit_block = fetch_reddit_posts(ticker, start_date=start_date, end_date=end_date)
+        reddit_block = run_step(
+            "reddit",
+            lambda: _run_bounded_fetch(
+                lambda: fetch_reddit_posts(ticker, start_date=start_date, end_date=end_date),
+                label="reddit",
+                timeout_seconds=fetch_timeout,
+            ),
+        )
 
         system_message = _build_system_message(
             ticker=ticker,
@@ -111,12 +230,15 @@ def create_sentiment_analyst(llm):
         # data is already in the prompt.
         formatted_messages = prompt.format_messages(messages=state["messages"])
 
-        report_text = invoke_structured_or_freetext(
-            structured_llm,
-            llm,
-            formatted_messages,
-            render_sentiment_report,
-            "Sentiment Analyst",
+        report_text = run_step(
+            "ai",
+            lambda: invoke_structured_or_freetext(
+                structured_llm,
+                llm,
+                formatted_messages,
+                render_sentiment_report,
+                "Sentiment Analyst",
+            ),
         )
 
         return {

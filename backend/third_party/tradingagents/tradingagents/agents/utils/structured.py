@@ -39,6 +39,18 @@ NO_EXTERNAL_TOOLS = (
 )
 
 
+def _is_timeout_error(error: BaseException) -> bool:
+    """Identify provider timeout errors without depending on one SDK class."""
+    current: BaseException | None = error
+    seen: set[int] = set()
+    while current is not None and id(current) not in seen:
+        seen.add(id(current))
+        if isinstance(current, TimeoutError) or "timeout" in type(current).__name__.lower():
+            return True
+        current = current.__cause__ or current.__context__
+    return False
+
+
 def bind_structured(llm: Any, schema: type[T], agent_name: str) -> Any | None:
     """Return ``llm.with_structured_output(schema)`` or ``None`` if unsupported.
 
@@ -80,6 +92,12 @@ def invoke_structured_or_freetext(
                 raise ValueError("structured output returned no parsed result")
             return render(result)
         except Exception as exc:
+            if _is_timeout_error(exc):
+                logger.warning(
+                    "%s: structured-output invocation timed out; not repeating the full model request",
+                    agent_name,
+                )
+                raise
             logger.warning(
                 "%s: structured-output invocation failed (%s); retrying once as free text",
                 agent_name, exc,

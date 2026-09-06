@@ -9,6 +9,7 @@ from __future__ import annotations
 import hashlib
 import hmac
 import json
+import logging
 import threading
 import time
 from dataclasses import dataclass
@@ -31,6 +32,7 @@ _REQUEST_SIGNATURE_HEADER = "x-datavest-trading-agents-request-signature"
 _CALLBACK_TIMESTAMP_HEADER = "X-DataVest-Trading-Agents-Timestamp"
 _CALLBACK_SIGNATURE_HEADER = "X-DataVest-Trading-Agents-Signature"
 _MAX_AGE_SECONDS = 300
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -69,13 +71,15 @@ def _callback(settings: Settings, message: Mapping[str, Any]) -> None:
             _CALLBACK_SIGNATURE_HEADER: _signature(settings.callback_secret, timestamp, body),
         },
     )
-    try:
-        with urlopen(request, timeout=10) as response:  # noqa: S310 - fixed operator callback URL
-            response.read(8 * 1024)
-    except (HTTPError, URLError, TimeoutError, OSError):
-        # The run files remain in the scoped volume for an operator retry. Do
-        # not expose the callback endpoint or exception detail to clients.
-        return
+    for attempt in range(2):
+        try:
+            with urlopen(request, timeout=5) as response:  # noqa: S310 - fixed operator callback URL
+                response.read(8 * 1024)
+            return
+        except (HTTPError, URLError, TimeoutError, OSError):
+            if attempt == 1:
+                logger.warning("TradingAgents callback delivery failed: run=%s event=%s sequence=%s",
+                               message.get("run_id"), message.get("event_type"), message.get("sequence"))
 
 
 def _run_payload(payload: Mapping[str, Any]) -> TradingAgentsRunRequest:
@@ -97,6 +101,7 @@ def _run_payload(payload: Mapping[str, Any]) -> TradingAgentsRunRequest:
         language=str(payload.get("language") or "vi-VN"),
         selected_analysts=selected,
         native_config=native_config,
+        event_sequence=int(payload.get("event_sequence", 0)),
     )
 
 
@@ -136,12 +141,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     def submit(graph_request: TradingAgentsRunRequest) -> bool:
         with active_lock:
             if graph_request.run_id in active_runs:
+                if active_runs[graph_request.run_id].cancelled.is_set():
+                    raise HTTPException(status_code=409, detail="cancellation_pending")
                 return False
             active = _ActiveRun(cancelled=threading.Event())
             active_runs[graph_request.run_id] = active
 
         def execute() -> None:
-            sequence = 0
+            sequence = graph_request.event_sequence
             publish_lock = threading.Lock()
 
             def publish(event_type: str, event_payload: Mapping[str, Any]) -> None:
@@ -176,6 +183,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             )
 
             try:
+                publish("run_status", {"status": "running"})
                 tracker.start()
                 heartbeat_thread.start()
                 result = run_full_graph(
@@ -183,6 +191,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     state_root=runtime_settings.state_root,
                     on_event=on_graph_event,
                     on_tool_progress=lambda event: publish(str(event.get("event_type") or "tool"), event),
+                    on_detail_progress=lambda event: publish("stage_detail", event),
                     should_cancel=active.cancelled.is_set,
                 )
                 publish("artifact", {
@@ -195,8 +204,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 publish("run_status", {"status": "succeeded"})
             except RunCancelled:
                 publish("run_status", {"status": "cancelled"})
-            except Exception:
-                publish("run_status", {"status": "failed", "failure_code": "runner_failed"})
+            except Exception as exc:
+                from tradingagents.agents.utils.structured import _is_timeout_error
+                failure_code = "provider_timeout" if _is_timeout_error(exc) else "runner_failed"
+                logger.error("TradingAgents failed: run=%s type=%s", graph_request.run_id, type(exc).__name__)
+                publish("run_status", {"status": "failed", "failure_code": failure_code})
             finally:
                 heartbeat_stop.set()
                 heartbeat_thread.join(timeout=1)

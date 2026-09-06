@@ -52,6 +52,7 @@ function isTableSeparator (row) {
 
 function pushTable (blocks, lines) {
   if (lines.length < 2) {
+    if (lines.length) blocks.push({ type: 'paragraph', text: lines[0] })
     lines.length = 0
     return
   }
@@ -78,6 +79,10 @@ export function parseTradingAgentsReport (content) {
   const listItems = []
   const tableLines = []
   const lines = String(content || '').replace(/\r\n?/g, '\n').split('\n')
+  let fence = ''
+  let code = []
+  let nativeGroup = false
+  let nativeAnalyst = false
 
   const flush = () => {
     pushParagraph(blocks, paragraphs)
@@ -87,6 +92,20 @@ export function parseTradingAgentsReport (content) {
 
   for (const rawLine of lines) {
     const line = rawLine.trim()
+    const fenceMatch = /^(`{3,}|~{3,})/.exec(line)
+    if (fence) {
+      if (fenceMatch && fenceMatch[1][0] === fence[0] && fenceMatch[1].length >= fence.length) {
+        blocks.push({ type: 'code', text: code.join('\n') })
+        fence = ''
+        code = []
+      } else code.push(rawLine)
+      continue
+    }
+    if (fenceMatch) {
+      flush()
+      fence = fenceMatch[1]
+      continue
+    }
     const heading = /^(#{1,6})\s+(.+)$/.exec(line)
     const list = /^(?:[-*+]\s+|\d+[.)]\s+)(.+)$/.exec(line)
 
@@ -98,10 +117,20 @@ export function parseTradingAgentsReport (content) {
       flush()
     } else if (heading) {
       flush()
+      const text = cleanInlineMarkdown(heading[2])
+      let level = heading[1].length
+      // Native team/analyst wrappers own their AI-written content, even when
+      // the model starts its individual report with another H1 or H2.
+      if (level === 2 && /^(I|II|III|IV|V)\. /.test(text) && HEADING_TRANSLATIONS[text]) {
+        nativeGroup = true
+        nativeAnalyst = false
+      } else if (nativeGroup && level === 3 && HEADING_TRANSLATIONS[text]) {
+        nativeAnalyst = true
+      } else if (nativeGroup) level += nativeAnalyst ? 3 : 2
       blocks.push({
         type: 'heading',
-        level: heading[1].length,
-        text: cleanInlineMarkdown(heading[2])
+        level,
+        text
       })
     } else if (list) {
       pushTable(blocks, tableLines)
@@ -118,6 +147,7 @@ export function parseTradingAgentsReport (content) {
     }
   }
   flush()
+  if (fence) blocks.push({ type: 'code', text: code.join('\n') })
 
   return blocks
 }
@@ -144,7 +174,7 @@ export function groupTradingAgentsReportSections (blocks) {
       title = block.text
       continue
     }
-    if (block.type === 'heading' && block.level <= 3) {
+    if (block.type === 'heading') {
       while (headingStack.length && headingStack[headingStack.length - 1].level >= block.level) headingStack.pop()
       const section = createSection(block)
       const parent = headingStack[headingStack.length - 1]

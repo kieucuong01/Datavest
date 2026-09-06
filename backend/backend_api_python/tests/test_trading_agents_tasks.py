@@ -99,6 +99,7 @@ def test_resume_control_reuses_the_immutable_run_payload(monkeypatch):
                 "run_id": run_id,
                 "user_id": 7,
                 "status": "queued",
+                "event_sequence": 42,
                 "request_json": json.dumps({
                     "market": "Crypto",
                     "symbol": "BTC/USDT",
@@ -127,6 +128,7 @@ def test_resume_control_reuses_the_immutable_run_payload(monkeypatch):
             "language": "vi-VN",
             "native_config": {"checkpoint_enabled": True},
             "selected_analysts": [],
+            "event_sequence": 42,
         },
     }]
 

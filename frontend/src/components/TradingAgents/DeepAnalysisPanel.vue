@@ -5,9 +5,9 @@
     :width="960"
     :footer="null"
     centered
-    :mask-closable="!isRunning"
-    :keyboard="!isRunning"
-    :wrap-class-name="'trading-agents-modal'"
+    :mask-closable="true"
+    :keyboard="true"
+    :wrap-class-name="dark ? 'trading-agents-modal trading-agents-modal--dark' : 'trading-agents-modal'"
     @cancel="close"
   >
     <section class="deep-analysis-panel" :class="{ 'theme-dark': dark }" aria-live="polite">
@@ -91,6 +91,10 @@
               <span class="progress-current-label">{{ $t('tradingAgents.currentStage') }}</span>
               <strong>{{ currentStageLabel }}</strong>
               <p>{{ currentStageDescription }}</p>
+              <p v-if="progressSubstepLabel" class="progress-substep">
+                <a-icon :type="progressSubstepStatus === 'completed' ? 'check-circle' : (progressSubstepStatus === 'failed' ? 'warning' : 'loading')" />
+                {{ progressSubstepLabel }}
+              </p>
             </div>
             <div class="progress-time">
               <strong>{{ progressElapsedLabel }}</strong>
@@ -100,6 +104,16 @@
           <div class="progress-footnote">
             <a-icon type="sync" /> {{ progressHeartbeatLabel }}
           </div>
+          <p class="progress-footnote">{{ $t('tradingAgents.canCloseRunning') }}</p>
+          <a-alert v-if="pollError" type="warning" show-icon :message="$t('tradingAgents.reconnecting')" />
+          <a-alert
+            v-if="isLongRunning"
+            type="warning"
+            show-icon
+            :message="$t('tradingAgents.longRunningTitle')"
+            :description="$t('tradingAgents.longRunningDescription')"
+            class="deep-analysis-long-running"
+          />
           <div class="progress-actions">
             <a-button size="small" :loading="cancelling" @click="cancel">
               <a-icon type="stop" /> {{ $t('tradingAgents.cancel') }}
@@ -117,7 +131,7 @@
         </div>
 
         <div v-else-if="isResumable" class="deep-analysis-recovery">
-          <a-alert type="warning" show-icon :message="$t('tradingAgents.interruptedTitle')" :description="run.failure_message || $t('tradingAgents.interruptedDescription')" />
+          <a-alert type="warning" show-icon :message="$t('tradingAgents.interruptedTitle')" :description="$t(run.failure_code === 'provider_timeout' ? 'tradingAgents.providerTimeout' : 'tradingAgents.interruptedDescription')" />
           <div class="recovery-actions">
             <a-button type="primary" :loading="resuming" @click="resume"><a-icon type="reload" /> {{ $t('tradingAgents.resume') }}</a-button>
             <a-button :loading="clearing" @click="clearCheckpoint"><a-icon type="clear" /> {{ $t('tradingAgents.clearCheckpoint') }}</a-button>
@@ -177,6 +191,7 @@
                         <tbody><tr v-for="(row, rowIndex) in block.rows" :key="`${sectionIndex}-${blockIndex}-row-${rowIndex}`"><td v-for="(cell, cellIndex) in row" :key="`${sectionIndex}-${blockIndex}-${rowIndex}-${cellIndex}`">{{ cell }}</td></tr></tbody>
                       </table>
                     </div>
+                    <pre v-else-if="block.type === 'code'">{{ block.text }}</pre>
                     <p v-else>{{ block.text }}</p>
                   </div>
                   <div v-if="section.subsections && section.subsections.length" class="report-subsections">
@@ -210,8 +225,10 @@
                               <tbody><tr v-for="(row, rowIndex) in block.rows" :key="`${sectionIndex}-${subsectionIndex}-${blockIndex}-row-${rowIndex}`"><td v-for="(cell, cellIndex) in row" :key="`${sectionIndex}-${subsectionIndex}-${rowIndex}-${cellIndex}`">{{ cell }}</td></tr></tbody>
                             </table>
                           </div>
+                          <pre v-else-if="block.type === 'code'">{{ block.text }}</pre>
                           <p v-else>{{ block.text }}</p>
                         </div>
+                        <report-branch v-for="(child, childIndex) in subsection.subsections" :key="childIndex" :section="child" :language="reportLocale" />
                       </div>
                     </article>
                   </div>
@@ -222,13 +239,17 @@
           </div>
         </section>
         <div v-else-if="run.status === 'succeeded'" class="deep-analysis-report-loading">
-          <a-spin size="small" /> {{ $t('tradingAgents.loadingReport') }}
+          <template v-if="reportError">
+            <span>{{ $t('tradingAgents.reportLoadFailed') }}</span>
+            <a-button @click="loadReport(run)">{{ $t('tradingAgents.retryReport') }}</a-button>
+          </template>
+          <template v-else><a-spin size="small" /> {{ $t('tradingAgents.loadingReport') }}</template>
         </div>
       </template>
 
       <div class="deep-analysis-footer">
         <span><a-icon type="info-circle" /> {{ $t('tradingAgents.disclaimer') }}</span>
-        <a-button :disabled="isRunning" @click="close">{{ $t('tradingAgents.close') }}</a-button>
+        <a-button @click="close">{{ $t('tradingAgents.close') }}</a-button>
       </div>
     </section>
   </a-modal>
@@ -250,6 +271,8 @@ import {
   parseTradingAgentsReport
 } from '@/utils/tradingAgentsReport'
 import { formatVietnamDateTime } from '@/utils/vietnamTime'
+import { parseUtcAwareInstant } from '@/utils/utcInstant'
+import ReportBranch from './ReportBranch.vue'
 
 const FULL_ANALYSTS = ['market', 'social', 'news', 'fundamentals']
 const TERMINAL = new Set(['succeeded', 'failed', 'cancelled'])
@@ -269,6 +292,7 @@ function vietnamDay () {
 
 export default {
   name: 'DeepAnalysisPanel',
+  components: { ReportBranch },
   props: {
     visible: { type: Boolean, default: false },
     target: { type: Object, default: null },
@@ -285,6 +309,11 @@ export default {
       clearing: false,
       errorMessage: '',
       pollTimer: null,
+      pollGeneration: 0,
+      pollingRequest: null,
+      pollError: false,
+      reportError: false,
+      reportRequest: null,
       progressTimer: null,
       progressClock: Date.now(),
       historyLoading: false,
@@ -296,6 +325,7 @@ export default {
   },
   computed: {
     vietnamToday () { return vietnamDay() },
+    contextKey () { return `${this.normalizedTarget.market}:${this.normalizedTarget.symbol}:${this.analysisDate || this.vietnamToday}:${this.$i18n.locale}` },
     isVietnamese () { return this.$i18n && this.$i18n.locale === 'vi-VN' },
     normalizedTarget () {
       const raw = this.target || {}
@@ -352,6 +382,13 @@ export default {
       const stageId = this.progressSnapshot.current_stage_id || 'initializing'
       return this.$t(`tradingAgents.stageDetails.${stageId}`)
     },
+    progressSubstepLabel () {
+      const substepId = this.progressSnapshot.current_substep_id
+      return substepId ? this.$t(`tradingAgents.substeps.${substepId}`) : ''
+    },
+    progressSubstepStatus () {
+      return String(this.progressSnapshot.current_substep_status || '')
+    },
     progressTotal () {
       return Number(this.progressSnapshot.total_count) || PROGRESS_STAGE_IDS.length
     },
@@ -382,13 +419,13 @@ export default {
     },
     progressElapsedSeconds () {
       const reported = Number(this.progressSnapshot.elapsed_seconds) || 0
-      const startedAt = Date.parse(this.progressSnapshot.stage_started_at || '')
+      const startedAt = Number(parseUtcAwareInstant(this.progressSnapshot.stage_started_at)) || NaN
       if (!this.isRunning || !Number.isFinite(startedAt)) return reported
       return Math.max(reported, Math.floor((this.progressClock - startedAt) / 1000))
     },
     progressTotalElapsedSeconds () {
       const reported = Number(this.progressSnapshot.total_elapsed_seconds) || 0
-      const startedAt = Date.parse((this.run && this.run.started_at) || '')
+      const startedAt = Number(parseUtcAwareInstant(this.run && this.run.started_at)) || NaN
       if (!this.isRunning || !Number.isFinite(startedAt)) return reported
       return Math.max(reported, Math.floor((this.progressClock - startedAt) / 1000))
     },
@@ -399,8 +436,13 @@ export default {
       return this.$t('tradingAgents.totalElapsed', { duration: this.formatDuration(this.progressTotalElapsedSeconds) })
     },
     progressHeartbeatLabel () {
+      const lastEvent = Number(parseUtcAwareInstant(this.progressSnapshot.last_event_at)) || 0
+      if (this.pollError || (lastEvent && this.progressClock - lastEvent > 30000)) return this.$t('tradingAgents.progressDelayed')
       if (Number(this.progressSnapshot.heartbeat_count) > 0) return this.$t('tradingAgents.heartbeatLive')
       return this.$t('tradingAgents.waitingForGraph')
+    },
+    isLongRunning () {
+      return this.isRunning && this.progressElapsedSeconds >= 180
     },
     reportLocale () {
       return (this.run && this.run.language) || (this.isVietnamese ? 'vi-VN' : 'en-US')
@@ -424,24 +466,29 @@ export default {
         this.stopPolling()
       }
     },
-    target () {
-      if (!this.visible) return
+    contextKey () {
       this.historyRequestId++
       this.run = null
       this.reportContent = ''
+      this.reportRequest = null
+      this.reportError = false
       this.errorMessage = ''
       this.stopPolling()
-      this.loadLatestRun({ autoStart: true })
+      if (this.visible) this.loadLatestRun({ autoStart: true })
     },
     reportContent () {
       this.resetReportSections()
     }
   },
   beforeDestroy () {
+    this.historyRequestId++
     this.stopPolling()
   },
   methods: {
     unwrap (response) { return response && response.data ? response.data : response },
+    isCurrentRun (runId, requestId) {
+      return this.visible && requestId === this.historyRequestId && this.run && this.run.run_id === runId
+    },
     formatDateTime (value) {
       return formatVietnamDateTime(value, { locale: this.isVietnamese ? 'vi-VN' : 'en-GB', fallback: String(value || '') })
     },
@@ -524,7 +571,7 @@ export default {
         }
         this.startPolling()
       } catch (error) {
-        this.errorMessage = (error && error.backendMessage) || (error && error.message) || this.$t('tradingAgents.startFailed')
+        if (requestId === this.historyRequestId && this.visible) this.errorMessage = this.$t('tradingAgents.startFailed')
       } finally {
         this.starting = false
       }
@@ -532,16 +579,21 @@ export default {
     async refreshRun () {
       if (!this.run || !this.run.run_id) return
       const runId = this.run.run_id
+      const generation = this.pollGeneration
+      if (this.pollingRequest === generation) return
+      this.pollingRequest = generation
       try {
-        const data = this.unwrap(await getTradingAgentsRun(runId))
+        const data = this.unwrap(await getTradingAgentsRun(runId, HISTORY_TIMEOUT_MS))
         if (!data || !data.run_id) throw new Error(this.$t('tradingAgents.loadFailed'))
-        if (!this.visible || !this.run || this.run.run_id !== runId) return
+        if (generation !== this.pollGeneration || !this.visible || !this.run || this.run.run_id !== runId) return
+        this.pollError = false
         this.run = data
         if (String(data.status || '').toLowerCase() === 'succeeded') await this.loadReport(data)
         if (TERMINAL.has(String(data.status || '').toLowerCase())) this.stopPolling()
       } catch (error) {
-        this.errorMessage = (error && error.backendMessage) || (error && error.message) || this.$t('tradingAgents.loadFailed')
-        this.stopPolling()
+        if (generation === this.pollGeneration && this.visible) this.pollError = true
+      } finally {
+        if (this.pollingRequest === generation) this.pollingRequest = null
       }
     },
     async loadLatestRun ({ autoStart = false } = {}) {
@@ -572,7 +624,7 @@ export default {
         this.restorePolling()
       } catch (error) {
         if (requestId === this.historyRequestId && this.visible) {
-          this.historyError = (error && error.backendMessage) || (error && error.message) || this.$t('tradingAgents.historyLoadFailed')
+          this.historyError = this.$t('tradingAgents.historyLoadFailed')
         }
       } finally {
         if (requestId === this.historyRequestId) this.historyLoading = false
@@ -580,15 +632,23 @@ export default {
     },
     async loadReport (run) {
       if (this.reportContent) return
+      const requestId = this.historyRequestId
+      const requestKey = `${requestId}:${run.run_id}`
+      if (this.reportRequest === requestKey) return
+      this.reportError = false
       const artifact = Array.isArray(run.artifacts) ? run.artifacts.find(item => item && item.artifact_name) : null
-      if (!artifact) return
+      if (!artifact) { this.reportError = true; return }
+      this.reportRequest = requestKey
       const runId = run.run_id
       try {
         const response = await getTradingAgentsArtifact(runId, artifact.artifact_name)
-        if (!this.visible || !this.run || this.run.run_id !== runId) return
+        if (requestId !== this.historyRequestId || !this.visible || !this.run || this.run.run_id !== runId) return
         this.reportContent = typeof response === 'string' ? response : String((response && response.data) || '')
+        if (!this.reportContent.trim()) this.reportError = true
       } catch (error) {
-        this.errorMessage = (error && error.backendMessage) || (error && error.message) || this.$t('tradingAgents.reportLoadFailed')
+        if (requestId === this.historyRequestId && this.visible) this.reportError = true
+      } finally {
+        if (this.reportRequest === requestKey) this.reportRequest = null
       }
     },
     startPolling () {
@@ -603,6 +663,7 @@ export default {
       else if (this.run && String(this.run.status || '').toLowerCase() === 'succeeded') this.loadReport(this.run)
     },
     stopPolling () {
+      this.pollGeneration++
       if (this.pollTimer) window.clearInterval(this.pollTimer)
       if (this.progressTimer) window.clearInterval(this.progressTimer)
       this.pollTimer = null
@@ -610,39 +671,48 @@ export default {
     },
     async cancel () {
       if (!this.run || this.cancelling) return
+      const runId = this.run.run_id
+      const requestId = this.historyRequestId
       this.cancelling = true
       try {
-        await cancelTradingAgentsRun(this.run.run_id)
+        await cancelTradingAgentsRun(runId)
+        if (!this.isCurrentRun(runId, requestId)) return
         this.run = { ...this.run, status: 'cancelled' }
         this.stopPolling()
       } catch (error) {
-        this.errorMessage = (error && error.backendMessage) || (error && error.message) || this.$t('tradingAgents.cancelFailed')
+        if (this.isCurrentRun(runId, requestId)) this.errorMessage = this.$t('tradingAgents.cancelFailed')
       } finally {
         this.cancelling = false
       }
     },
     async resume () {
       if (!this.run || this.resuming) return
+      const runId = this.run.run_id
+      const requestId = this.historyRequestId
       this.resuming = true
       this.errorMessage = ''
       try {
-        await resumeTradingAgentsRun(this.run.run_id)
+        await resumeTradingAgentsRun(runId)
+        if (!this.isCurrentRun(runId, requestId)) return
         this.run = { ...this.run, status: 'queued' }
         this.startPolling()
       } catch (error) {
-        this.errorMessage = (error && error.backendMessage) || (error && error.message) || this.$t('tradingAgents.resumeFailed')
+        if (this.isCurrentRun(runId, requestId)) this.errorMessage = this.$t('tradingAgents.resumeFailed')
       } finally {
         this.resuming = false
       }
     },
     async clearCheckpoint () {
       if (!this.run || this.clearing) return
+      const runId = this.run.run_id
+      const requestId = this.historyRequestId
       this.clearing = true
       try {
-        await clearTradingAgentsCheckpoint(this.run.run_id)
+        await clearTradingAgentsCheckpoint(runId)
+        if (!this.isCurrentRun(runId, requestId)) return
         this.$message.success(this.$t('tradingAgents.checkpointCleared'))
       } catch (error) {
-        this.errorMessage = (error && error.backendMessage) || (error && error.message) || this.$t('tradingAgents.clearFailed')
+        if (this.isCurrentRun(runId, requestId)) this.errorMessage = this.$t('tradingAgents.clearFailed')
       } finally {
         this.clearing = false
       }
@@ -655,7 +725,6 @@ export default {
       this.stopPolling()
     },
     close () {
-      if (this.isRunning) return
       this.$emit('close')
     }
   }
@@ -672,6 +741,7 @@ export default {
 .deep-analysis-empty { display: grid; justify-items: center; gap: 9px; min-height: 260px; padding: 40px 24px; text-align: center; }.deep-analysis-empty > .anticon { color: var(--blue, #2563eb); font-size: 38px; }.deep-analysis-empty h4 { margin: 4px 0 0; color: var(--ink, #1f2d3d); font-size: 17px; }.deep-analysis-empty p { max-width: 540px; margin: 0 0 8px; color: var(--muted, #61738b); line-height: 1.55; }
 .deep-analysis-status-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 8px 0 12px; }.run-state { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 700; }.run-state--queued, .run-state--running { color: #2563eb; }.run-state--succeeded { color: #16865a; }.run-state--failed, .run-state--cancelled { color: #bd4d4d; }.run-time { color: var(--muted, #61738b); font-size: 12px; }
 .deep-analysis-progress { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 10px 16px; padding: 15px; border: 1px solid var(--line, #dbe4ef); border-radius: 10px; background: var(--soft-blue, #f5f9ff); }.deep-analysis-progress .ant-progress { grid-column: 1 / -1; margin: 0; }.progress-copy { display: grid; gap: 3px; min-width: 0; }.progress-copy strong { font-size: 13px; }.progress-copy span { color: var(--muted, #61738b); font-size: 12px; }.progress-copy .progress-current { display: inline-flex; align-items: center; gap: 5px; color: var(--blue, #2563eb); font-weight: 600; }.deep-analysis-stage-list { display: flex; grid-column: 1 / -1; flex-wrap: wrap; gap: 6px; padding-top: 3px; }.deep-analysis-stage { display: inline-flex; align-items: center; gap: 4px; padding: 4px 7px; border: 1px solid var(--line, #dbe4ef); border-radius: 999px; color: var(--muted, #61738b); font-size: 11px; line-height: 1.25; }.deep-analysis-stage.is-complete { border-color: #b7e3cf; color: #16865a; background: #f0fbf5; }.deep-analysis-stage.is-current { border-color: #9fc2ff; color: #245dcc; background: #eef5ff; }.history-recovery-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
+.progress-substep { display: flex; align-items: center; gap: 5px; margin-top: 7px !important; color: var(--blue, #245dcc) !important; font-size: 12px !important; font-weight: 600; }.progress-substep .anticon { flex: 0 0 auto; }.deep-analysis-long-running { grid-column: 1 / -1; margin-top: 2px; }
 .deep-analysis-recovery { display: grid; gap: 10px; }.recovery-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .deep-analysis-report { margin-top: 14px; overflow: hidden; border: 1px solid var(--line, #dbe4ef); border-radius: 10px; background: var(--card, #fff); }.report-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 13px 15px; border-bottom: 1px solid var(--line, #dbe4ef); }.report-heading h4 { margin: 0; color: var(--ink, #1f2d3d); font-size: 15px; }.report-heading span { display: block; margin-top: 2px; color: var(--muted, #61738b); font-size: 11px; }.report-heading .ant-tag { margin: 0; }.deep-analysis-report pre { max-height: 52vh; margin: 0; overflow: auto; padding: 16px; color: var(--ink, #1f2d3d); background: transparent; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 12px; line-height: 1.65; white-space: pre-wrap; overflow-wrap: anywhere; }.deep-analysis-history-loading, .deep-analysis-report-loading { display: flex; align-items: center; gap: 8px; min-height: 110px; color: var(--muted, #61738b); }.deep-analysis-error { margin-bottom: 12px; }
 .deep-analysis-footer { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--line, #dbe4ef); color: var(--muted, #61738b); font-size: 12px; line-height: 1.45; }.deep-analysis-footer span { display: inline-flex; align-items: flex-start; gap: 6px; }
@@ -680,6 +750,23 @@ export default {
 </style>
 
 <style lang="less">
+.trading-agents-modal--dark {
+  --ink: #e6edf6;
+  --muted: #a4b5cc;
+  --text-secondary: #b6c3d6;
+  --line: #334155;
+  --card: #18202c;
+  --soft-blue: #152334;
+  --blue: #86b7ff;
+  .ant-modal-content, .ant-modal-header { background: var(--card); border-color: var(--line); }
+  .ant-modal-title, .ant-modal-close, .ant-modal-close-x { color: var(--ink); }
+}
+@media (max-width: 640px) {
+  // Keep a single vertical scroll surface on touch screens. Tables still
+  // scroll horizontally inside their own container.
+  .trading-agents-modal .report-body { max-height: none !important; overflow: visible; }
+  .trading-agents-modal .deep-analysis-report-loading { flex-wrap: wrap; }
+}
 .trading-agents-modal .deep-analysis-progress {
   display: block;
   padding: 18px;
@@ -966,13 +1053,12 @@ export default {
 }
 
 .trading-agents-modal .report-section-heading h5 {
-  overflow: hidden;
+  overflow-wrap: anywhere;
   margin: 0;
   color: var(--ink, #1f2d3d);
   font-size: 14px;
-  text-overflow: ellipsis;
   line-height: 1.35;
-  white-space: nowrap;
+  white-space: normal;
 }
 
 .trading-agents-modal .report-section-chevron {
@@ -1048,14 +1134,13 @@ export default {
 }
 
 .trading-agents-modal .report-subsection-heading h6 {
-  overflow: hidden;
+  overflow-wrap: anywhere;
   margin: 0;
   color: var(--ink, #1f2d3d);
   font-size: 13px;
   font-weight: 650;
   line-height: 1.4;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  white-space: normal;
 }
 
 .trading-agents-modal .report-subsection-content {

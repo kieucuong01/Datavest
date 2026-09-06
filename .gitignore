@@ -12,6 +12,7 @@ frontend/dist/
 frontend/output/
 frontend/graphify-out/
 frontend/.uv-cache-graphify/
+/.tooling/
 frontend/.agents/
 frontend/.github/
 

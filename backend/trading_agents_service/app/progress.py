@@ -59,10 +59,10 @@ class StageProgressTracker:
 
     def on_graph_event(self, event: RunEvent) -> None:
         stage_id = str(event.payload.get("stage_id") or "").strip()
-        if stage_id not in self.stage_ids or stage_id == "report":
-            return
-        if stage_id not in self.completed_stage_ids:
-            self.completed_stage_ids.append(stage_id)
+        observed = event.payload.get("completed_stage_ids", [stage_id])
+        for stage in observed:
+            if stage in self.stage_ids and stage != "report" and stage not in self.completed_stage_ids:
+                self.completed_stage_ids.append(stage)
         next_index = next(
             (index for index, candidate in enumerate(self.stage_ids[:-1]) if candidate not in self.completed_stage_ids),
             len(self.stage_ids) - 1,

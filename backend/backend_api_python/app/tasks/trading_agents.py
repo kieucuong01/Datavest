@@ -144,6 +144,7 @@ def _service_run_payload(record: Mapping[str, Any]) -> dict[str, Any]:
         "language": str(request.get("language") or "vi-VN"),
         "native_config": config.get("native_config") or {},
         "selected_analysts": config.get("selected_analysts") or [],
+        "event_sequence": int(record.get("event_sequence") or 0),
     }
 
 
@@ -189,6 +190,8 @@ def execute_trading_agents_control(run_id: str, action: str) -> None:
             payload=_service_run_payload(record),
         )
     except TradingAgentsServiceRejected:
+        if clean_action == "resume":
+            repository.transition_run(run_id=str(run_id), status="failed", failure_code="resume_rejected")
         return
     except TradingAgentsServiceUnavailable:
         if clean_action != "cancel":

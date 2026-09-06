@@ -76,6 +76,19 @@ def _coerce_max_tokens(value):
     return n
 
 
+def _coerce_timeout(value):
+    """Validate a positive provider request timeout in seconds."""
+    if isinstance(value, bool):
+        raise ValueError(f"llm_timeout must be an integer, not a boolean: {value!r}")
+    try:
+        n = int(value)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"llm_timeout must be an integer, got {value!r}") from exc
+    if n <= 0:
+        raise ValueError(f"llm_timeout must be > 0, got {n}")
+    return n
+
+
 class TradingAgentsGraph:
     """Main class that orchestrates the trading agents framework."""
 
@@ -204,6 +217,10 @@ class TradingAgentsGraph:
         if max_tokens is not None and max_tokens != "":
             key = "max_output_tokens" if provider == "google" else "max_tokens"
             kwargs[key] = _coerce_max_tokens(max_tokens)
+
+        timeout = self.config.get("llm_timeout")
+        if timeout is not None and timeout != "":
+            kwargs["timeout"] = _coerce_timeout(timeout)
 
         return kwargs
 

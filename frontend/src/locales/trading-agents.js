@@ -2,6 +2,11 @@ const messages = {
   'en-US': {
     tradingAgents: {
       title: 'Deep analysis',
+      reconnecting: 'Connection interrupted. Retrying automatically; the analysis continues on the server.',
+      progressDelayed: 'No recent progress received. The last confirmed stage is shown; completion has not been confirmed.',
+      canCloseRunning: 'You can close this window. The analysis keeps running; reopen it to follow progress.',
+      retryReport: 'Retry report',
+      providerTimeout: 'A source or AI request timed out. Resume from the saved checkpoint or start a new run.',
       nativeGraph: 'Full TradingAgents graph',
       fullGraphDescription: 'Runs the pinned upstream analyst, debate, risk and portfolio-manager graph. Research only; it never places live orders.',
       sourcePinned: 'Pinned source',
@@ -28,6 +33,8 @@ const messages = {
       currentStage: 'Current stage',
       waitingForGraph: 'Preparing the native graph',
       heartbeatLive: 'Live progress is updating while this stage runs.',
+      longRunningTitle: 'This stage is taking longer than usual',
+      longRunningDescription: 'The native graph is still running. An external source or model response may be slow. You can stop and retry safely; checkpointed stages are preserved.',
       totalElapsed: 'Total time {duration}',
       graphStep: 'Completed an upstream graph step',
       toolStep: 'Used a native research tool',
@@ -68,6 +75,12 @@ const messages = {
         portfolio_manager: 'The portfolio manager is preparing the final research decision.',
         report: 'Saving the complete research report for this run.'
       },
+      substeps: {
+        news: 'Fetching Yahoo Finance news',
+        stocktwits: 'Fetching StockTwits messages',
+        reddit: 'Fetching Reddit discussion',
+        ai: 'Synthesizing sentiment with the model'
+      },
       stages: {
         initializing: 'Preparing the native graph',
         market: 'Market analysis',
@@ -85,6 +98,11 @@ const messages = {
   },
   'vi-VN': {
     tradingAgents: {
+      reconnecting: 'Kết nối tạm gián đoạn. Đang tự thử lại; phân tích vẫn tiếp tục trên máy chủ.',
+      progressDelayed: 'Chưa nhận được tiến trình mới. Đang hiển thị bước được xác nhận cuối cùng; chưa xác nhận hoàn thành.',
+      canCloseRunning: 'Bạn có thể đóng cửa sổ. Phân tích vẫn chạy; mở lại để theo dõi tiến trình.',
+      retryReport: 'Tải lại báo cáo',
+      providerTimeout: 'Nguồn dữ liệu hoặc AI phản hồi quá hạn. Bạn có thể tiếp tục từ điểm đã lưu hoặc chạy lại.',
       title: 'Phân tích chuyên sâu',
       nativeGraph: 'Đồ thị TradingAgents đầy đủ',
       fullGraphDescription: 'Chạy đầy đủ đồ thị upstream: nhóm phân tích, tranh luận, quản trị rủi ro và quản lý danh mục. Chỉ phục vụ nghiên cứu, không bao giờ gửi lệnh thật.',
@@ -112,6 +130,8 @@ const messages = {
       currentStage: 'Giai đoạn hiện tại',
       waitingForGraph: 'Đang chuẩn bị đồ thị gốc',
       heartbeatLive: 'Tiến độ trực tiếp đang được cập nhật trong giai đoạn này.',
+      longRunningTitle: 'Giai đoạn này đang lâu hơn bình thường',
+      longRunningDescription: 'Đồ thị gốc vẫn đang chạy; một nguồn dữ liệu hoặc phản hồi từ mô hình có thể đang chậm. Bạn có thể dừng và thử lại an toàn; các giai đoạn đã checkpoint vẫn được giữ.',
       totalElapsed: 'Tổng thời gian {duration}',
       graphStep: 'Đã hoàn tất một bước đồ thị gốc',
       toolStep: 'Đã dùng một công cụ nghiên cứu gốc',
@@ -151,6 +171,12 @@ const messages = {
         risk_debate: 'Các nhóm rủi ro đang kiểm tra sức chịu đựng của kế hoạch.',
         portfolio_manager: 'Quản lý danh mục đang chuẩn bị quyết định nghiên cứu cuối cùng.',
         report: 'Đang lưu báo cáo nghiên cứu đầy đủ cho lần chạy này.'
+      },
+      substeps: {
+        news: 'Đang lấy tin Yahoo Finance',
+        stocktwits: 'Đang lấy tin nhắn StockTwits',
+        reddit: 'Đang lấy thảo luận Reddit',
+        ai: 'Đang tổng hợp tâm lý bằng mô hình AI'
       },
       stages: {
         initializing: 'Đang chuẩn bị đồ thị gốc',

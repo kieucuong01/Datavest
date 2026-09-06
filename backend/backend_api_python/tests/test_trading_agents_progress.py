@@ -10,6 +10,19 @@ from pathlib import Path
 BACKEND_ROOT = Path(__file__).resolve().parents[1]
 
 
+def test_new_state_evidence_advances_even_when_next_stage_callback_was_lost():
+    _enable_lightweight_app_imports()
+    from app.services.trading_agents_progress import build_public_progress
+    result = build_public_progress(status="running", market="Crypto", artifacts=[], events=[
+        {"event_type": "stage_started", "payload_json": {"stage_id": "social"}},
+        {"event_type": "stage_heartbeat", "payload_json": {"stage_id": "social", "elapsed_seconds": 360}},
+        {"event_type": "upstream_chunk", "payload_json": {"stage_id": "news", "completed_stage_ids": ["market", "social", "news"]}},
+    ])
+    assert result["current_stage_id"] == "investment_debate"
+    assert result["completed_count"] == 3
+    assert result["elapsed_seconds"] == 0
+
+
 def _enable_lightweight_app_imports() -> None:
     if "app" not in sys.modules:
         package = types.ModuleType("app")
@@ -123,3 +136,42 @@ def test_stage_heartbeat_is_public_but_does_not_mark_the_stage_complete() -> Non
     assert progress["completed_stage_ids"] == ["market"]
     assert progress["elapsed_seconds"] == 35
     assert progress["heartbeat_count"] == 7
+
+
+def test_stage_detail_exposes_only_the_current_safe_substep() -> None:
+    _enable_lightweight_app_imports()
+    from app.services.trading_agents_progress import build_public_progress, public_event
+
+    event = {
+        "sequence": 3,
+        "event_type": "stage_detail",
+        "created_at": "2026-09-06T10:00:00+00:00",
+        "payload_json": {
+            "stage_id": "social",
+            "substage_id": "reddit",
+            "status": "started",
+            "duration_ms": 14,
+            "private_prompt": "must not be returned",
+        },
+    }
+
+    public = public_event(event)
+    progress = build_public_progress(
+        status="running",
+        market="Crypto",
+        events=[
+            {"sequence": 1, "event_type": "upstream_chunk", "payload_json": {"stage_id": "market"}},
+            event,
+        ],
+        artifacts=[],
+    )
+
+    assert public["payload"] == {
+        "stage_id": "social",
+        "substage_id": "reddit",
+        "status": "started",
+        "duration_ms": 14,
+    }
+    assert progress["current_stage_id"] == "social"
+    assert progress["current_substep_id"] == "reddit"
+    assert progress["current_substep_status"] == "started"

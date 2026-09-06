@@ -48,10 +48,26 @@ def _json_value(value: Any) -> JsonValue:
 
 
 def event_from_chunk(run_id: str, sequence: int, chunk: Mapping[str, Any]) -> RunEvent:
-    stage_id = next((stage for key, stage in _CHUNK_STAGE_KEYS if key in chunk), None)
+    # stream_mode='values' includes EVERY state field, including empty reports
+    # and old reports. Presence/first-key detection leaves the UI stuck at social.
+    completed = [stage for key, stage in _CHUNK_STAGE_KEYS
+                 if key not in {"investment_debate_state", "risk_debate_state"}
+                 and isinstance(chunk.get(key), str) and chunk[key].strip()]
+    investment = chunk.get("investment_debate_state") or {}
+    risk = chunk.get("risk_debate_state") or {}
+    if isinstance(investment, Mapping) and investment.get("judge_decision"):
+        completed.extend(["investment_debate", "research_manager"])
+    elif chunk.get("investment_plan"):
+        completed.append("investment_debate")
+    if isinstance(risk, Mapping) and risk.get("judge_decision"):
+        completed.extend(["risk_debate", "portfolio_manager"])
+    elif chunk.get("final_trade_decision"):
+        completed.append("risk_debate")
+    ordered = [stage for _, stage in _CHUNK_STAGE_KEYS if stage in completed]
+    stage_id = ordered[-1] if ordered else None
     return RunEvent(
         run_id=run_id,
         sequence=sequence,
         kind="upstream_chunk",
-        payload={"stage_id": stage_id} if stage_id else {},
+        payload={"stage_id": stage_id, "completed_stage_ids": ordered},
     )
