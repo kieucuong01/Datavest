@@ -7,7 +7,6 @@
           <label>{{ $t('smartInsights.analysisDate') }}</label>
           <a-select
             v-model="asOf"
-            allow-clear
             size="small"
             :loading="datesLoading"
             :disabled="datesLoading"
@@ -29,6 +28,7 @@
             </div>
           </div>
           <a-button size="small" :loading="retryingSection === 'all'" @click="retryAll">{{ $t('smartInsights.retryAll') }}</a-button>
+          <a-button size="small" @click="healthVisible = true">{{ $t('smartInsights.readinessSources') }}</a-button>
         </div>
         <div class="data-readiness-sections">
           <div v-for="section in readinessSections" :key="section.key" class="data-readiness-section">
@@ -80,7 +80,7 @@
             </a-button>
             <p v-if="heroExpanded && dailyBrief.status === 'AVAILABLE'" class="hero-thesis">{{ dailyBrief.content }}</p>
           </div>
-          <button type="button" class="hero-audio" :disabled="dailyBrief.status !== 'AVAILABLE'" @click="toggleHeroSpeech">
+          <button type="button" class="hero-audio" :disabled="!speechSupported || dailyBrief.status !== 'AVAILABLE'" @click="toggleHeroSpeech">
             <span class="play-button"><a-icon :type="heroSpeechActive ? 'pause' : 'caret-right'" /></span>
             <span><strong>{{ $t('smartInsights.listenAi') }}</strong><small>{{ heroSpeechActive ? $t('smartInsights.stopListening') : $t('smartInsights.dailyBriefTts') }}</small></span>
           </button>
@@ -89,7 +89,7 @@
         <section class="legacy-card decision-brief-card" aria-labelledby="decision-brief-title">
           <div class="card-heading">
             <div class="heading-with-icon"><span class="section-icon">✓</span><div><h2 id="decision-brief-title">{{ $t('smartInsights.decisionBrief') }}</h2><p>{{ $t('smartInsights.decisionBriefDesc') }}</p></div></div>
-            <a-tag :color="dailyBrief.status === 'UNAVAILABLE' ? 'orange' : 'green'">{{ overviewStatus }}</a-tag>
+            <a-tag :color="readinessColor(dailyBrief.status)">{{ statusLabel(dailyBrief.status) }}</a-tag>
           </div>
           <div class="brief-facts">
             <div><small>{{ $t('smartInsights.analysisDate') }}</small><strong>{{ analysisDateLabel }}</strong></div>
@@ -294,7 +294,7 @@
       :title="$t('smartInsights.evidence')"
       :width="560"
       :wrap-class-name="isDarkTheme ? 'insights-drawer theme-dark' : 'insights-drawer'"
-      @close="evidenceVisible = false"
+      @close="closeEvidence"
     >
       <a-spin :spinning="evidenceLoading"><a-descriptions v-if="evidence" bordered :column="1" size="small"><a-descriptions-item :label="$t('smartInsights.provider')">{{ evidence.sourceName || evidence.source }}</a-descriptions-item><a-descriptions-item :label="$t('smartInsights.sourceUrl')"><a v-if="evidence.sourceUrl" :href="evidence.sourceUrl" target="_blank" rel="noopener">{{ evidence.sourceUrl }}</a><span v-else>—</span></a-descriptions-item><a-descriptions-item :label="$t('smartInsights.observedAt')">{{ evidence.observedAt }}</a-descriptions-item><a-descriptions-item :label="$t('smartInsights.effectiveAt')">{{ evidence.effectiveAt }}</a-descriptions-item><a-descriptions-item :label="$t('smartInsights.reliability')">{{ evidence.reliability || '—' }}</a-descriptions-item><a-descriptions-item :label="$t('smartInsights.dataClass')">{{ evidence.dataClass || '—' }}</a-descriptions-item><a-descriptions-item :label="$t('smartInsights.methodology')">{{ evidence.methodologyVersion }}</a-descriptions-item><a-descriptions-item :label="$t('smartInsights.value')"><pre>{{ pretty(evidence.value) }}</pre></a-descriptions-item><a-descriptions-item :label="$t('smartInsights.warnings')">{{ (evidence.warnings || []).join(', ') || $t('smartInsights.none') }}</a-descriptions-item><a-descriptions-item :label="$t('smartInsights.checksum')"><code>{{ evidence.checksum }}</code></a-descriptions-item></a-descriptions></a-spin>
     </a-drawer>
@@ -370,6 +370,10 @@ export default {
       deepAnalysisTarget: null,
       healthVisible: false,
       requestSequence: 0,
+      sectionRequests: {},
+      sectionErrors: { overview: false, opinions: false, pulse: false, calendar: false, health: false },
+      evidenceSequence: 0,
+      speechSupported: typeof window !== 'undefined' && Boolean(window.speechSynthesis && window.SpeechSynthesisUtterance),
       smartInsightsCache: {
         dates: null,
         watchlist: null,
@@ -538,7 +542,10 @@ export default {
         { key: 'pulse', label: this.$t('smartInsights.readinessPulse'), status: this.cryptoPulse && (this.cryptoPulse.freshness || this.cryptoPulse.status) || 'UNAVAILABLE', fetchedAt: this.cryptoPulse && this.cryptoPulse.fetchedAt },
         { key: 'calendar', label: this.$t('smartInsights.readinessCalendar'), status: this.calendarMeta.freshness || (this.calendarEvents.length ? 'FRESH' : 'UNAVAILABLE'), fetchedAt: this.calendarMeta.fetchedAt },
         { key: 'sources', label: this.$t('smartInsights.readinessSources'), status: this.sourceReadinessStatus, fetchedAt: this.health.reduce((latest, row) => String(row && row.lastObservedAt || '') > String(latest || '') ? row.lastObservedAt : latest, '') }
-      ]
+      ].map(section => {
+        const key = section.key === 'sources' ? 'health' : section.key
+        return { ...section, status: this[`${key}Loading`] ? 'LOADING' : this.sectionErrors[key] ? 'UNAVAILABLE' : section.status }
+      })
     },
     readinessSummary () {
       const summary = summarizeReadiness(this.readinessSections, this.health, this.readinessLoading)
@@ -558,10 +565,16 @@ export default {
       ]
     }
   },
+  watch: {
+    '$i18n.locale' () { this.loadAll(false) }
+  },
   mounted () {
     this.loadAll()
   },
   beforeDestroy () {
+    this.requestSequence++
+    this.closeEvidence()
+    this.stopHeroSpeech()
     if (typeof window !== 'undefined') {
       if (this.cryptoIdleHandle !== null && typeof window.cancelIdleCallback === 'function') window.cancelIdleCallback(this.cryptoIdleHandle)
       if (this.cryptoReadyTimer !== null) window.clearTimeout(this.cryptoReadyTimer)
@@ -570,7 +583,31 @@ export default {
     this.cryptoReadyTimer = null
   },
   methods: {
-    isCurrentRequest (requestId) { return isCurrentRequestToken(requestId, this.requestSequence) },
+    isCurrentRequest (requestId) {
+      if (requestId && typeof requestId === 'object') {
+        return requestId.page === this.requestSequence && this.sectionRequests[requestId.section] === requestId
+      }
+      return isCurrentRequestToken(requestId, this.requestSequence)
+    },
+    runSections (loaders, pageId) {
+      const tasks = {}
+      Object.entries(loaders).forEach(([section, loader]) => {
+        const token = { page: pageId, section }
+        this.sectionRequests[section] = token
+        tasks[section] = async () => {
+          this.setSectionLoading(section, true, token)
+          this.sectionErrors[section] = false
+          try {
+            return await loader(token)
+          } catch (error) {
+            if (!this.isCurrentRequest(token)) return
+            this.sectionErrors[section] = true
+            throw error
+          } finally { this.setSectionLoading(section, false, token) }
+        }
+      })
+      return runSectionLoaders(tasks)
+    },
     handleDateChange () { return this.loadAll(false) },
     cacheKey (asOf = this.asOf) {
       const lang = (this.$i18n && this.$i18n.locale) || 'en-US'
@@ -591,6 +628,17 @@ export default {
     },
     async loadAll (force = false) {
       const requestId = ++this.requestSequence
+      this.stopHeroSpeech()
+      this.closeAssetAnalysis()
+      this.closeEvidence()
+      this.heroExpanded = false
+      this.retryingSection = ''
+      this.overview = null
+      this.cryptoPulse = null
+      this.calendarEvents = []
+      this.calendarMeta = {}
+      this.calendarError = ''
+      ;['dates', 'overview', 'opinions', 'pulse', 'calendar', 'health'].forEach(section => this.setSectionLoading(section, false, requestId))
       this.errorMessage = ''
       const needsDates = force || !Array.isArray(this.smartInsightsCache.dates)
       if (needsDates) {
@@ -608,13 +656,13 @@ export default {
       }
       if (!this.isCurrentRequest(requestId)) return
       const loaders = {
-        overview: () => this.loadOverview(requestId, force),
-        pulse: () => this.loadPulse(requestId, force)
+        overview: requestId => this.loadOverview(requestId, force),
+        pulse: requestId => this.loadPulse(requestId, force),
+        calendar: requestId => this.loadCalendar(force, requestId)
       }
-      if (force || !Array.isArray(this.smartInsightsCache.watchlist)) loaders.opinions = () => this.loadWatchlist(requestId, force)
-      if (force || !this.smartInsightsCache.calendar) loaders.calendar = () => this.loadCalendar(force, requestId)
-      if (force || !Array.isArray(this.smartInsightsCache.health)) loaders.health = () => this.loadHealth(requestId, force)
-      const results = await runSectionLoaders(loaders, this.setSectionLoading, requestId)
+      if (force || !Array.isArray(this.smartInsightsCache.watchlist)) loaders.opinions = requestId => this.loadWatchlist(requestId, force)
+      if (force || !Array.isArray(this.smartInsightsCache.health)) loaders.health = requestId => this.loadHealth(requestId, force)
+      const results = await this.runSections(loaders, requestId)
       if (!this.isCurrentRequest(requestId)) return
       const failed = results.find(result => result.status === 'rejected')
       if (failed) {
@@ -641,8 +689,8 @@ export default {
         as_of: this.asOf,
         lang: (this.$i18n && this.$i18n.locale) || 'en-US'
       })
-      this.smartInsightsCache.overview.set(cacheKey, response.data)
       if (!this.isCurrentRequest(requestId)) return
+      this.smartInsightsCache.overview.set(cacheKey, response.data)
       this.overview = response.data
     },
     async loadDates (requestId, force = false) {
@@ -655,8 +703,8 @@ export default {
       }
       const response = await getSmartInsightsDates()
       const dates = (response.data && response.data.dates) || []
-      this.smartInsightsCache.dates = dates
       if (!this.isCurrentRequest(requestId)) return
+      this.smartInsightsCache.dates = dates
       this.dates = dates
       if (!this.asOf && this.dates.length) this.asOf = this.dates[0]
     },
@@ -667,8 +715,8 @@ export default {
       }
       const response = await getSmartInsightsDataHealth()
       const health = (response.data && response.data.sources) || []
-      this.smartInsightsCache.health = health
       if (!this.isCurrentRequest(requestId)) return
+      this.smartInsightsCache.health = health
       this.health = health
     },
     async loadPulse (requestId, force = false) {
@@ -678,14 +726,14 @@ export default {
         return
       }
       const response = await getSmartInsightsCryptoPulse({ as_of: this.asOf, compact: 1 })
-      this.smartInsightsCache.pulse.set(cacheKey, response.data)
       if (!this.isCurrentRequest(requestId)) return
+      this.smartInsightsCache.pulse.set(cacheKey, response.data)
       this.cryptoPulse = response.data
     },
     async loadCalendar (force = false, requestId) {
       if (this.isCurrentRequest(requestId)) { this.calendarError = ''; this.calendarMeta = {} }
       const lang = (this.$i18n && this.$i18n.locale) || 'en-US'
-      const calendarKey = `${lang}|14`
+      const calendarKey = `${this.cacheKey()}|14`
       if (!force && this.smartInsightsCache.calendar && this.smartInsightsCache.calendar.key === calendarKey) {
         const cached = this.smartInsightsCache.calendar
         if (this.isCurrentRequest(requestId)) {
@@ -701,8 +749,8 @@ export default {
         const events = Array.isArray(response.data) ? response.data : []
         const meta = response.meta || {}
         const error = !events.length && meta.message ? meta.message : ''
-        this.smartInsightsCache.calendar = { key: calendarKey, events, meta, error }
         if (!this.isCurrentRequest(requestId)) return
+        this.smartInsightsCache.calendar = { key: calendarKey, events, meta, error }
         this.calendarEvents = events
         this.calendarMeta = meta
         this.calendarError = error
@@ -710,6 +758,7 @@ export default {
         if (!this.isCurrentRequest(requestId)) return
         this.calendarEvents = []
         this.calendarError = this.friendlyError(error, 'smartInsights.calendarLoadFailed')
+        throw error
       }
     },
     async loadWatchlist (requestId, force = false) {
@@ -721,13 +770,14 @@ export default {
         const response = await getWatchlist()
         const data = response && response.data
         const watchlist = Array.isArray(data) ? data : ((data && Array.isArray(data.watchlist)) ? data.watchlist : [])
-        this.smartInsightsCache.watchlist = watchlist
         if (!this.isCurrentRequest(requestId)) return
+        this.smartInsightsCache.watchlist = watchlist
         this.watchlist = watchlist
       } catch (error) {
         if (!this.isCurrentRequest(requestId)) return
         this.watchlist = []
         this.errorMessage = this.friendlyError(error, 'smartInsights.watchlistUnavailable')
+        throw error
       }
     },
     async retryAll () {
@@ -748,15 +798,17 @@ export default {
             health: requestId => this.loadHealth(requestId, true)
           }
       if (!loaders[loaderKey]) return
-      const requestId = ++this.requestSequence
+      const requestId = this.requestSequence
+      this.errorMessage = ''
       this.retryingSection = section
       try {
         const activeLoaders = {}
-        Object.keys(loaders).forEach(key => { activeLoaders[key] = () => loaders[key](requestId) })
-        const results = await runSectionLoaders(activeLoaders, this.setSectionLoading, requestId)
+        const keys = loaderKey === 'opinions' ? ['opinions', 'overview'] : [loaderKey]
+        keys.forEach(key => { activeLoaders[key] = loaders[key] })
+        const results = await this.runSections(activeLoaders, requestId)
         if (this.isCurrentRequest(requestId) && results.some(result => result.status === 'rejected')) this.errorMessage = this.friendlyError(results.find(result => result.status === 'rejected').reason, 'smartInsights.unavailable')
       } finally {
-        if (this.isCurrentRequest(requestId)) this.retryingSection = ''
+        if (this.isCurrentRequest(requestId) && this.retryingSection === section) this.retryingSection = ''
       }
     },
     async openAssetAnalysis (row) {
@@ -797,9 +849,26 @@ export default {
       this.heroSpeechActive = true
       window.speechSynthesis.speak(utterance)
     },
+    stopHeroSpeech () {
+      if (this.heroSpeechActive && typeof window !== 'undefined' && window.speechSynthesis) window.speechSynthesis.cancel()
+      this.heroSpeechActive = false
+    },
+    closeEvidence () {
+      this.evidenceSequence++
+      this.evidenceVisible = false
+      this.evidenceLoading = false
+    },
     async openEvidence (id) {
+      const requestId = ++this.evidenceSequence
       this.evidenceVisible = true; this.evidenceLoading = true; this.evidence = null
-      try { const response = await getSmartInsightsEvidence(id); this.evidence = response.data } catch (error) { this.errorMessage = this.friendlyError(error, 'smartInsights.unavailable') } finally { this.evidenceLoading = false }
+      try {
+        const response = await getSmartInsightsEvidence(id)
+        if (requestId === this.evidenceSequence) this.evidence = response.data
+      } catch (error) {
+        if (requestId === this.evidenceSequence) this.errorMessage = this.friendlyError(error, 'smartInsights.unavailable')
+      } finally {
+        if (requestId === this.evidenceSequence) this.evidenceLoading = false
+      }
     },
     statusLabel (status) {
       const labels = {
@@ -857,9 +926,8 @@ export default {
       if (normalized === 'HOLD') return this.$t('smartInsights.neutral')
       return value || this.$t('smartInsights.notAvailable')
     },
-    friendlyError (error, key) {
-      if (this.$i18n && this.$i18n.locale === 'vi-VN') return this.$t(key)
-      return String((error && error.message) || this.$t(key))
+    friendlyError (_cause, key) {
+      return this.$t(key)
     },
     pretty (value) { return JSON.stringify(value || {}, null, 2) },
     readinessLabel (status) {
@@ -903,7 +971,28 @@ export default {
 @media (max-width: 960px) { .legacy-main { width: 100%; }.analysis-controls { flex-wrap: wrap; align-items: stretch; }.control-spacer { display: none; }.date-control { flex: 1 1 100%; grid-template-columns: auto 118px; } }
 @media (max-width: 900px) and (min-width: 681px) { .analysis-metric-grid, .analysis-factor-grid, .analysis-consensus-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 680px) { .legacy-main { padding: 14px 12px 32px; }.date-control { grid-template-columns: auto 1fr; }.date-control .ant-select { width: 100%; }.daily-hero { align-items: flex-start; flex-direction: column; gap: 22px; padding: 25px 22px; }.daily-hero h1 { font-size: 32px; }.daily-brief-highlights { grid-template-columns: 1fr; width: 100%; }.hero-audio { width: 100%; }.card-heading { align-items: flex-start; flex-direction: column; }.calendar-filters { flex-wrap: wrap; }.brief-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }.analysis-result-grid, .analysis-metric-grid, .analysis-factor-grid, .analysis-consensus-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }.analysis-trend-item { grid-template-columns: 1fr auto; }.analysis-trend-item small { grid-column: 1 / -1; }.asset-analysis-meta { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }.footer-inner { width: calc(100% - 24px); grid-template-columns: 1fr; }.footer-inner > div:last-child { justify-self: start; }.footer-bottom { width: calc(100% - 24px); flex-direction: column; } }
-@media (max-width: 680px) { .data-readiness-summary { align-items: flex-start; }.data-readiness-sections { grid-template-columns: 1fr 1fr; }.data-readiness-section { padding: 10px; }.data-readiness-section .ant-btn { width: 100%; }.data-readiness-issues { line-height: 1.45; } }
+@media (max-width: 680px) {
+  .data-readiness-summary { align-items: flex-start; flex-wrap: wrap; }
+  .data-readiness-heading { flex: 1 0 100%; }
+  .data-readiness-heading small { white-space: normal; overflow-wrap: anywhere; }
+  .data-readiness-summary .ant-btn { min-height: 44px; flex: 1; }
+  .data-readiness-sections { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .data-readiness-section { display: flex; flex-direction: column; align-items: stretch; padding: 10px; }
+  .data-readiness-section strong, .data-readiness-section small { white-space: normal; overflow-wrap: anywhere; }
+  .data-readiness-section .ant-tag { align-self: flex-start; max-width: 100%; white-space: normal; }
+  .data-readiness-section .ant-btn { width: 100%; min-height: 44px; margin-top: auto; }
+  .data-readiness-issues { line-height: 1.45; }
+}
+.theme-dark ::v-deep .flow-terminal,
+.theme-dark ::v-deep .derivatives-terminal,
+.theme-dark ::v-deep .cycle-terminal,
+.theme-dark ::v-deep .onchain-terminal { background: var(--page-bg); }
+.theme-dark ::v-deep .metric-card,
+.theme-dark ::v-deep .metric-card.unavailable,
+.theme-dark ::v-deep .halving-context { background: var(--card); border-color: var(--line); }
+.theme-dark ::v-deep .metric-copy small { color: var(--ink); }
+.theme-dark ::v-deep .flow-table-card th,
+.theme-dark ::v-deep .asset-rail button.active { background: var(--soft-blue); }
 </style>
 
 <style lang="less">

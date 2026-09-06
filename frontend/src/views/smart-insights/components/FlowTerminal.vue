@@ -8,7 +8,7 @@
       <a-tag v-if="isCurrent" color="green"><i class="live-dot" />{{ $t('smartInsights.currentData') }}</a-tag>
     </header>
 
-    <div v-if="assetOptions.length" class="flow-terminal-layout">
+    <div v-if="rawPoints.length" class="flow-terminal-layout">
       <aside class="asset-rail" :aria-label="$t('smartInsights.flowAssets')">
         <h4>{{ $t('smartInsights.flowAssets') }}</h4>
         <button
@@ -77,6 +77,7 @@
 <script>
 import * as echarts from 'echarts'
 import { formatVietnamDate } from '@/utils/vietnamTime'
+import { normalizePulseSeries } from '../marketPulse'
 
 const ASSET_META = {
   BTC: ['Bitcoin', '#f59e0b'], ETH: ['Ethereum', '#818cf8'], SOL: ['Solana', '#a78bfa'], XRP: ['XRP', '#38bdf8'], HYPE: ['Hyperliquid', '#2563eb'], DOGE: ['Dogecoin', '#ca8a04'], LINK: ['Chainlink', '#3157c8'], AVAX: ['Avalanche', '#ef4444'], HBAR: ['Hedera', '#64748b'], LTC: ['Litecoin', '#3b82f6'], BNB: ['BNB', '#eab308'], DOT: ['Polkadot', '#db2777'], SUI: ['Sui', '#60a5fa']
@@ -91,7 +92,7 @@ export default {
     locale () { return this.$i18n && this.$i18n.locale === 'vi-VN' ? 'vi-VN' : 'en-US' },
     rangeOptions () { return ['7D', '30D', '90D', 'ALL'] },
     rawPoints () {
-      return (Array.isArray(this.flow.series) ? this.flow.series : []).map(point => ({ date: String(point && point.effectiveAt || '').slice(0, 10), symbol: String(point && point.symbol || '').toUpperCase(), value: Number(point && point.value) })).filter(point => point.date && ASSET_META[point.symbol] && Number.isFinite(point.value))
+      return normalizePulseSeries(this.flow.series).map(point => ({ date: point.effectiveAt.slice(0, 10), symbol: point.symbol.toUpperCase(), value: point.value })).filter(point => ASSET_META[point.symbol])
     },
     assetOptions () {
       const available = new Set(this.rawPoints.map(point => point.symbol))
@@ -135,7 +136,7 @@ range () { this.scheduleRender() }
   beforeDestroy () { window.removeEventListener('resize', this.onWindowResize); if (this.resizeObserver) this.resizeObserver.disconnect(); if (this.chart) this.chart.dispose() },
   methods: {
     valueOf (row) { return this.selectedAsset === 'TOTAL' ? row.total : row.values[this.selectedAsset] },
-    sum (rows) { return rows.reduce((sum, row) => sum + this.valueOf(row), 0) },
+    sum (rows) { return rows.length ? rows.reduce((sum, row) => sum + this.valueOf(row), 0) : null },
     assetLatest (symbol) { const row = [...this.matrixRows].reverse().find(item => symbol === 'TOTAL' || Number.isFinite(item.values[symbol])); return row ? (symbol === 'TOTAL' ? row.total : row.values[symbol]) : null },
     scheduleRender () { this.$nextTick(() => this.renderChart()) },
     renderChart () {
@@ -152,7 +153,7 @@ grid: { left: 8, right: 10, top: 18, bottom: 30, containLabel: true },
       }, true)
     },
     valueClass (value) { return Number.isFinite(Number(value)) ? (Number(value) > 0 ? 'positive' : Number(value) < 0 ? 'negative' : 'neutral') : 'neutral' },
-    formatFlow (value) { return Number.isFinite(Number(value)) ? new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', notation: 'compact', maximumFractionDigits: 2, signDisplay: 'always' }).format(Number(value)) : '—' },
+    formatFlow (value) { return value != null && value !== '' && Number.isFinite(Number(value)) ? new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', notation: 'compact', maximumFractionDigits: 2, signDisplay: 'always' }).format(Number(value)) : '—' },
     formatCompact (value) { return new Intl.NumberFormat('en-US', { notation: 'compact', maximumFractionDigits: 1 }).format(Number(value)) },
     formatDate (value) { return formatVietnamDate(`${value}T00:00:00Z`, { locale: this.locale, fallback: value }) },
     formatDateShort (value) { return formatVietnamDate(`${value}T00:00:00Z`, { locale: this.locale, fallback: value, short: true }) }

@@ -28,7 +28,9 @@ export function summarizeReadiness (sections = [], sourceRows = [], loading = fa
   if (!normalized.length || normalized.every(value => value === 'UNAVAILABLE')) {
     return { status: 'UNAVAILABLE', issues, fetchedAt: '' }
   }
-  if (normalized.some(value => ['PARTIAL', 'STALE', 'UNAVAILABLE', 'UNKNOWN'].includes(value)) || issues.length) {
+  // Only explicit healthy states may produce a green badge; unknown/error
+  // provider states must never be interpreted as current data.
+  if (normalized.some(value => !['FRESH', 'AVAILABLE', 'COMPLETE', 'READY', 'LIVE'].includes(value)) || issues.length) {
     return { status: 'PARTIAL', issues, fetchedAt: '' }
   }
   return { status: 'READY', issues, fetchedAt: '' }

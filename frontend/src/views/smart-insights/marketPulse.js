@@ -5,6 +5,7 @@ export const MARKET_PULSE_TABS = [
 ]
 
 function finite (value) {
+  if (value == null || typeof value === 'boolean' || (typeof value === 'string' && !value.trim())) return null
   const number = Number(value)
   return Number.isFinite(number) ? number : null
 }
