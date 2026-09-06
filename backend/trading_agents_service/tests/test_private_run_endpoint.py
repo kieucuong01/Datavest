@@ -13,7 +13,7 @@ if str(SERVICE_ROOT) not in sys.path:
     sys.path.insert(0, str(SERVICE_ROOT))
 
 from app.config import Settings
-from app.main import _signature, create_app
+from app.main import _run_payload, _signature, create_app
 
 
 def _settings() -> Settings:
@@ -78,3 +78,18 @@ def test_private_run_endpoint_accepts_signed_request_without_running_inline(monk
     assert response.status_code == 202
     assert response.json() == {"accepted": True, "run_id": "run-123"}
     assert len(starts) == 1
+
+
+def test_private_run_payload_preserves_supported_locale():
+    request = _run_payload({
+        "run_id": "run-vi",
+        "user_id": "7",
+        "market": "Crypto",
+        "symbol": "BTC/USDT",
+        "analysis_date": "2026-09-05",
+        "language": "vi-VN",
+        "selected_analysts": ["market", "social", "news", "fundamentals"],
+        "native_config": {},
+    })
+
+    assert request.language == "vi-VN"

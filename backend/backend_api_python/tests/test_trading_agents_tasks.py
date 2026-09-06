@@ -124,6 +124,7 @@ def test_resume_control_reuses_the_immutable_run_payload(monkeypatch):
             "market": "Crypto",
             "symbol": "BTC/USDT",
             "analysis_date": "2026-09-05",
+            "language": "vi-VN",
             "native_config": {"checkpoint_enabled": True},
             "selected_analysts": [],
         },

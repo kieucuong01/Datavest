@@ -104,10 +104,31 @@
 
         <section v-if="reportContent" class="deep-analysis-report" aria-labelledby="deep-analysis-report-title">
           <div class="report-heading">
-            <div><h4 id="deep-analysis-report-title">{{ $t('tradingAgents.reportTitle') }}</h4><span>{{ $t('tradingAgents.reportProvenance') }}</span></div>
-            <a-tag color="green"><a-icon type="safety-certificate" /> {{ $t('tradingAgents.researchOnly') }}</a-tag>
+            <div class="report-heading-copy">
+              <span class="report-eyebrow"><a-icon type="file-text" /> {{ $t('tradingAgents.reportTitle') }}</span>
+              <h4 id="deep-analysis-report-title">{{ targetLabel }}</h4>
+              <span>{{ $t('tradingAgents.reportProvenance') }}</span>
+            </div>
+            <div class="report-heading-tags">
+              <a-tag color="blue"><a-icon type="global" /> {{ reportLanguageLabel }}</a-tag>
+              <a-tag color="green"><a-icon type="safety-certificate" /> {{ $t('tradingAgents.researchOnly') }}</a-tag>
+            </div>
           </div>
-          <pre v-text="reportContent" />
+          <div class="report-meta-grid">
+            <div><span>{{ $t('tradingAgents.reportDate') }}</span><strong>{{ reportDate }}</strong></div>
+            <div><span>{{ $t('tradingAgents.reportSource') }}</span><strong>{{ $t('tradingAgents.nativeGraph') }}</strong></div>
+            <div><span>{{ $t('tradingAgents.reportRunId') }}</span><strong>{{ run.run_id }}</strong></div>
+          </div>
+          <div class="report-body">
+            <article v-for="(block, index) in reportBlocks" :key="`${block.type}-${index}`" class="report-block" :class="`report-block--${block.type}`">
+              <h5 v-if="block.type === 'heading'" :class="{ 'report-block-title': block.level <= 2 }">{{ localizeHeading(block.text) }}</h5>
+              <ul v-else-if="block.type === 'list'" class="report-list">
+                <li v-for="(item, itemIndex) in block.items" :key="`${index}-${itemIndex}`">{{ item }}</li>
+              </ul>
+              <p v-else>{{ block.text }}</p>
+            </article>
+            <div v-if="!reportBlocks.length" class="report-empty">{{ $t('tradingAgents.reportEmpty') }}</div>
+          </div>
         </section>
         <div v-else-if="run.status === 'succeeded'" class="deep-analysis-report-loading">
           <a-spin size="small" /> {{ $t('tradingAgents.loadingReport') }}
@@ -132,6 +153,10 @@ import {
   getTradingAgentsRuns,
   resumeTradingAgentsRun
 } from '@/api/trading-agents'
+import {
+  localizeTradingAgentsHeading,
+  parseTradingAgentsReport
+} from '@/utils/tradingAgentsReport'
 import { formatVietnamDateTime } from '@/utils/vietnamTime'
 
 const FULL_ANALYSTS = ['market', 'social', 'news', 'fundamentals']
@@ -239,6 +264,19 @@ export default {
         current: current === id
       }))
     },
+    reportBlocks () {
+      return parseTradingAgentsReport(this.reportContent)
+    },
+    reportLocale () {
+      return (this.run && this.run.language) || (this.isVietnamese ? 'vi-VN' : 'en-US')
+    },
+    reportLanguageLabel () {
+      return this.$t(this.reportLocale === 'vi-VN' ? 'tradingAgents.reportLanguageVietnamese' : 'tradingAgents.reportLanguageEnglish')
+    },
+    reportDate () {
+      const value = (this.run && (this.run.finished_at || this.run.created_at)) || this.analysisDate
+      return value ? this.formatDateTime(value) : this.$t('tradingAgents.unavailable')
+    },
     title () { return `${this.$t('tradingAgents.title')} · ${this.targetLabel}` }
   },
   watch: {
@@ -268,6 +306,9 @@ export default {
     unwrap (response) { return response && response.data ? response.data : response },
     formatDateTime (value) {
       return formatVietnamDateTime(value, { locale: this.isVietnamese ? 'vi-VN' : 'en-GB', fallback: String(value || '') })
+    },
+    localizeHeading (value) {
+      return localizeTradingAgentsHeading(value, this.reportLocale)
     },
     async start () {
       if (!this.isSupported || this.starting) return
@@ -449,10 +490,11 @@ export default {
 .deep-analysis-recovery { display: grid; gap: 10px; }.recovery-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .deep-analysis-report { margin-top: 14px; overflow: hidden; border: 1px solid var(--line, #dbe4ef); border-radius: 10px; background: var(--card, #fff); }.report-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 13px 15px; border-bottom: 1px solid var(--line, #dbe4ef); }.report-heading h4 { margin: 0; color: var(--ink, #1f2d3d); font-size: 15px; }.report-heading span { display: block; margin-top: 2px; color: var(--muted, #61738b); font-size: 11px; }.report-heading .ant-tag { margin: 0; }.deep-analysis-report pre { max-height: 52vh; margin: 0; overflow: auto; padding: 16px; color: var(--ink, #1f2d3d); background: transparent; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 12px; line-height: 1.65; white-space: pre-wrap; overflow-wrap: anywhere; }.deep-analysis-history-loading, .deep-analysis-report-loading { display: flex; align-items: center; gap: 8px; min-height: 110px; color: var(--muted, #61738b); }.deep-analysis-error { margin-bottom: 12px; }
 .deep-analysis-footer { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--line, #dbe4ef); color: var(--muted, #61738b); font-size: 12px; line-height: 1.45; }.deep-analysis-footer span { display: inline-flex; align-items: flex-start; gap: 6px; }
+.deep-analysis-report { border-radius: 12px; }.report-heading { align-items: flex-start; padding: 16px 18px; background: var(--soft-blue, #f5f9ff); }.report-heading-copy { min-width: 0; }.report-eyebrow { display: inline-flex !important; align-items: center; gap: 6px; margin: 0 0 5px !important; color: var(--blue, #2563eb) !important; font-size: 11px !important; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }.report-heading h4 { margin: 0; color: var(--ink, #1f2d3d); font-size: 19px; letter-spacing: -.01em; }.report-heading-copy > span:last-child { display: block; margin-top: 5px; color: var(--muted, #61738b); font-size: 12px; line-height: 1.45; }.report-heading-tags { display: flex; flex: 0 0 auto; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }.report-heading .ant-tag { margin: 0; }.report-meta-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1px; border-bottom: 1px solid var(--line, #dbe4ef); background: var(--line, #dbe4ef); }.report-meta-grid > div { display: grid; gap: 4px; min-width: 0; padding: 10px 14px; background: var(--card, #fff); }.report-meta-grid span { color: var(--muted, #61738b); font-size: 10px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; }.report-meta-grid strong { overflow: hidden; color: var(--ink, #1f2d3d); font-size: 12px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }.report-body { max-height: 52vh; overflow: auto; padding: 6px 18px 18px; }.report-block { color: var(--ink, #1f2d3d); }.report-block--heading { margin-top: 14px; }.report-block h5 { margin: 0; color: var(--ink, #1f2d3d); font-size: 13px; line-height: 1.4; }.report-block-title { padding: 10px 0 7px; border-bottom: 1px solid var(--line, #dbe4ef); color: var(--blue, #245dcc) !important; font-size: 15px !important; }.report-block--paragraph p { margin: 8px 0; color: var(--text-secondary, #4f6380); font-size: 13px; line-height: 1.7; overflow-wrap: anywhere; }.report-list { display: grid; gap: 7px; margin: 9px 0 12px; padding: 0 0 0 19px; color: var(--text-secondary, #4f6380); font-size: 13px; line-height: 1.6; }.report-list li::marker { color: var(--blue, #2563eb); }.report-empty { padding: 22px 0; color: var(--muted, #61738b); font-size: 13px; }
 @media (max-width: 640px) { .deep-analysis-context { flex-direction: column; gap: 10px; }.deep-analysis-context h3 { font-size: 18px; }.deep-analysis-provenance { justify-content: flex-start; }.deep-analysis-empty { min-height: 230px; padding: 28px 12px; }.deep-analysis-status-row { align-items: flex-start; flex-direction: column; }.deep-analysis-progress { grid-template-columns: 1fr; }.deep-analysis-progress .ant-btn { width: 100%; min-height: 44px; }.deep-analysis-stage-list { display: grid; grid-template-columns: 1fr; }.deep-analysis-stage { min-height: 32px; }.history-recovery-actions { display: grid; grid-template-columns: 1fr; width: 100%; }.history-recovery-actions .ant-btn { min-height: 44px; }.recovery-actions { display: grid; grid-template-columns: 1fr; }.recovery-actions .ant-btn { min-height: 44px; }.report-heading { align-items: flex-start; flex-direction: column; }.deep-analysis-report pre { max-height: 48vh; padding: 13px; font-size: 11px; }.deep-analysis-footer { align-items: stretch; flex-direction: column; }.deep-analysis-footer .ant-btn { min-height: 44px; } }
 </style>
 
 <style lang="less">
-.trading-agents-modal .ant-modal { max-width: calc(100vw - 24px); padding-bottom: 0; }.trading-agents-modal .ant-modal-body { max-height: calc(100dvh - 132px); overflow: auto; padding: 20px 22px; }.trading-agents-modal .theme-dark { color: #e6edf6; }.trading-agents-modal .theme-dark .deep-analysis-context h3, .trading-agents-modal .theme-dark .deep-analysis-empty h4, .trading-agents-modal .theme-dark .report-heading h4, .trading-agents-modal .theme-dark .deep-analysis-report pre { color: #e6edf6; }.trading-agents-modal .theme-dark .deep-analysis-report { background: #18202c; border-color: #334155; }.trading-agents-modal .theme-dark .deep-analysis-progress { background: #152334; border-color: #334155; }.trading-agents-modal .theme-dark .report-heading, .trading-agents-modal .theme-dark .deep-analysis-footer { border-color: #334155; }
-@media (max-width: 640px) { .trading-agents-modal .ant-modal { top: 12px; margin: 0 auto; }.trading-agents-modal .ant-modal-body { max-height: calc(100dvh - 70px); padding: 16px 14px; } }
+.trading-agents-modal .ant-modal { max-width: calc(100vw - 24px); padding-bottom: 0; }.trading-agents-modal .ant-modal-body { max-height: calc(100dvh - 132px); overflow: auto; padding: 20px 22px; }.trading-agents-modal .theme-dark { color: #e6edf6; }.trading-agents-modal .theme-dark .deep-analysis-context h3, .trading-agents-modal .theme-dark .deep-analysis-empty h4, .trading-agents-modal .theme-dark .report-heading h4, .trading-agents-modal .theme-dark .report-meta-grid strong, .trading-agents-modal .theme-dark .report-block h5 { color: #e6edf6; }.trading-agents-modal .theme-dark .deep-analysis-report { background: #18202c; border-color: #334155; }.trading-agents-modal .theme-dark .deep-analysis-progress { background: #152334; border-color: #334155; }.trading-agents-modal .theme-dark .report-heading { background: #152334; border-color: #334155; }.trading-agents-modal .theme-dark .report-meta-grid { background: #334155; border-color: #334155; }.trading-agents-modal .theme-dark .report-meta-grid > div { background: #18202c; }.trading-agents-modal .theme-dark .report-block--paragraph p, .trading-agents-modal .theme-dark .report-list { color: #b6c3d6; }.trading-agents-modal .theme-dark .report-block-title, .trading-agents-modal .theme-dark .deep-analysis-footer { border-color: #334155; }
+@media (max-width: 640px) { .trading-agents-modal .ant-modal { top: 12px; margin: 0 auto; }.trading-agents-modal .ant-modal-body { max-height: calc(100dvh - 70px); padding: 16px 14px; }.trading-agents-modal .report-heading { flex-direction: column; gap: 10px; padding: 14px; }.trading-agents-modal .report-heading-tags { justify-content: flex-start; }.trading-agents-modal .report-heading h4 { font-size: 17px; }.trading-agents-modal .report-meta-grid { grid-template-columns: 1fr; }.trading-agents-modal .report-meta-grid > div { padding: 9px 14px; }.trading-agents-modal .report-body { max-height: 48vh; padding: 4px 14px 15px; }.trading-agents-modal .report-block--paragraph p, .trading-agents-modal .report-list { font-size: 12px; } }
 </style>

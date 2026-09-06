@@ -152,6 +152,29 @@ def test_full_run_uses_native_asset_mode_roles_and_lifecycle(tmp_path: Path) -> 
     assert result.artifact.sha256
 
 
+def test_run_locale_controls_native_report_language(tmp_path: Path) -> None:
+    created: list[_FakeUpstreamGraph] = []
+
+    def graph_factory(**kwargs: Any) -> _FakeUpstreamGraph:
+        graph = _FakeUpstreamGraph(**kwargs)
+        created.append(graph)
+        return graph
+
+    request = TradingAgentsRunRequest(
+        run_id="run-vi",
+        user_id="user-a",
+        ticker="BTC-USD",
+        asset_type="crypto",
+        analysis_date="2026-09-05",
+        language="vi-VN",
+        native_config={"output_language": "English"},
+    )
+
+    run_full_graph(request, state_root=tmp_path, graph_factory=graph_factory)
+
+    assert created[0].config["output_language"] == "Vietnamese"
+
+
 def test_cancellation_keeps_native_checkpoint_and_does_not_write_report(tmp_path: Path) -> None:
     created: list[_FakeUpstreamGraph] = []
 

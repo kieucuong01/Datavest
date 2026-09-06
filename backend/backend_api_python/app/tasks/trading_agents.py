@@ -141,6 +141,7 @@ def _service_run_payload(record: Mapping[str, Any]) -> dict[str, Any]:
         "market": str(request.get("market") or ""),
         "symbol": str(request.get("symbol") or ""),
         "analysis_date": str(request.get("analysis_date") or ""),
+        "language": str(request.get("language") or "vi-VN"),
         "native_config": config.get("native_config") or {},
         "selected_analysts": config.get("selected_analysts") or [],
     }

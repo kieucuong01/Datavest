@@ -196,6 +196,7 @@ def test_run_is_queued_without_exposing_service_secret(monkeypatch):
         def create_run(self, **kwargs):
             assert kwargs["user_id"] == 7
             assert kwargs["request"]["market"] == "Crypto"
+            assert kwargs["request"]["language"] == "en-US"
             assert kwargs["config"]["native_config"]["checkpoint_enabled"] is True
             return {"run_id": "run-123", "status": "queued", "source_pin": kwargs["source_pin"]}
 
@@ -212,6 +213,7 @@ def test_run_is_queued_without_exposing_service_secret(monkeypatch):
             "market": "Crypto",
             "symbol": "BTC/USDT",
             "analysisDate": "2026-09-05",
+            "language": "en-US",
             "nativeConfig": {"quick_think_llm": "deepseek-chat"},
         },
     )

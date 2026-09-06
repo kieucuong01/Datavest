@@ -32,6 +32,7 @@ trading_agents_blp = Blueprint("trading_agents", __name__)
 UPSTREAM_SOURCE_PIN = "TauricResearch/TradingAgents@9dee508c44662702281a8dbaad1f7b42179b5ba7"
 FULL_ANALYST_SELECTION = ("market", "social", "news", "fundamentals")
 _SUPPORTED_MARKETS = frozenset({"Crypto", "VNStock", "Gold"})
+_SUPPORTED_LANGUAGES = frozenset({"vi-VN", "en-US"})
 _RUN_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$")
 _SENSITIVE_CONFIG_PARTS = ("api_key", "apikey", "authorization", "cookie", "password", "secret", "token")
 _TERMINAL_STATUSES = frozenset({"succeeded", "failed", "cancelled"})
@@ -63,6 +64,13 @@ def _today_vietnam() -> str:
     return datetime.now(ZoneInfo("Asia/Ho_Chi_Minh")).date().isoformat()
 
 
+def _normalize_language(value: Any) -> str:
+    language = str(value or "vi-VN").strip().replace("_", "-")
+    aliases = {"vi": "vi-VN", "en": "en-US"}
+    language = aliases.get(language.lower(), language)
+    return language if language in _SUPPORTED_LANGUAGES else "vi-VN"
+
+
 def _validate_request(payload: Any) -> tuple[dict[str, Any], dict[str, Any]]:
     if not isinstance(payload, Mapping):
         raise ValueError("invalid_request")
@@ -90,7 +98,7 @@ def _validate_request(payload: Any) -> tuple[dict[str, Any], dict[str, Any]]:
         "market": market,
         "symbol": symbol,
         "analysis_date": analysis_date,
-        "language": str(payload.get("language") or "vi-VN")[:16],
+        "language": _normalize_language(payload.get("language")),
         "evidence_ref": str(payload.get("evidenceRef") or payload.get("evidence_ref") or "")[:160],
     }
     config_record = {
@@ -150,6 +158,10 @@ def _public_run(record: Mapping[str, Any]) -> dict[str, Any]:
         "market": request_json.get("market"),
         "symbol": request_json.get("symbol"),
         "analysis_date": request_json.get("analysis_date"),
+        # Runs created before locale propagation have no language in their
+        # immutable request. Their native report was English by default, so do
+        # not label an old artifact as Vietnamese merely because the UI changed.
+        "language": _normalize_language(request_json.get("language")) if request_json.get("language") else "en-US",
         "source_pin": record.get("source_pin"),
         "created_at": record.get("created_at"),
         "started_at": record.get("started_at"),

@@ -30,6 +30,7 @@ FULL_UPSTREAM_ROLES = (
     "portfolio_manager",
 )
 _SUPPORTED_ASSET_TYPES = frozenset({"stock", "crypto"})
+_SUPPORTED_LANGUAGES = frozenset({"vi-VN", "en-US"})
 
 
 class RunRequestError(ValueError):
@@ -47,6 +48,7 @@ class TradingAgentsRunRequest:
     ticker: str
     asset_type: str
     analysis_date: str
+    language: str = "vi-VN"
     selected_analysts: tuple[str, ...] = FULL_ANALYST_SELECTION
     native_config: Mapping[str, Any] = field(default_factory=dict)
 
@@ -76,6 +78,8 @@ def _validate_request(request: TradingAgentsRunRequest) -> None:
         raise RunRequestError("ticker is required")
     if request.asset_type not in _SUPPORTED_ASSET_TYPES:
         raise RunRequestError("asset_type must be stock or crypto")
+    if request.language not in _SUPPORTED_LANGUAGES:
+        raise RunRequestError("language must be vi-VN or en-US")
     try:
         date.fromisoformat(request.analysis_date)
     except (TypeError, ValueError) as error:
@@ -139,6 +143,7 @@ def _native_config(request: TradingAgentsRunRequest, paths: UserStatePaths) -> d
             "results_dir": str(paths.results_dir),
             "data_cache_dir": str(paths.data_cache_dir),
             "memory_log_path": str(paths.memory_log_path),
+            "output_language": "Vietnamese" if request.language == "vi-VN" else "English",
         }
     )
     return config

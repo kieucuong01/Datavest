@@ -93,6 +93,7 @@ def _run_payload(payload: Mapping[str, Any]) -> TradingAgentsRunRequest:
         ticker=ticker,
         asset_type=asset_type,
         analysis_date=str(payload.get("analysis_date") or ""),
+        language=str(payload.get("language") or "vi-VN"),
         selected_analysts=selected,
         native_config=native_config,
     )
