@@ -144,16 +144,28 @@
           </div>
           <div class="report-body">
             <div v-if="reportSections.length" class="report-sections">
-              <article v-for="(section, sectionIndex) in reportSections" :key="`${section.title}-${sectionIndex}`" class="report-section">
-                <header class="report-section-heading">
+              <article v-for="(section, sectionIndex) in reportSections" :key="`${section.title}-${sectionIndex}`" class="report-section" :class="{ 'is-open': isReportSectionOpen(sectionIndex) }">
+                <button
+                  type="button"
+                  class="report-section-heading"
+                  :aria-expanded="isReportSectionOpen(sectionIndex)"
+                  :aria-controls="`report-section-content-${sectionIndex}`"
+                  :aria-label="$t('tradingAgents.toggleReportSection', { section: localizeHeading(section.title) })"
+                  @click="toggleReportSection(sectionIndex)"
+                >
                   <span class="report-section-number">{{ String(sectionIndex + 1).padStart(2, '0') }}</span>
                   <span class="report-section-icon"><a-icon :type="reportSectionIcon(section.title)" /></span>
-                  <div>
-                    <span class="report-section-kicker">{{ $t('tradingAgents.reportSection') }}</span>
+                  <span class="report-section-heading-copy">
                     <h5>{{ localizeHeading(section.title) }}</h5>
-                  </div>
-                </header>
-                <div class="report-section-content">
+                  </span>
+                  <a-icon class="report-section-chevron" :type="isReportSectionOpen(sectionIndex) ? 'up' : 'down'" aria-hidden="true" />
+                </button>
+                <div
+                  :id="`report-section-content-${sectionIndex}`"
+                  v-show="isReportSectionOpen(sectionIndex)"
+                  class="report-section-content"
+                  :aria-hidden="!isReportSectionOpen(sectionIndex)"
+                >
                   <div v-for="(block, blockIndex) in section.blocks" :key="`${sectionIndex}-${block.type}-${blockIndex}`" class="report-block" :class="`report-block--${block.type}`">
                     <h6 v-if="block.type === 'heading'">{{ localizeHeading(block.text) }}</h6>
                     <ul v-else-if="block.type === 'list'" class="report-list">
@@ -241,7 +253,8 @@ export default {
       progressClock: Date.now(),
       historyLoading: false,
       historyRequestId: 0,
-      historyError: ''
+      historyError: '',
+      openReportSections: {}
     }
   },
   computed: {
@@ -376,6 +389,9 @@ export default {
       this.errorMessage = ''
       this.stopPolling()
       this.loadLatestRun({ autoStart: true })
+    },
+    reportContent () {
+      this.resetReportSections()
     }
   },
   beforeDestroy () {
@@ -396,6 +412,19 @@ export default {
       if (text.includes('decision') || text.includes('quyết định')) return 'check-circle'
       if (text.includes('analyst') || text.includes('phân tích')) return 'bar-chart'
       return 'file-text'
+    },
+    isReportSectionOpen (index) {
+      return Boolean(this.openReportSections[index])
+    },
+    toggleReportSection (index) {
+      this.$set(this.openReportSections, index, !this.isReportSectionOpen(index))
+    },
+    resetReportSections () {
+      const openSections = {}
+      this.reportSections.forEach((section, index) => {
+        openSections[index] = index === 0
+      })
+      this.openReportSections = openSections
     },
     formatDuration (seconds) {
       const value = Math.max(0, Number(seconds) || 0)
@@ -826,13 +855,34 @@ export default {
 }
 
 .trading-agents-modal .report-section-heading {
+  appearance: none;
+  width: 100%;
   display: grid;
-  grid-template-columns: auto auto minmax(0, 1fr);
+  grid-template-columns: auto auto minmax(0, 1fr) auto;
   align-items: center;
   gap: 9px;
   padding: 12px 14px;
+  border: 0;
   border-bottom: 1px solid var(--line, #dbe4ef);
   background: linear-gradient(90deg, var(--soft-blue, #f5f9ff), var(--card, #fff));
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background .18s ease, box-shadow .18s ease;
+}
+
+.trading-agents-modal .report-section:not(.is-open) .report-section-heading {
+  border-bottom: 0;
+}
+
+.trading-agents-modal .report-section-heading:hover {
+  background: linear-gradient(90deg, #eef5ff, var(--card, #fff));
+}
+
+.trading-agents-modal .report-section-heading:focus-visible {
+  outline: 2px solid var(--blue, #2563eb);
+  outline-offset: -2px;
 }
 
 .trading-agents-modal .report-section-number {
@@ -852,21 +902,29 @@ export default {
   background: #eaf2ff;
 }
 
-.trading-agents-modal .report-section-kicker {
-  display: block;
-  margin: 0 0 2px;
-  color: var(--muted, #61738b);
-  font-size: 9px;
-  font-weight: 700;
-  letter-spacing: .08em;
-  text-transform: uppercase;
+.trading-agents-modal .report-section-heading-copy {
+  min-width: 0;
 }
 
 .trading-agents-modal .report-section-heading h5 {
+  overflow: hidden;
   margin: 0;
   color: var(--ink, #1f2d3d);
   font-size: 14px;
+  text-overflow: ellipsis;
   line-height: 1.35;
+  white-space: nowrap;
+}
+
+.trading-agents-modal .report-section-chevron {
+  margin-left: auto;
+  color: var(--muted, #61738b);
+  font-size: 12px;
+  transition: transform .18s ease, color .18s ease;
+}
+
+.trading-agents-modal .report-section-heading:hover .report-section-chevron {
+  color: var(--blue, #2563eb);
 }
 
 .trading-agents-modal .report-section-content {
@@ -967,6 +1025,10 @@ export default {
   background: #20385c;
 }
 
+.trading-agents-modal .theme-dark .report-section-heading:hover {
+  background: linear-gradient(90deg, #1b3150, #18202c);
+}
+
 @media (max-width: 640px) {
   .trading-agents-modal .deep-analysis-progress {
     padding: 14px;
@@ -1005,7 +1067,7 @@ export default {
   }
 
   .trading-agents-modal .report-section-heading {
-    grid-template-columns: auto auto minmax(0, 1fr);
+    grid-template-columns: auto auto minmax(0, 1fr) auto;
     padding: 11px 12px;
   }
 
