@@ -86,3 +86,40 @@ def test_public_event_does_not_expose_raw_upstream_payload() -> None:
         "created_at": "2026-09-05T00:00:00+00:00",
         "payload": {"stage_id": "market"},
     }
+
+
+def test_stage_heartbeat_is_public_but_does_not_mark_the_stage_complete() -> None:
+    _enable_lightweight_app_imports()
+    from app.services.trading_agents_progress import build_public_progress, public_event
+
+    event = {
+        "sequence": 2,
+        "event_type": "stage_heartbeat",
+        "created_at": "2026-09-06T10:00:00+00:00",
+        "payload_json": {
+            "stage_id": "social",
+            "completed_count": 1,
+            "total_count": 9,
+            "percent": 16,
+            "elapsed_seconds": 35,
+            "total_elapsed_seconds": 48,
+            "heartbeat_count": 7,
+        },
+    }
+
+    public = public_event(event)
+    progress = build_public_progress(
+        status="running",
+        market="Crypto",
+        events=[
+            {"sequence": 1, "event_type": "upstream_chunk", "payload_json": {"stage_id": "market"}},
+            event,
+        ],
+        artifacts=[],
+    )
+
+    assert public["payload"]["elapsed_seconds"] == 35
+    assert progress["current_stage_id"] == "social"
+    assert progress["completed_stage_ids"] == ["market"]
+    assert progress["elapsed_seconds"] == 35
+    assert progress["heartbeat_count"] == 7

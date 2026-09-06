@@ -20,6 +20,7 @@ from fastapi import FastAPI, HTTPException, Request as FastAPIRequest, Response
 
 from .config import Settings, load_settings
 from .instruments import resolve_instrument
+from .progress import StageProgressTracker
 from .reporting import ReportArtifactError, read_native_report
 from .runner import RunCancelled, TradingAgentsRunRequest, clear_native_checkpoint, run_full_graph
 from .state import resolve_user_state
@@ -141,22 +142,46 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
         def execute() -> None:
             sequence = 0
+            publish_lock = threading.Lock()
 
             def publish(event_type: str, event_payload: Mapping[str, Any]) -> None:
                 nonlocal sequence
-                sequence += 1
-                _callback(runtime_settings, {
-                    "run_id": graph_request.run_id,
-                    "sequence": sequence,
-                    "event_type": event_type,
-                    "payload": dict(event_payload),
-                })
+                with publish_lock:
+                    sequence += 1
+                    _callback(runtime_settings, {
+                        "run_id": graph_request.run_id,
+                        "sequence": sequence,
+                        "event_type": event_type,
+                        "payload": dict(event_payload),
+                    })
+
+            tracker = StageProgressTracker(
+                asset_type=graph_request.asset_type,
+                publish=publish,
+            )
+            heartbeat_stop = threading.Event()
+
+            def heartbeat_loop() -> None:
+                while not heartbeat_stop.wait(5):
+                    tracker.heartbeat()
+
+            def on_graph_event(event: Any) -> None:
+                publish(event.kind, event.payload)
+                tracker.on_graph_event(event)
+
+            heartbeat_thread = threading.Thread(
+                target=heartbeat_loop,
+                name=f"trading-agents-heartbeat-{graph_request.run_id[:12]}",
+                daemon=True,
+            )
 
             try:
+                tracker.start()
+                heartbeat_thread.start()
                 result = run_full_graph(
                     graph_request,
                     state_root=runtime_settings.state_root,
-                    on_event=lambda event: publish(event.kind, event.payload),
+                    on_event=on_graph_event,
                     on_tool_progress=lambda event: publish(str(event.get("event_type") or "tool"), event),
                     should_cancel=active.cancelled.is_set,
                 )
@@ -173,6 +198,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             except Exception:
                 publish("run_status", {"status": "failed", "failure_code": "runner_failed"})
             finally:
+                heartbeat_stop.set()
+                heartbeat_thread.join(timeout=1)
                 with active_lock:
                     if active_runs.get(graph_request.run_id) is active:
                         active_runs.pop(graph_request.run_id, None)

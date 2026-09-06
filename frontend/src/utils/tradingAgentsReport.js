@@ -39,6 +39,35 @@ function pushList (blocks, items) {
   items.length = 0
 }
 
+function parseTableRow (line) {
+  const text = String(line || '').trim()
+  if (!text.startsWith('|')) return []
+  const value = text.replace(/^\|/, '').replace(/\|$/, '')
+  return value.split('|').map(cleanInlineMarkdown)
+}
+
+function isTableSeparator (row) {
+  return row.length > 0 && row.every(cell => /^:?-{3,}:?$/.test(cell.replace(/\s/g, '')))
+}
+
+function pushTable (blocks, lines) {
+  if (lines.length < 2) {
+    lines.length = 0
+    return
+  }
+  const rows = lines.map(parseTableRow).filter(row => row.length)
+  lines.length = 0
+  if (rows.length < 2) return
+  const headers = rows.shift()
+  if (isTableSeparator(rows[0] || [])) rows.shift()
+  if (!headers.length || !rows.length) return
+  blocks.push({
+    type: 'table',
+    headers,
+    rows: rows.map(row => headers.map((_, index) => row[index] || ''))
+  })
+}
+
 /**
  * Convert the trusted native markdown report to text-only presentation blocks.
  * Keeping it text-only avoids rendering arbitrary HTML from a stored artifact.
@@ -47,11 +76,13 @@ export function parseTradingAgentsReport (content) {
   const blocks = []
   const paragraphs = []
   const listItems = []
+  const tableLines = []
   const lines = String(content || '').replace(/\r\n?/g, '\n').split('\n')
 
   const flush = () => {
     pushParagraph(blocks, paragraphs)
     pushList(blocks, listItems)
+    pushTable(blocks, tableLines)
   }
 
   for (const rawLine of lines) {
@@ -73,9 +104,15 @@ export function parseTradingAgentsReport (content) {
         text: cleanInlineMarkdown(heading[2])
       })
     } else if (list) {
+      pushTable(blocks, tableLines)
       pushParagraph(blocks, paragraphs)
       listItems.push(list[1])
+    } else if (line.startsWith('|')) {
+      pushParagraph(blocks, paragraphs)
+      pushList(blocks, listItems)
+      tableLines.push(line)
     } else {
+      pushTable(blocks, tableLines)
       pushList(blocks, listItems)
       paragraphs.push(line)
     }
@@ -83,6 +120,46 @@ export function parseTradingAgentsReport (content) {
   flush()
 
   return blocks
+}
+
+/**
+ * Group flat native markdown blocks into digestible report sections without
+ * rendering arbitrary HTML from the stored artifact.
+ */
+export function groupTradingAgentsReportSections (blocks) {
+  const sections = []
+  const intro = []
+  let title = ''
+  let current = null
+
+  for (const block of Array.isArray(blocks) ? blocks : []) {
+    if (block.type === 'heading' && block.level === 1 && !title) {
+      title = block.text
+      continue
+    }
+    if (block.type === 'heading' && block.level <= 2) {
+      if (current) sections.push(current)
+      current = {
+        title: block.text,
+        level: block.level,
+        blocks: []
+      }
+      continue
+    }
+    if (current) current.blocks.push(block)
+    else intro.push(block)
+  }
+
+  if (current) sections.push(current)
+  if (intro.length) {
+    sections.unshift({
+      title: title || 'Overview',
+      level: 1,
+      blocks: intro
+    })
+  }
+
+  return { title, sections }
 }
 
 export function localizeTradingAgentsHeading (heading, language = 'en-US') {

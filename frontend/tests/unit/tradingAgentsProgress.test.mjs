@@ -15,6 +15,8 @@ test('deep analysis restores briefly then starts one run when exact history is e
   assert.match(panel, /historyError/u)
   assert.match(panel, /completed_stage_ids/u)
   assert.match(panel, /currentStageLabel/u)
+  assert.match(panel, /progressElapsedLabel/u)
+  assert.match(panel, /stageDetails/u)
   assert.match(api, /timeout\s*=\s*8000/u)
 })
 

@@ -76,20 +76,43 @@
         </div>
 
         <div v-if="isRunning" class="deep-analysis-progress">
-          <a-progress :percent="progressPercent" :show-info="false" status="active" />
-          <div class="progress-copy">
-            <strong>{{ $t('tradingAgents.runningTitle') }}</strong>
-            <span>{{ $t('tradingAgents.progressPercent', { percent: progressPercent }) }} · {{ $t('tradingAgents.completedStages', { completed: progressSnapshot.completed_count || 0, total: progressTotal }) }}</span>
-            <span class="progress-current"><a-icon type="loading" /> {{ $t('tradingAgents.currentStage') }}: {{ currentStageLabel }}</span>
+          <div class="progress-topline">
+            <div class="progress-title">
+              <span class="progress-live-dot" aria-hidden="true" />
+              <strong>{{ $t('tradingAgents.runningTitle') }}</strong>
+              <span>{{ $t('tradingAgents.completedStages', { completed: progressSnapshot.completed_count || 0, total: progressTotal }) }}</span>
+            </div>
+            <strong class="progress-percent">{{ progressPercent }}%</strong>
           </div>
-          <a-button size="small" :loading="cancelling" @click="cancel">
-            <a-icon type="stop" /> {{ $t('tradingAgents.cancel') }}
-          </a-button>
+          <a-progress :percent="progressPercent" :show-info="false" :stroke-width="8" status="active" />
+          <div class="progress-current-card">
+            <span class="progress-current-icon"><a-icon type="loading" /></span>
+            <div class="progress-current-copy">
+              <span class="progress-current-label">{{ $t('tradingAgents.currentStage') }}</span>
+              <strong>{{ currentStageLabel }}</strong>
+              <p>{{ currentStageDescription }}</p>
+            </div>
+            <div class="progress-time">
+              <strong>{{ progressElapsedLabel }}</strong>
+              <span>{{ progressTotalElapsedLabel }}</span>
+            </div>
+          </div>
+          <div class="progress-footnote">
+            <a-icon type="sync" /> {{ progressHeartbeatLabel }}
+          </div>
+          <div class="progress-actions">
+            <a-button size="small" :loading="cancelling" @click="cancel">
+              <a-icon type="stop" /> {{ $t('tradingAgents.cancel') }}
+            </a-button>
+          </div>
           <div class="deep-analysis-stage-list" role="list" :aria-label="$t('tradingAgents.currentStage')">
-            <span v-for="stage in progressStages" :key="stage.id" class="deep-analysis-stage" :class="{ 'is-complete': stage.complete, 'is-current': stage.current }" role="listitem">
-              <a-icon :type="stage.complete ? 'check-circle' : (stage.current ? 'loading' : 'clock-circle')" />
-              {{ stage.label }}
-            </span>
+            <div v-for="(stage, index) in progressStages" :key="stage.id" class="deep-analysis-stage" :class="{ 'is-complete': stage.complete, 'is-current': stage.current, 'is-pending': !stage.complete && !stage.current }" role="listitem">
+              <span class="deep-analysis-stage-marker"><a-icon :type="stage.complete ? 'check' : (stage.current ? 'loading' : 'clock-circle')" /></span>
+              <span class="deep-analysis-stage-copy">
+                <small>{{ String(index + 1).padStart(2, '0') }}</small>
+                <span>{{ stage.label }}</span>
+              </span>
+            </div>
           </div>
         </div>
 
@@ -120,14 +143,34 @@
             <div><span>{{ $t('tradingAgents.reportRunId') }}</span><strong>{{ run.run_id }}</strong></div>
           </div>
           <div class="report-body">
-            <article v-for="(block, index) in reportBlocks" :key="`${block.type}-${index}`" class="report-block" :class="`report-block--${block.type}`">
-              <h5 v-if="block.type === 'heading'" :class="{ 'report-block-title': block.level <= 2 }">{{ localizeHeading(block.text) }}</h5>
-              <ul v-else-if="block.type === 'list'" class="report-list">
-                <li v-for="(item, itemIndex) in block.items" :key="`${index}-${itemIndex}`">{{ item }}</li>
-              </ul>
-              <p v-else>{{ block.text }}</p>
-            </article>
-            <div v-if="!reportBlocks.length" class="report-empty">{{ $t('tradingAgents.reportEmpty') }}</div>
+            <div v-if="reportSections.length" class="report-sections">
+              <article v-for="(section, sectionIndex) in reportSections" :key="`${section.title}-${sectionIndex}`" class="report-section">
+                <header class="report-section-heading">
+                  <span class="report-section-number">{{ String(sectionIndex + 1).padStart(2, '0') }}</span>
+                  <span class="report-section-icon"><a-icon :type="reportSectionIcon(section.title)" /></span>
+                  <div>
+                    <span class="report-section-kicker">{{ $t('tradingAgents.reportSection') }}</span>
+                    <h5>{{ localizeHeading(section.title) }}</h5>
+                  </div>
+                </header>
+                <div class="report-section-content">
+                  <div v-for="(block, blockIndex) in section.blocks" :key="`${sectionIndex}-${block.type}-${blockIndex}`" class="report-block" :class="`report-block--${block.type}`">
+                    <h6 v-if="block.type === 'heading'">{{ localizeHeading(block.text) }}</h6>
+                    <ul v-else-if="block.type === 'list'" class="report-list">
+                      <li v-for="(item, itemIndex) in block.items" :key="`${sectionIndex}-${blockIndex}-${itemIndex}`">{{ item }}</li>
+                    </ul>
+                    <div v-else-if="block.type === 'table'" class="report-table-wrap">
+                      <table class="report-table">
+                        <thead><tr><th v-for="(header, headerIndex) in block.headers" :key="`${sectionIndex}-${blockIndex}-header-${headerIndex}`">{{ header }}</th></tr></thead>
+                        <tbody><tr v-for="(row, rowIndex) in block.rows" :key="`${sectionIndex}-${blockIndex}-row-${rowIndex}`"><td v-for="(cell, cellIndex) in row" :key="`${sectionIndex}-${blockIndex}-${rowIndex}-${cellIndex}`">{{ cell }}</td></tr></tbody>
+                      </table>
+                    </div>
+                    <p v-else>{{ block.text }}</p>
+                  </div>
+                </div>
+              </article>
+            </div>
+            <div v-else class="report-empty">{{ $t('tradingAgents.reportEmpty') }}</div>
           </div>
         </section>
         <div v-else-if="run.status === 'succeeded'" class="deep-analysis-report-loading">
@@ -154,6 +197,7 @@ import {
   resumeTradingAgentsRun
 } from '@/api/trading-agents'
 import {
+  groupTradingAgentsReportSections,
   localizeTradingAgentsHeading,
   parseTradingAgentsReport
 } from '@/utils/tradingAgentsReport'
@@ -193,6 +237,8 @@ export default {
       clearing: false,
       errorMessage: '',
       pollTimer: null,
+      progressTimer: null,
+      progressClock: Date.now(),
       historyLoading: false,
       historyRequestId: 0,
       historyError: ''
@@ -237,7 +283,11 @@ export default {
         stage_ids: this.progressStageIds,
         completed_stage_ids: [],
         completed_count: 0,
-        total_count: this.progressStageIds.length
+        total_count: this.progressStageIds.length,
+        elapsed_seconds: 0,
+        total_elapsed_seconds: 0,
+        stage_started_at: null,
+        heartbeat_count: 0
       }
     },
     progressPercent () {
@@ -247,6 +297,10 @@ export default {
     currentStageLabel () {
       const stageId = this.progressSnapshot.current_stage_id || 'initializing'
       return this.$t(`tradingAgents.stages.${stageId}`)
+    },
+    currentStageDescription () {
+      const stageId = this.progressSnapshot.current_stage_id || 'initializing'
+      return this.$t(`tradingAgents.stageDetails.${stageId}`)
     },
     progressTotal () {
       return Number(this.progressSnapshot.total_count) || PROGRESS_STAGE_IDS.length
@@ -266,6 +320,31 @@ export default {
     },
     reportBlocks () {
       return parseTradingAgentsReport(this.reportContent)
+    },
+    reportSections () {
+      return groupTradingAgentsReportSections(this.reportBlocks).sections
+    },
+    progressElapsedSeconds () {
+      const reported = Number(this.progressSnapshot.elapsed_seconds) || 0
+      const startedAt = Date.parse(this.progressSnapshot.stage_started_at || '')
+      if (!this.isRunning || !Number.isFinite(startedAt)) return reported
+      return Math.max(reported, Math.floor((this.progressClock - startedAt) / 1000))
+    },
+    progressTotalElapsedSeconds () {
+      const reported = Number(this.progressSnapshot.total_elapsed_seconds) || 0
+      const startedAt = Date.parse((this.run && this.run.started_at) || '')
+      if (!this.isRunning || !Number.isFinite(startedAt)) return reported
+      return Math.max(reported, Math.floor((this.progressClock - startedAt) / 1000))
+    },
+    progressElapsedLabel () {
+      return this.formatDuration(this.progressElapsedSeconds)
+    },
+    progressTotalElapsedLabel () {
+      return this.$t('tradingAgents.totalElapsed', { duration: this.formatDuration(this.progressTotalElapsedSeconds) })
+    },
+    progressHeartbeatLabel () {
+      if (Number(this.progressSnapshot.heartbeat_count) > 0) return this.$t('tradingAgents.heartbeatLive')
+      return this.$t('tradingAgents.waitingForGraph')
     },
     reportLocale () {
       return (this.run && this.run.language) || (this.isVietnamese ? 'vi-VN' : 'en-US')
@@ -309,6 +388,20 @@ export default {
     },
     localizeHeading (value) {
       return localizeTradingAgentsHeading(value, this.reportLocale)
+    },
+    reportSectionIcon (title) {
+      const text = String(title || '').toLowerCase()
+      if (text.includes('risk') || text.includes('rủi ro')) return 'safety-certificate'
+      if (text.includes('trading') || text.includes('giao dịch')) return 'line-chart'
+      if (text.includes('decision') || text.includes('quyết định')) return 'check-circle'
+      if (text.includes('analyst') || text.includes('phân tích')) return 'bar-chart'
+      return 'file-text'
+    },
+    formatDuration (seconds) {
+      const value = Math.max(0, Number(seconds) || 0)
+      const minutes = Math.floor(value / 60)
+      const remainder = Math.floor(value % 60)
+      return `${String(minutes).padStart(2, '0')}:${String(remainder).padStart(2, '0')}`
     },
     async start () {
       if (!this.isSupported || this.starting) return
@@ -412,6 +505,8 @@ export default {
     },
     startPolling () {
       this.stopPolling()
+      this.progressClock = Date.now()
+      this.progressTimer = window.setInterval(() => { this.progressClock = Date.now() }, 1000)
       this.refreshRun()
       this.pollTimer = window.setInterval(() => this.refreshRun(), 2500)
     },
@@ -421,7 +516,9 @@ export default {
     },
     stopPolling () {
       if (this.pollTimer) window.clearInterval(this.pollTimer)
+      if (this.progressTimer) window.clearInterval(this.progressTimer)
       this.pollTimer = null
+      this.progressTimer = null
     },
     async cancel () {
       if (!this.run || this.cancelling) return
@@ -492,6 +589,435 @@ export default {
 .deep-analysis-footer { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--line, #dbe4ef); color: var(--muted, #61738b); font-size: 12px; line-height: 1.45; }.deep-analysis-footer span { display: inline-flex; align-items: flex-start; gap: 6px; }
 .deep-analysis-report { border-radius: 12px; }.report-heading { align-items: flex-start; padding: 16px 18px; background: var(--soft-blue, #f5f9ff); }.report-heading-copy { min-width: 0; }.report-eyebrow { display: inline-flex !important; align-items: center; gap: 6px; margin: 0 0 5px !important; color: var(--blue, #2563eb) !important; font-size: 11px !important; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }.report-heading h4 { margin: 0; color: var(--ink, #1f2d3d); font-size: 19px; letter-spacing: -.01em; }.report-heading-copy > span:last-child { display: block; margin-top: 5px; color: var(--muted, #61738b); font-size: 12px; line-height: 1.45; }.report-heading-tags { display: flex; flex: 0 0 auto; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }.report-heading .ant-tag { margin: 0; }.report-meta-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1px; border-bottom: 1px solid var(--line, #dbe4ef); background: var(--line, #dbe4ef); }.report-meta-grid > div { display: grid; gap: 4px; min-width: 0; padding: 10px 14px; background: var(--card, #fff); }.report-meta-grid span { color: var(--muted, #61738b); font-size: 10px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; }.report-meta-grid strong { overflow: hidden; color: var(--ink, #1f2d3d); font-size: 12px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }.report-body { max-height: 52vh; overflow: auto; padding: 6px 18px 18px; }.report-block { color: var(--ink, #1f2d3d); }.report-block--heading { margin-top: 14px; }.report-block h5 { margin: 0; color: var(--ink, #1f2d3d); font-size: 13px; line-height: 1.4; }.report-block-title { padding: 10px 0 7px; border-bottom: 1px solid var(--line, #dbe4ef); color: var(--blue, #245dcc) !important; font-size: 15px !important; }.report-block--paragraph p { margin: 8px 0; color: var(--text-secondary, #4f6380); font-size: 13px; line-height: 1.7; overflow-wrap: anywhere; }.report-list { display: grid; gap: 7px; margin: 9px 0 12px; padding: 0 0 0 19px; color: var(--text-secondary, #4f6380); font-size: 13px; line-height: 1.6; }.report-list li::marker { color: var(--blue, #2563eb); }.report-empty { padding: 22px 0; color: var(--muted, #61738b); font-size: 13px; }
 @media (max-width: 640px) { .deep-analysis-context { flex-direction: column; gap: 10px; }.deep-analysis-context h3 { font-size: 18px; }.deep-analysis-provenance { justify-content: flex-start; }.deep-analysis-empty { min-height: 230px; padding: 28px 12px; }.deep-analysis-status-row { align-items: flex-start; flex-direction: column; }.deep-analysis-progress { grid-template-columns: 1fr; }.deep-analysis-progress .ant-btn { width: 100%; min-height: 44px; }.deep-analysis-stage-list { display: grid; grid-template-columns: 1fr; }.deep-analysis-stage { min-height: 32px; }.history-recovery-actions { display: grid; grid-template-columns: 1fr; width: 100%; }.history-recovery-actions .ant-btn { min-height: 44px; }.recovery-actions { display: grid; grid-template-columns: 1fr; }.recovery-actions .ant-btn { min-height: 44px; }.report-heading { align-items: flex-start; flex-direction: column; }.deep-analysis-report pre { max-height: 48vh; padding: 13px; font-size: 11px; }.deep-analysis-footer { align-items: stretch; flex-direction: column; }.deep-analysis-footer .ant-btn { min-height: 44px; } }
+</style>
+
+<style lang="less">
+.trading-agents-modal .deep-analysis-progress {
+  display: block;
+  padding: 18px;
+  border: 1px solid var(--line, #dbe4ef);
+  border-radius: 14px;
+  background: linear-gradient(145deg, var(--soft-blue, #f5f9ff), var(--card, #fff));
+}
+
+.trading-agents-modal .progress-topline {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.trading-agents-modal .progress-title {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 3px 8px;
+  min-width: 0;
+}
+
+.trading-agents-modal .progress-title strong {
+  min-width: 0;
+  color: var(--ink, #1f2d3d);
+  font-size: 14px;
+  line-height: 1.35;
+}
+
+.trading-agents-modal .progress-title > span:last-child {
+  grid-column: 2;
+  color: var(--muted, #61738b);
+  font-size: 12px;
+}
+
+.trading-agents-modal .progress-live-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #20a464;
+  box-shadow: 0 0 0 4px rgba(32, 164, 100, .12);
+}
+
+.trading-agents-modal .progress-percent {
+  flex: 0 0 auto;
+  color: var(--blue, #2563eb);
+  font-size: 24px;
+  line-height: 1;
+}
+
+.trading-agents-modal .deep-analysis-progress > .ant-progress {
+  display: block;
+  margin: 16px 0;
+}
+
+.trading-agents-modal .progress-current-card {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 13px;
+  border: 1px solid rgba(37, 99, 235, .16);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, .72);
+}
+
+.trading-agents-modal .progress-current-icon {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border-radius: 10px;
+  color: #2563eb;
+  background: #eaf2ff;
+  font-size: 16px;
+}
+
+.trading-agents-modal .progress-current-copy {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.trading-agents-modal .progress-current-label {
+  color: var(--muted, #61738b);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+}
+
+.trading-agents-modal .progress-current-copy strong {
+  color: var(--ink, #1f2d3d);
+  font-size: 14px;
+}
+
+.trading-agents-modal .progress-current-copy p {
+  margin: 2px 0 0;
+  color: var(--muted, #61738b);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.trading-agents-modal .progress-time {
+  display: grid;
+  justify-items: end;
+  gap: 3px;
+  min-width: 68px;
+}
+
+.trading-agents-modal .progress-time strong {
+  color: var(--ink, #1f2d3d);
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 16px;
+}
+
+.trading-agents-modal .progress-time span,
+.trading-agents-modal .progress-footnote {
+  color: var(--muted, #61738b);
+  font-size: 11px;
+}
+
+.trading-agents-modal .progress-footnote {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.trading-agents-modal .progress-footnote .anticon {
+  color: #20a464;
+}
+
+.trading-agents-modal .progress-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 10px;
+}
+
+.trading-agents-modal .deep-analysis-stage-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line, #dbe4ef);
+}
+
+.trading-agents-modal .deep-analysis-stage {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 8px 9px;
+  border: 1px solid var(--line, #dbe4ef);
+  border-radius: 9px;
+  color: var(--muted, #61738b);
+  background: rgba(255, 255, 255, .5);
+}
+
+.trading-agents-modal .deep-analysis-stage-marker {
+  display: grid;
+  width: 20px;
+  height: 20px;
+  flex: 0 0 20px;
+  place-items: center;
+  border-radius: 50%;
+  color: #8b9ab0;
+  background: #eef2f7;
+  font-size: 10px;
+}
+
+.trading-agents-modal .deep-analysis-stage-copy {
+  display: grid;
+  gap: 1px;
+  min-width: 0;
+}
+
+.trading-agents-modal .deep-analysis-stage-copy small {
+  color: #93a1b4;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 9px;
+}
+
+.trading-agents-modal .deep-analysis-stage-copy > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+}
+
+.trading-agents-modal .deep-analysis-stage.is-complete {
+  border-color: #b9e7cf;
+  color: #16865a;
+  background: #f1fbf5;
+}
+
+.trading-agents-modal .deep-analysis-stage.is-complete .deep-analysis-stage-marker {
+  color: #fff;
+  background: #20a464;
+}
+
+.trading-agents-modal .deep-analysis-stage.is-current {
+  border-color: #a8c7ff;
+  color: #245dcc;
+  background: #eef5ff;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, .06);
+}
+
+.trading-agents-modal .deep-analysis-stage.is-current .deep-analysis-stage-marker {
+  color: #245dcc;
+  background: #dceaff;
+}
+
+.trading-agents-modal .report-body {
+  max-height: 58vh;
+  padding: 16px 18px 20px;
+  background: var(--card, #fff);
+}
+
+.trading-agents-modal .report-sections {
+  display: grid;
+  gap: 12px;
+}
+
+.trading-agents-modal .report-section {
+  overflow: hidden;
+  border: 1px solid var(--line, #dbe4ef);
+  border-radius: 12px;
+  background: var(--card, #fff);
+}
+
+.trading-agents-modal .report-section-heading {
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr);
+  align-items: center;
+  gap: 9px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--line, #dbe4ef);
+  background: linear-gradient(90deg, var(--soft-blue, #f5f9ff), var(--card, #fff));
+}
+
+.trading-agents-modal .report-section-number {
+  color: #91a1b6;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.trading-agents-modal .report-section-icon {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border-radius: 8px;
+  color: var(--blue, #2563eb);
+  background: #eaf2ff;
+}
+
+.trading-agents-modal .report-section-kicker {
+  display: block;
+  margin: 0 0 2px;
+  color: var(--muted, #61738b);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.trading-agents-modal .report-section-heading h5 {
+  margin: 0;
+  color: var(--ink, #1f2d3d);
+  font-size: 14px;
+  line-height: 1.35;
+}
+
+.trading-agents-modal .report-section-content {
+  padding: 10px 14px 14px;
+}
+
+.trading-agents-modal .report-block + .report-block {
+  margin-top: 10px;
+}
+
+.trading-agents-modal .report-block--heading h6 {
+  margin: 0 0 6px;
+  color: var(--ink, #1f2d3d);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.trading-agents-modal .report-block--paragraph p {
+  margin: 0;
+  color: var(--text-secondary, #4f6380);
+  font-size: 13px;
+  line-height: 1.72;
+}
+
+.trading-agents-modal .report-list {
+  display: grid;
+  gap: 7px;
+  margin: 0;
+  padding-left: 19px;
+  color: var(--text-secondary, #4f6380);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.trading-agents-modal .report-list li::marker {
+  color: #20a464;
+}
+
+.trading-agents-modal .report-table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--line, #dbe4ef);
+  border-radius: 9px;
+}
+
+.trading-agents-modal .report-table {
+  width: 100%;
+  min-width: 360px;
+  border-collapse: collapse;
+  color: var(--text-secondary, #4f6380);
+  font-size: 12px;
+}
+
+.trading-agents-modal .report-table th,
+.trading-agents-modal .report-table td {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--line, #dbe4ef);
+  text-align: left;
+  vertical-align: top;
+}
+
+.trading-agents-modal .report-table th {
+  color: var(--ink, #1f2d3d);
+  background: var(--soft-blue, #f5f9ff);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.trading-agents-modal .report-table tr:last-child td {
+  border-bottom: 0;
+}
+
+.trading-agents-modal .theme-dark .progress-title strong,
+.trading-agents-modal .theme-dark .progress-current-copy strong,
+.trading-agents-modal .theme-dark .progress-time strong,
+.trading-agents-modal .theme-dark .report-section-heading h5,
+.trading-agents-modal .theme-dark .report-block--heading h6,
+.trading-agents-modal .theme-dark .report-table th {
+  color: #e6edf6;
+}
+
+.trading-agents-modal .theme-dark .progress-current-card,
+.trading-agents-modal .theme-dark .deep-analysis-stage {
+  background: rgba(24, 32, 44, .72);
+}
+
+.trading-agents-modal .theme-dark .report-section,
+.trading-agents-modal .theme-dark .report-body {
+  background: #18202c;
+}
+
+.trading-agents-modal .theme-dark .report-section-heading,
+.trading-agents-modal .theme-dark .report-table th {
+  background: #152334;
+}
+
+.trading-agents-modal .theme-dark .report-section-icon,
+.trading-agents-modal .theme-dark .progress-current-icon {
+  background: #20385c;
+}
+
+@media (max-width: 640px) {
+  .trading-agents-modal .deep-analysis-progress {
+    padding: 14px;
+  }
+
+  .trading-agents-modal .progress-topline {
+    gap: 10px;
+  }
+
+  .trading-agents-modal .progress-title strong {
+    font-size: 13px;
+  }
+
+  .trading-agents-modal .progress-percent {
+    font-size: 21px;
+  }
+
+  .trading-agents-modal .progress-current-card {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .trading-agents-modal .progress-time {
+    grid-column: 2;
+    justify-items: start;
+    grid-template-columns: auto auto;
+    align-items: baseline;
+    gap: 8px;
+  }
+
+  .trading-agents-modal .deep-analysis-stage-list {
+    grid-template-columns: 1fr;
+  }
+
+  .trading-agents-modal .report-body {
+    padding: 12px 12px 16px;
+  }
+
+  .trading-agents-modal .report-section-heading {
+    grid-template-columns: auto auto minmax(0, 1fr);
+    padding: 11px 12px;
+  }
+
+  .trading-agents-modal .report-section-content {
+    padding: 10px 12px 12px;
+  }
+
+  .trading-agents-modal .report-block--paragraph p,
+  .trading-agents-modal .report-list {
+    font-size: 12px;
+  }
+}
 </style>
 
 <style lang="less">
