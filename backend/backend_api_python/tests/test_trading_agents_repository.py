@@ -148,3 +148,48 @@ def test_failed_run_transition_does_not_store_raw_traceback(monkeypatch):
 
     _query, params = connection.cursor_instance.calls[0]
     assert params[4] == "TradingAgents service failed; inspect private service logs."
+
+
+def test_repository_expires_running_run_when_progress_heartbeat_is_stale(monkeypatch):
+    _enable_lightweight_app_imports()
+    from app.services import trading_agents_repository as repository_module
+    from app.services.trading_agents_repository import TradingAgentsRepository
+
+    class Cursor:
+        def __init__(self):
+            self.calls = []
+
+        def execute(self, query, params=()):
+            self.calls.append((query, params))
+
+        def close(self):
+            return None
+
+    class Connection:
+        def __init__(self):
+            self.cursor_instance = Cursor()
+            self.commits = 0
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def cursor(self):
+            return self.cursor_instance
+
+        def commit(self):
+            self.commits += 1
+
+    connection = Connection()
+    monkeypatch.setattr(repository_module, "get_db_connection", lambda: connection)
+
+    TradingAgentsRepository().expire_stale_running_runs(user_id=7, stale_after_seconds=120)
+
+    query, params = connection.cursor_instance.calls[0]
+    assert "status = 'running'" in query
+    assert "MAX(e.created_at)" in query
+    assert "heartbeat_timeout" in query
+    assert params == (7, 120)
+    assert connection.commits == 1

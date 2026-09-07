@@ -20,6 +20,7 @@ from urllib.request import Request, urlopen
 from fastapi import FastAPI, HTTPException, Request as FastAPIRequest, Response
 
 from .config import Settings, load_settings
+from .errors import failure_code
 from .instruments import resolve_instrument
 from .progress import StageProgressTracker
 from .reporting import ReportArtifactError, read_native_report
@@ -205,10 +206,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             except RunCancelled:
                 publish("run_status", {"status": "cancelled"})
             except Exception as exc:
-                from tradingagents.agents.utils.structured import _is_timeout_error
-                failure_code = "provider_timeout" if _is_timeout_error(exc) else "runner_failed"
                 logger.error("TradingAgents failed: run=%s type=%s", graph_request.run_id, type(exc).__name__)
-                publish("run_status", {"status": "failed", "failure_code": failure_code})
+                publish("run_status", {"status": "failed", "failure_code": failure_code(exc)})
             finally:
                 heartbeat_stop.set()
                 heartbeat_thread.join(timeout=1)

@@ -190,9 +190,46 @@ class TradingAgentsRepository:
             finally:
                 cur.close()
 
+    def expire_stale_running_runs(
+        self,
+        *,
+        user_id: int,
+        stale_after_seconds: int = 120,
+    ) -> None:
+        """Fail runs whose service heartbeat disappeared instead of leaving them active forever."""
+
+        clean_user_id = int(user_id)
+        clean_stale_after = max(30, min(3600, int(stale_after_seconds)))
+        with get_db_connection() as db:
+            cur = db.cursor()
+            try:
+                cur.execute(
+                    """
+                    UPDATE trading_agents_runs AS r
+                    SET status = 'failed',
+                        finished_at = NOW(),
+                        failure_code = 'heartbeat_timeout',
+                        failure_message = 'TradingAgents progress heartbeat expired; resume or start a fresh run.'
+                    WHERE r.user_id = ?
+                      AND r.status = 'running'
+                      AND COALESCE(
+                            (SELECT MAX(e.created_at)
+                             FROM trading_agents_events AS e
+                             WHERE e.run_id = r.run_id),
+                            r.started_at,
+                            r.created_at
+                          ) < NOW() - (? * INTERVAL '1 second')
+                    """,
+                    (clean_user_id, clean_stale_after),
+                )
+                db.commit()
+            finally:
+                cur.close()
+
     def get_owned_run(self, *, user_id: int, run_id: str) -> dict[str, Any] | None:
         clean_run_id = self._validate_run_id(run_id)
         clean_user_id = int(user_id)
+        self.expire_stale_running_runs(user_id=clean_user_id)
         with get_db_connection() as db:
             cur = db.cursor()
             try:
@@ -265,6 +302,8 @@ class TradingAgentsRepository:
         if isinstance(limit, bool) or not 1 <= int(limit) <= 12:
             raise ValueError("limit must be between 1 and 12")
 
+        self.expire_stale_running_runs(user_id=clean_user_id)
+
         with get_db_connection() as db:
             cur = db.cursor()
             try:
@@ -300,6 +339,7 @@ class TradingAgentsRepository:
         clean_market = self._validate_short_text(market, "market", 40)
         clean_symbol = self._validate_short_text(symbol, "symbol", 80)
         clean_analysis_date = self._validate_short_text(analysis_date, "analysis_date", 10)
+        self.expire_stale_running_runs(user_id=clean_user_id)
         with get_db_connection() as db:
             cur = db.cursor()
             try:

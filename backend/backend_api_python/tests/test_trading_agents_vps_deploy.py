@@ -25,6 +25,10 @@ def test_vps_release_packages_and_starts_the_private_tradingagents_service():
     assert "deploy/vps/datavest-celery.service" in workflow
     assert "deploy/vps/configure_env.py" in workflow
     assert "trading_agents_service/requirements.lock" in deploy_script
+    assert "third_party/tradingagents" in deploy_script
+    assert "trading_agents_runtime_hash" in deploy_script
+    assert "find tradingagents cli pyproject.toml" in deploy_script
+    assert "from tradingagents.agents.utils.progress import bind_progress_sink" in deploy_script
     assert "python3 \"$shared/configure_env.py\" /dev/null \"$env_file\"" in deploy_script
     assert "datavest-trading-agents" in deploy_script
     assert "datavest-celery.service" in deploy_script

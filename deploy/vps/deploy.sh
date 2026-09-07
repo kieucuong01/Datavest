@@ -11,7 +11,7 @@ readonly env_file="$shared/.env"
 readonly browser_venv="$shared/crypto-insights-venv"
 readonly browser_requirements_stamp="$shared/crypto-insights-requirements.sha256"
 readonly trading_agents_venv="$shared/trading-agents-venv"
-readonly trading_agents_requirements_stamp="$shared/trading-agents-requirements.sha256"
+readonly trading_agents_runtime_stamp="$shared/trading-agents-runtime.sha256"
 readonly runtime_uid="$(id -u)"
 export XDG_RUNTIME_DIR="/run/user/$runtime_uid"
 export DBUS_SESSION_BUS_ADDRESS="unix:path=$XDG_RUNTIME_DIR/bus"
@@ -89,14 +89,26 @@ install -d -m 0750 "$shared/data/crypto-insights" "$shared/data/browser-profiles
 # TradingAgents has a deliberately separate, locked environment: it carries
 # the full vendored graph and never joins the API/Celery dependency surface.
 trading_agents_requirements="$release/backend/trading_agents_service/requirements.lock"
-trading_agents_hash="$(sha256sum "$trading_agents_requirements" | awk '{print $1}')"
-if [[ ! -x "$trading_agents_venv/bin/python" || ! -f "$trading_agents_requirements_stamp" || "$(cat "$trading_agents_requirements_stamp")" != "$trading_agents_hash" ]]; then
+trading_agents_requirements_hash="$(sha256sum "$trading_agents_requirements" | awk '{print $1}')"
+trading_agents_source_hash="$(
+  cd "$release/backend/third_party/tradingagents"
+  find tradingagents cli pyproject.toml -type f -print0 | LC_ALL=C sort -z | xargs -0 sha256sum | sha256sum | awk '{print $1}'
+)"
+trading_agents_runtime_hash="$(printf '%s\n%s\n' "$trading_agents_requirements_hash" "$trading_agents_source_hash" | sha256sum | awk '{print $1}')"
+if [[ ! -x "$trading_agents_venv/bin/python" || ! -f "$trading_agents_runtime_stamp" || "$(cat "$trading_agents_runtime_stamp")" != "$trading_agents_runtime_hash" ]]; then
   rm -rf -- "$trading_agents_venv"
   python3 -m venv "$trading_agents_venv"
   "$trading_agents_venv/bin/pip" install --disable-pip-version-check --require-hashes --only-binary=:all: -r "$trading_agents_requirements"
   "$trading_agents_venv/bin/pip" install --disable-pip-version-check --no-build-isolation --no-deps "$release/backend/third_party/tradingagents"
-  printf '%s\n' "$trading_agents_hash" > "$trading_agents_requirements_stamp"
+  printf '%s\n' "$trading_agents_runtime_hash" > "$trading_agents_runtime_stamp"
 fi
+"$trading_agents_venv/bin/python" - <<'PY'
+from tradingagents.agents.utils.progress import bind_progress_sink
+from tradingagents.agents.utils.structured import _is_timeout_error
+
+assert callable(bind_progress_sink)
+assert callable(_is_timeout_error)
+PY
 install -d -m 0750 "$shared/data/trading-agents"
 
 install -d -m 0700 "$backups"
