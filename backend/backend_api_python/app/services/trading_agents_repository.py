@@ -178,13 +178,30 @@ class TradingAgentsRepository:
                     """
                     UPDATE trading_agents_runs
                     SET status = ?,
-                        started_at = CASE WHEN ? = 'running' AND started_at IS NULL THEN NOW() ELSE started_at END,
-                        finished_at = CASE WHEN ? IN ('succeeded', 'failed', 'cancelled') THEN NOW() ELSE finished_at END,
+                        started_at = CASE
+                            WHEN ? = 'queued' THEN NULL
+                            WHEN ? = 'running' AND (status <> 'running' OR started_at IS NULL) THEN NOW()
+                            ELSE started_at
+                        END,
+                        finished_at = CASE
+                            WHEN ? IN ('succeeded', 'failed', 'cancelled') THEN NOW()
+                            WHEN ? IN ('queued', 'running') THEN NULL
+                            ELSE finished_at
+                        END,
                         failure_code = ?,
                         failure_message = ?
                     WHERE run_id = ?
                     """,
-                    (clean_status, clean_status, clean_status, clean_code, clean_message, clean_run_id),
+                    (
+                        clean_status,
+                        clean_status,
+                        clean_status,
+                        clean_status,
+                        clean_status,
+                        clean_code,
+                        clean_message,
+                        clean_run_id,
+                    ),
                 )
                 db.commit()
             finally:

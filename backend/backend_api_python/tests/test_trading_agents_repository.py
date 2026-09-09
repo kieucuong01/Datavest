@@ -147,7 +147,7 @@ def test_failed_run_transition_does_not_store_raw_traceback(monkeypatch):
     )
 
     _query, params = connection.cursor_instance.calls[0]
-    assert params[4] == "TradingAgents service failed; inspect private service logs."
+    assert params[-2] == "TradingAgents service failed; inspect private service logs."
 
 
 def test_repository_expires_running_run_when_progress_heartbeat_is_stale(monkeypatch):
@@ -193,3 +193,44 @@ def test_repository_expires_running_run_when_progress_heartbeat_is_stale(monkeyp
     assert "heartbeat_timeout" in query
     assert params == (7, 120)
     assert connection.commits == 1
+
+
+def test_queued_transition_resets_attempt_timestamps_before_resume(monkeypatch):
+    _enable_lightweight_app_imports()
+    from app.services import trading_agents_repository as repository_module
+    from app.services.trading_agents_repository import TradingAgentsRepository
+
+    class Cursor:
+        def __init__(self):
+            self.calls = []
+
+        def execute(self, query, params=()):
+            self.calls.append((query, params))
+
+        def close(self):
+            return None
+
+    class Connection:
+        def __init__(self):
+            self.cursor_instance = Cursor()
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def cursor(self):
+            return self.cursor_instance
+
+        def commit(self):
+            return None
+
+    connection = Connection()
+    monkeypatch.setattr(repository_module, "get_db_connection", lambda: connection)
+
+    TradingAgentsRepository().transition_run(run_id="run-123", status="queued")
+
+    query, _params = connection.cursor_instance.calls[0]
+    assert "WHEN ? = 'queued' THEN NULL" in query
+    assert "WHEN ? IN ('queued', 'running') THEN NULL" in query
