@@ -640,16 +640,21 @@ export default {
       this.calendarError = ''
       ;['dates', 'overview', 'opinions', 'pulse', 'calendar', 'health'].forEach(section => this.setSectionLoading(section, false, requestId))
       this.errorMessage = ''
+      const independentLoaders = {}
+      if (force || !Array.isArray(this.smartInsightsCache.watchlist)) independentLoaders.opinions = requestId => this.loadWatchlist(requestId, force)
+      if (force || !Array.isArray(this.smartInsightsCache.health)) independentLoaders.health = requestId => this.loadHealth(requestId, force)
+      const independentResults = this.runSections(independentLoaders, requestId)
       const needsDates = force || !Array.isArray(this.smartInsightsCache.dates)
+      let datesPending = Promise.resolve()
       if (needsDates) {
         this.setSectionLoading('dates', true, requestId)
-        try {
-          await this.loadDates(requestId, force)
-        } catch (error) {
+        datesPending = this.loadDates(requestId, force).catch(error => {
           if (this.isCurrentRequest(requestId)) this.errorMessage = this.friendlyError(error, 'smartInsights.unavailable')
-        } finally {
+        }).finally(() => {
           this.setSectionLoading('dates', false, requestId)
-        }
+        })
+        // Only the initial automatic date selection depends on this response.
+        if (!this.asOf) await datesPending
       } else {
         this.dates = this.smartInsightsCache.dates
         if (!this.asOf && this.dates.length) this.asOf = this.dates[0]
@@ -657,12 +662,14 @@ export default {
       if (!this.isCurrentRequest(requestId)) return
       const loaders = {
         overview: requestId => this.loadOverview(requestId, force),
-        pulse: requestId => this.loadPulse(requestId, force),
+        pulse: async requestId => {
+          await this.loadPulse(requestId, force)
+          if (this.isCurrentRequest(requestId)) this.scheduleCryptoTerminals()
+        },
         calendar: requestId => this.loadCalendar(force, requestId)
       }
-      if (force || !Array.isArray(this.smartInsightsCache.watchlist)) loaders.opinions = requestId => this.loadWatchlist(requestId, force)
-      if (force || !Array.isArray(this.smartInsightsCache.health)) loaders.health = requestId => this.loadHealth(requestId, force)
-      const results = await this.runSections(loaders, requestId)
+      const [pageResults, extraResults] = await Promise.all([this.runSections(loaders, requestId), independentResults, datesPending])
+      const results = [...pageResults, ...extraResults]
       if (!this.isCurrentRequest(requestId)) return
       const failed = results.find(result => result.status === 'rejected')
       if (failed) {

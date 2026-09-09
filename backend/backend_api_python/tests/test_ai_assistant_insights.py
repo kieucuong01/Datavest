@@ -6,6 +6,20 @@ from app.services.ai_assistant_insights import (
 from datetime import datetime, timezone
 
 
+def test_overview_reads_history_and_watchlist_once():
+    from unittest.mock import Mock
+    memory = Mock()
+    memory.list_reports_for_user.return_value = []
+    watchlist = Mock(return_value=[])
+    service = AiAssistantInsightsService(memory=memory, watchlist_loader=watchlist, monitor_loader=lambda _: [])
+    for selected_day in ("2026-09-09", None):
+        memory.reset_mock()
+        watchlist.reset_mock()
+        service.get_overview(user_id=7, as_of=selected_day)
+        memory.list_reports_for_user.assert_called_once_with(user_id=7)
+        watchlist.assert_called_once_with(7)
+
+
 def test_select_watchlist_reports_uses_exact_date_and_never_falls_back():
     watchlist = [
         {"market": "Crypto", "symbol": "BTC/USDT"},

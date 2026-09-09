@@ -370,6 +370,10 @@ class AiAssistantInsightsService:
     def list_dates(self, user_id: int, **_ignored: Any) -> dict[str, Any]:
         watchlist = self.watchlist_loader(user_id)
         reports = self.memory.list_reports_for_user(user_id=user_id)
+        return {"dates": self._available_dates(watchlist, reports), "source": "AI_ASSISTANT_HISTORY"}
+
+    @staticmethod
+    def _available_dates(watchlist, reports) -> list[str]:
         wanted = {report_identity(item) for item in watchlist}
         dates = sorted(
             {
@@ -380,14 +384,14 @@ class AiAssistantInsightsService:
             },
             reverse=True,
         )
-        return {"dates": dates, "source": "AI_ASSISTANT_HISTORY"}
+        return dates
 
     def get_overview(self, user_id: int, as_of: str | None = None, locale: str = "vi-VN", **_ignored: Any) -> dict[str, Any]:
         from app.services.smart_insights.data_contract import attach_data_contract
 
         watchlist = self.watchlist_loader(user_id)
         reports = self.memory.list_reports_for_user(user_id=user_id)
-        dates = self.list_dates(user_id).get("dates") or []
+        dates = self._available_dates(watchlist, reports) if not as_of else []
         selected_day = str(as_of or (dates[0] if dates else vietnam_calendar_date()))[:10]
         now = self.now_loader()
         if not isinstance(now, datetime):

@@ -34,6 +34,55 @@ const deferred = () => {
 }
 const tick = () => new Promise(resolve => setImmediate(resolve))
 
+test('selected date starts overview without waiting for the dates endpoint', async () => {
+  const dates = deferred()
+  let overviewCalls = 0
+  const { instance: p } = page({
+    getSmartInsightsDates: () => dates.promise,
+    getSmartInsightsOverview: async () => { overviewCalls++; return { data: { status: 'AVAILABLE' } } }
+  })
+  p.smartInsightsCache.dates = null
+  const loading = p.loadAll()
+  await tick()
+  const callsBeforeDates = overviewCalls
+  dates.resolve({ data: { dates: ['2026-09-07'] } })
+  await loading
+  assert.equal(callsBeforeDates, 1)
+})
+
+test('pulse can render while calendar is still pending', async () => {
+  const calendar = deferred()
+  const { instance: p } = page({ getEconomicCalendar: () => calendar.promise })
+  let scheduled = false
+  p.scheduleCryptoTerminals = () => { scheduled = true }
+  const loading = p.loadAll()
+  await tick()
+  const readyBeforeCalendar = scheduled
+  calendar.resolve({ code: 1, data: [] })
+  await loading
+  assert.equal(readyBeforeCalendar, true)
+})
+
+test('first visit loads watchlist during date discovery and then uses the newest date', async () => {
+  const dates = deferred()
+  let watchlistCalls = 0
+  const overviewDates = []
+  const { instance: p } = page({
+    getSmartInsightsDates: () => dates.promise,
+    getWatchlist: async () => { watchlistCalls++; return { data: [] } },
+    getSmartInsightsOverview: async args => { overviewDates.push(args.as_of); return { data: {} } }
+  })
+  p.asOf = undefined
+  p.smartInsightsCache.dates = null
+  const loading = p.loadAll()
+  await tick()
+  assert.equal(watchlistCalls, 1)
+  assert.equal(overviewDates.length, 0)
+  dates.resolve({ data: { dates: ['2026-09-08', '2026-09-07'] } })
+  await loading
+  assert.deepEqual(overviewDates, ['2026-09-08'])
+})
+
 test('retry pulse touches only pulse and does not invalidate concurrent overview', async () => {
   const pending = deferred()
   let pulseCalls = 0, overviewCalls = 0, calendarCalls = 0
