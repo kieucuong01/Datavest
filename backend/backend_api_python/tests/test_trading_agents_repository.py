@@ -32,11 +32,13 @@ def test_migration_defines_owner_scoped_immutable_run_tables():
         "trading_agents_events",
         "trading_agents_artifacts",
         "trading_agents_proposals",
+        "trading_agents_daily_runs",
     ):
         assert f"CREATE TABLE IF NOT EXISTS {table}" in migration
 
     assert "REFERENCES qd_users(id)" in migration
     assert "UNIQUE (run_id, sequence)" in migration
+    assert "PRIMARY KEY (user_id, market, symbol, analysis_date)" in migration
     assert "trading_agents_runs_immutable_fields" in migration
     assert "NEW.request_json IS DISTINCT FROM OLD.request_json" in migration
     assert "NEW.config_checksum IS DISTINCT FROM OLD.config_checksum" in migration

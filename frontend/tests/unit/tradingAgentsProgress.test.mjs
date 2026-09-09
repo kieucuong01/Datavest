@@ -6,11 +6,12 @@ import { fileURLToPath } from 'node:url'
 const root = fileURLToPath(new URL('../..', import.meta.url))
 const read = (relative) => readFileSync(`${root}/${relative}`, 'utf8')
 
-test('deep analysis restores briefly then starts one run when exact history is empty', () => {
+test('deep analysis loads the report library and requires an explicit user action to start a run', () => {
   const panel = read('src/components/TradingAgents/DeepAnalysisPanel.vue')
   const api = read('src/api/trading-agents.js')
 
-  assert.match(panel, /loadLatestRun\(\{ autoStart: true \}\)/u)
+  assert.match(panel, /loadReportHistory/u)
+  assert.doesNotMatch(panel, /loadLatestRun\(\{ autoStart: true \}\)/u)
   assert.match(panel, /HISTORY_TIMEOUT_MS\s*=\s*8000/u)
   assert.match(panel, /historyError/u)
   assert.match(panel, /completed_stage_ids/u)

@@ -73,3 +73,23 @@ test('late cancel response cannot mark another asset run cancelled', async () =>
   await pending
   assert.equal(instance.run.status, 'running')
 })
+
+test('report library loads completed history without automatically creating a daily run', async () => {
+  const calls = []
+  const { instance } = panel({ getTradingAgentsRuns: async params => {
+    calls.push(params)
+    return { data: {
+      runs: [{ run_id: 'old-report', analysis_date: '2026-09-08', status: 'succeeded' }],
+      today_run: null
+    } }
+  } })
+  instance.run = null
+  instance.isSupported = true
+  instance.normalizedTarget = { market: 'Crypto', symbol: 'BTC/USDT' }
+
+  await instance.loadReportHistory()
+
+  assert.equal(JSON.stringify(calls), JSON.stringify([{ market: 'Crypto', symbol: 'BTC/USDT', scope: 'history', limit: 100 }]))
+  assert.equal(instance.historyReports[0].run_id, 'old-report')
+  assert.equal(instance.todayRun, null)
+})

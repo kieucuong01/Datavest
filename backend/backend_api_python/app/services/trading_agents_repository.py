@@ -48,6 +48,20 @@ class TradingAgentsRepository:
         with get_db_connection() as db:
             cur = db.cursor()
             try:
+                market = self._validate_short_text(str(request.get("market") or ""), "market", 40)
+                symbol = self._validate_short_text(str(request.get("symbol") or ""), "symbol", 80)
+                analysis_date = self._validate_short_text(str(request.get("analysis_date") or ""), "analysis_date", 10)
+                cur.execute(
+                    """
+                    INSERT INTO trading_agents_daily_runs (user_id, market, symbol, analysis_date, run_id)
+                    VALUES (?, ?, ?, ?, ?)
+                    ON CONFLICT (user_id, market, symbol, analysis_date) DO NOTHING
+                    RETURNING run_id
+                    """,
+                    (clean_user_id, market, symbol, analysis_date, clean_run_id),
+                )
+                if cur.fetchone() is None:
+                    raise ValueError("daily_run_exists")
                 cur.execute(
                     """
                     INSERT INTO trading_agents_runs
@@ -339,6 +353,83 @@ class TradingAgentsRepository:
                     (clean_user_id, clean_market, clean_symbol, clean_analysis_date, int(limit)),
                 )
                 return [dict(row) for row in (cur.fetchall() or [])]
+            finally:
+                cur.close()
+
+    def list_owned_reports(
+        self,
+        *,
+        user_id: int,
+        market: str,
+        symbol: str,
+        limit: int = 100,
+    ) -> list[dict[str, Any]]:
+        """List every completed native report for one owner and instrument."""
+        clean_user_id = int(user_id)
+        clean_market = self._validate_short_text(market, "market", 40)
+        clean_symbol = self._validate_short_text(symbol, "symbol", 80)
+        if isinstance(limit, bool) or not 1 <= int(limit) <= 100:
+            raise ValueError("limit must be between 1 and 100")
+        with get_db_connection() as db:
+            cur = db.cursor()
+            try:
+                cur.execute(
+                    """
+                    SELECT run_id, user_id, status, request_json, config_checksum, source_pin,
+                           failure_code, failure_message, created_at, started_at, finished_at
+                    FROM trading_agents_runs r
+                    WHERE user_id = ?
+                      AND status = 'succeeded'
+                      AND request_json->>'market' = ?
+                      AND request_json->>'symbol' = ?
+                      AND EXISTS (
+                          SELECT 1 FROM trading_agents_artifacts a
+                          WHERE a.run_id = r.run_id
+                            AND a.user_id = r.user_id
+                            AND a.artifact_name = 'complete_report.md'
+                      )
+                    ORDER BY COALESCE(finished_at, created_at) DESC
+                    LIMIT ?
+                    """,
+                    (clean_user_id, clean_market, clean_symbol, int(limit)),
+                )
+                return [dict(row) for row in (cur.fetchall() or [])]
+            finally:
+                cur.close()
+
+    def get_daily_run(
+        self,
+        *,
+        user_id: int,
+        market: str,
+        symbol: str,
+        analysis_date: str,
+    ) -> dict[str, Any] | None:
+        """Find the only permitted run for this owner, asset and Vietnam day."""
+        clean_user_id = int(user_id)
+        clean_market = self._validate_short_text(market, "market", 40)
+        clean_symbol = self._validate_short_text(symbol, "symbol", 80)
+        clean_analysis_date = self._validate_short_text(analysis_date, "analysis_date", 10)
+        self.expire_stale_running_runs(user_id=clean_user_id)
+        with get_db_connection() as db:
+            cur = db.cursor()
+            try:
+                cur.execute(
+                    """
+                    SELECT run_id, user_id, status, request_json, config_checksum, source_pin,
+                           failure_code, failure_message, created_at, started_at, finished_at
+                    FROM trading_agents_runs
+                    WHERE user_id = ?
+                      AND request_json->>'market' = ?
+                      AND request_json->>'symbol' = ?
+                      AND request_json->>'analysis_date' = ?
+                    ORDER BY created_at DESC
+                    LIMIT 1
+                    """,
+                    (clean_user_id, clean_market, clean_symbol, clean_analysis_date),
+                )
+                row = cur.fetchone()
+                return dict(row) if row else None
             finally:
                 cur.close()
 

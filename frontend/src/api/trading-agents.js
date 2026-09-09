@@ -32,3 +32,12 @@ export function getTradingAgentsArtifact (runId, artifactName) {
     timeout: 30000
   })
 }
+
+export function getTradingAgentsReportPdf (runId) {
+  return request({
+    url: `/api/trading-agents/runs/${encodeURIComponent(runId)}/report.pdf`,
+    method: 'get',
+    responseType: 'blob',
+    timeout: 120000
+  })
+}

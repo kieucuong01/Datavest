@@ -62,6 +62,30 @@ def _register_report_pdf_font(prefer_cjk: bool = False) -> str:
     return "Helvetica"
 
 
+def _register_unicode_report_pdf_font() -> str:
+    """Choose a TrueType Latin font before CJK collections for Vietnamese PDFs."""
+    from pathlib import Path
+
+    from reportlab.pdfbase import pdfmetrics
+    from reportlab.pdfbase.ttfonts import TTFont
+
+    candidates = [
+        "C:/Windows/Fonts/arial.ttf",
+        "C:/Windows/Fonts/segoeui.ttf",
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+        "/usr/share/fonts/truetype/liberation2/LiberationSans-Regular.ttf",
+        "/usr/share/fonts/truetype/noto/NotoSans-Regular.ttf",
+    ]
+    for path in candidates:
+        try:
+            if Path(path).exists():
+                pdfmetrics.registerFont(TTFont("DataVestUnicode", path))
+                return "DataVestUnicode"
+        except Exception as e:
+            logger.debug(f"Failed to register Unicode PDF font {path}: {e}")
+    return _register_report_pdf_font(prefer_cjk=False)
+
+
 def _language_key(language: str = "") -> str:
     lang = (language or "").replace("_", "-").lower()
     if lang.startswith("zh-tw") or lang.startswith("zh-hk") or lang.startswith("zh-hant"):
@@ -449,4 +473,179 @@ def build_ai_report_pdf(report: dict, target: dict | None = None, language: str 
 
     doc.build(story, onFirstPage=draw_page, onLaterPages=draw_page)
     return buf.getvalue()
+
+
+def build_trading_agents_report_pdf(
+    *,
+    content: str,
+    market: str,
+    symbol: str,
+    analysis_date: str,
+    language: str,
+    run_id: str,
+) -> bytes:
+    """Render the immutable native TradingAgents Markdown artifact as a PDF."""
+    from reportlab.lib import colors
+    from reportlab.lib.enums import TA_RIGHT
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
+    from reportlab.lib.units import mm
+    from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+
+    is_vietnamese = _language_key(language) == "vi"
+    labels = {
+        "title": "Báo cáo chuyên sâu TradingAgents" if is_vietnamese else "TradingAgents Deep Research Report",
+        "subtitle": "Báo cáo gốc đã xác thực, chỉ phục vụ mục đích nghiên cứu" if is_vietnamese else "Verified native report for research use only",
+        "asset": "Tài sản" if is_vietnamese else "Asset",
+        "date": "Ngày phân tích" if is_vietnamese else "Analysis date",
+        "run": "Mã lần chạy" if is_vietnamese else "Run ID",
+        "disclaimer": "Không phải tư vấn đầu tư hoặc lệnh giao dịch." if is_vietnamese else "Not investment advice or an order instruction.",
+    }
+    font_name = _register_unicode_report_pdf_font() if is_vietnamese else _register_report_pdf_font(prefer_cjk=_has_cjk_text(content))
+    buffer = BytesIO()
+    page_width, _ = A4
+    doc = SimpleDocTemplate(
+        buffer,
+        pagesize=A4,
+        rightMargin=16 * mm,
+        leftMargin=16 * mm,
+        topMargin=18 * mm,
+        bottomMargin=18 * mm,
+        title=labels["title"],
+    )
+    styles = getSampleStyleSheet()
+    base = ParagraphStyle(
+        "TradingAgentsPdfBase",
+        parent=styles["Normal"],
+        fontName=font_name,
+        fontSize=9.5,
+        leading=15,
+        textColor=colors.HexColor("#273449"),
+        spaceAfter=5,
+    )
+    title = ParagraphStyle(
+        "TradingAgentsPdfTitle",
+        parent=base,
+        fontSize=21,
+        leading=27,
+        textColor=colors.white,
+    )
+    subtitle = ParagraphStyle(
+        "TradingAgentsPdfSubtitle",
+        parent=base,
+        fontSize=8.5,
+        leading=12,
+        textColor=colors.HexColor("#cbd5e1"),
+    )
+    heading = ParagraphStyle(
+        "TradingAgentsPdfHeading",
+        parent=base,
+        fontSize=14,
+        leading=19,
+        textColor=colors.HexColor("#12355b"),
+        spaceBefore=12,
+        spaceAfter=6,
+    )
+    subheading = ParagraphStyle(
+        "TradingAgentsPdfSubheading",
+        parent=heading,
+        fontSize=11,
+        leading=15,
+        spaceBefore=8,
+        spaceAfter=4,
+    )
+    small = ParagraphStyle(
+        "TradingAgentsPdfSmall",
+        parent=base,
+        fontSize=8,
+        leading=11,
+        textColor=colors.HexColor("#64748b"),
+    )
+
+    def escaped(value: object) -> str:
+        return _plain_text(value).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").strip()
+
+    story: list[object] = []
+    header = Table(
+        [[
+            [Paragraph(labels["title"], title), Paragraph(labels["subtitle"], subtitle)],
+            Paragraph(f"{escaped(market)}<br/><b>{escaped(symbol)}</b>", ParagraphStyle(
+                "TradingAgentsPdfTarget", parent=base, fontSize=12, leading=17, textColor=colors.white, alignment=TA_RIGHT
+            )),
+        ]],
+        colWidths=[doc.width * 0.72, doc.width * 0.28],
+    )
+    header.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#102033")),
+        ("LEFTPADDING", (0, 0), (-1, -1), 14),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 14),
+        ("TOPPADDING", (0, 0), (-1, -1), 14),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 14),
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+    ]))
+    story.extend([header, Spacer(1, 6 * mm)])
+
+    metadata = Table([[
+        [Paragraph(labels["asset"], small), Paragraph(f"{escaped(market)}: {escaped(symbol)}", base)],
+        [Paragraph(labels["date"], small), Paragraph(escaped(analysis_date), base)],
+        [Paragraph(labels["run"], small), Paragraph(escaped(run_id), base)],
+    ]], colWidths=[doc.width / 3] * 3)
+    metadata.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#f5f8fc")),
+        ("BOX", (0, 0), (-1, -1), 0.5, colors.HexColor("#d8e1ee")),
+        ("INNERGRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#e6edf5")),
+        ("LEFTPADDING", (0, 0), (-1, -1), 9),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 9),
+        ("TOPPADDING", (0, 0), (-1, -1), 7),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 7),
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+    ]))
+    story.append(metadata)
+
+    paragraph_lines: list[str] = []
+
+    def flush_paragraph() -> None:
+        if paragraph_lines:
+            story.append(Paragraph("<br/>".join(escaped(line) for line in paragraph_lines), base))
+            paragraph_lines.clear()
+
+    for raw_line in (content or "").replace("\r\n", "\n").replace("\r", "\n").split("\n"):
+        line = raw_line.strip()
+        if not line:
+            flush_paragraph()
+            continue
+        match = re.match(r"^(#{1,3})\s+(.+)$", line)
+        if match:
+            flush_paragraph()
+            level = len(match.group(1))
+            story.append(Spacer(1, 2 * mm))
+            story.append(Paragraph(escaped(match.group(2)), heading if level == 1 else subheading if level == 2 else base))
+            continue
+        if re.match(r"^[-*+]\s+", line):
+            flush_paragraph()
+            story.append(Paragraph(f"• {escaped(re.sub(r'^[-*+]\\s+', '', line))}", base))
+            continue
+        if re.match(r"^\d+[.)]\s+", line):
+            flush_paragraph()
+            story.append(Paragraph(escaped(line), base))
+            continue
+        if line.startswith("|") and line.endswith("|"):
+            flush_paragraph()
+            cells = [escaped(cell) for cell in line.strip("|").split("|")]
+            if not all(re.fullmatch(r"[: -]+", cell) for cell in cells):
+                story.append(Paragraph(" · ".join(cells), small))
+            continue
+        paragraph_lines.append(line)
+    flush_paragraph()
+
+    def draw_page(canvas_obj: object, document: object) -> None:
+        canvas_obj.saveState()
+        canvas_obj.setFillColor(colors.HexColor("#64748b"))
+        canvas_obj.setFont(font_name, 7.5)
+        canvas_obj.drawString(doc.leftMargin, 9 * mm, labels["disclaimer"])
+        canvas_obj.drawRightString(page_width - doc.rightMargin, 9 * mm, f"DataVest TradingAgents · {document.page}")
+        canvas_obj.restoreState()
+
+    doc.build(story, onFirstPage=draw_page, onLaterPages=draw_page)
+    return buffer.getvalue()
 

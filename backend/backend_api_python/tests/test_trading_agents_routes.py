@@ -125,6 +125,71 @@ def test_run_history_is_filtered_to_the_current_owner_asset_and_day(monkeypatch)
     assert public_run["progress"]["percent"] < 100
 
 
+def test_report_history_lists_completed_reports_and_the_current_daily_run(monkeypatch):
+    client, route_module = _client(monkeypatch)
+    calls = []
+
+    class Repository:
+        def list_owned_reports(self, **kwargs):
+            calls.append(("reports", kwargs))
+            return [{
+                "run_id": "old-report",
+                "status": "succeeded",
+                "request_json": {"market": "Crypto", "symbol": "BTC/USDT", "analysis_date": "2026-09-04"},
+                "artifacts": [{"artifact_name": "complete_report.md"}],
+            }]
+
+        def get_daily_run(self, **kwargs):
+            calls.append(("daily", kwargs))
+            return {
+                "run_id": "today-report",
+                "status": "succeeded",
+                "request_json": {"market": "Crypto", "symbol": "BTC/USDT", "analysis_date": "2026-09-05"},
+                "artifacts": [{"artifact_name": "complete_report.md"}],
+            }
+
+    monkeypatch.setattr(route_module, "get_repository", lambda: Repository())
+
+    response = client.get("/api/trading-agents/runs?market=Crypto&symbol=BTC%2FUSDT&scope=history&limit=100")
+
+    assert response.status_code == 200
+    assert calls == [
+        ("reports", {"user_id": 7, "market": "Crypto", "symbol": "BTC/USDT", "limit": 100}),
+        ("daily", {"user_id": 7, "market": "Crypto", "symbol": "BTC/USDT", "analysis_date": route_module._today_vietnam()}),
+    ]
+    body = response.get_json()["data"]
+    assert [run["run_id"] for run in body["runs"]] == ["old-report"]
+    assert body["today_run"]["run_id"] == "today-report"
+
+
+def test_create_reuses_an_existing_daily_run_after_it_has_completed(monkeypatch):
+    client, route_module = _client(monkeypatch)
+
+    class Repository:
+        def get_daily_run(self, **kwargs):
+            assert kwargs["user_id"] == 7
+            assert kwargs["analysis_date"] == "2026-09-05"
+            return {"run_id": "daily-report", "status": "succeeded"}
+
+        def create_run(self, **_kwargs):
+            raise AssertionError("a second daily run must never be created")
+
+    monkeypatch.setattr(route_module, "get_repository", lambda: Repository())
+
+    response = client.post(
+        "/api/trading-agents/runs",
+        json={"market": "Crypto", "symbol": "BTC/USDT", "analysisDate": "2026-09-05"},
+    )
+
+    assert response.status_code == 200
+    assert response.get_json()["data"] == {
+        "run_id": "daily-report",
+        "status": "succeeded",
+        "reused": True,
+        "daily_limit_reached": True,
+    }
+
+
 def test_create_reuses_an_exact_active_run_for_repeated_clicks(monkeypatch):
     client, route_module = _client(monkeypatch)
     created = []
@@ -290,3 +355,51 @@ def test_artifact_checksum_mismatch_is_not_served(monkeypatch):
 
     assert response.status_code == 503
     assert response.get_json()["msg"] == "trading_agents_artifact_unavailable"
+
+
+def test_owned_report_pdf_is_rendered_from_the_verified_native_artifact(monkeypatch):
+    client, route_module = _client(monkeypatch)
+    report = b"# BTC research\n\nVerified report content."
+    rendered = []
+
+    class Repository:
+        def get_owned_run(self, **kwargs):
+            assert kwargs == {"user_id": 7, "run_id": "run-123"}
+            return {
+                "run_id": "run-123",
+                "user_id": 7,
+                "request_json": {
+                    "market": "Crypto",
+                    "symbol": "BTC/USDT",
+                    "analysis_date": "2026-09-05",
+                    "language": "vi-VN",
+                },
+                "artifacts": [{
+                    "artifact_name": "complete_report.md",
+                    "sha256": hashlib.sha256(report).hexdigest(),
+                }],
+            }
+
+    monkeypatch.setattr(route_module, "get_repository", lambda: Repository())
+    monkeypatch.setattr(route_module, "fetch_artifact_from_service", lambda **_kwargs: (report, "text/markdown"))
+    monkeypatch.setattr(
+        route_module,
+        "build_trading_agents_report_pdf",
+        lambda **kwargs: rendered.append(kwargs) or b"%PDF-1.4 test",
+    )
+
+    response = client.get("/api/trading-agents/runs/run-123/report.pdf")
+
+    assert response.status_code == 200
+    assert response.mimetype == "application/pdf"
+    assert response.data == b"%PDF-1.4 test"
+    assert "inline;" in response.headers["Content-Disposition"]
+    assert "DataVest_TradingAgents_BTC_USDT_20260905.pdf" in response.headers["Content-Disposition"]
+    assert rendered == [{
+        "content": report.decode("utf-8"),
+        "market": "Crypto",
+        "symbol": "BTC/USDT",
+        "analysis_date": "2026-09-05",
+        "language": "vi-VN",
+        "run_id": "run-123",
+    }]

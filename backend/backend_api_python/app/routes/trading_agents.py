@@ -22,6 +22,7 @@ from app.tasks.trading_agents import (
     fetch_artifact_from_service,
 )
 from app.services.trading_agents_progress import build_public_progress, public_event
+from app.services.ai_report_pdf import build_trading_agents_report_pdf
 from app.utils.auth import login_required
 from app.utils.logger import get_logger
 
@@ -127,20 +128,25 @@ def _safe_native_config(value: Mapping[str, Any], *, depth: int = 0) -> bool:
 def _validate_history_query(args: Mapping[str, Any]) -> dict[str, Any]:
     market = str(args.get("market") or "").strip()
     symbol = str(args.get("symbol") or "").strip()
+    scope = str(args.get("scope") or "day").strip().lower()
     analysis_date = str(args.get("analysisDate") or args.get("analysis_date") or "").strip()
     if market not in _SUPPORTED_MARKETS or not symbol or len(symbol) > 80:
         raise ValueError("unsupported_market_or_symbol")
+    if scope not in {"day", "history"}:
+        raise ValueError("invalid_history_scope")
+    if scope == "day":
+        try:
+            date.fromisoformat(analysis_date)
+        except ValueError as exc:
+            raise ValueError("invalid_analysis_date") from exc
     try:
-        date.fromisoformat(analysis_date)
-    except ValueError as exc:
-        raise ValueError("invalid_analysis_date") from exc
-    try:
-        limit = int(args.get("limit") or 12)
+        limit = int(args.get("limit") or (100 if scope == "history" else 12))
     except (TypeError, ValueError) as exc:
         raise ValueError("invalid_history_limit") from exc
-    if not 1 <= limit <= 12:
+    max_limit = 100 if scope == "history" else 12
+    if not 1 <= limit <= max_limit:
         raise ValueError("invalid_history_limit")
-    return {"market": market, "symbol": symbol, "analysis_date": analysis_date, "limit": limit}
+    return {"market": market, "symbol": symbol, "analysis_date": analysis_date, "limit": limit, "scope": scope}
 
 
 def _public_run(record: Mapping[str, Any]) -> dict[str, Any]:
@@ -185,6 +191,25 @@ def _public_run(record: Mapping[str, Any]) -> dict[str, Any]:
 def list_runs():
     try:
         filters = _validate_history_query(request.args)
+        if filters["scope"] == "history":
+            repository = get_repository()
+            records = repository.list_owned_reports(
+                user_id=_user_id(),
+                market=filters["market"],
+                symbol=filters["symbol"],
+                limit=filters["limit"],
+            )
+            today_run = repository.get_daily_run(
+                user_id=_user_id(),
+                market=filters["market"],
+                symbol=filters["symbol"],
+                analysis_date=_today_vietnam(),
+            )
+            return _ok({
+                "runs": [_public_run(record) for record in records],
+                "today_run": _public_run(today_run) if today_run else None,
+            })
+        filters.pop("scope", None)
         records = get_repository().list_owned_runs(user_id=_user_id(), **filters)
         return _ok({"runs": [_public_run(record) for record in records]})
     except ValueError as exc:
@@ -200,6 +225,20 @@ def create_run():
     try:
         request_record, config_record = _validate_request(request.get_json(silent=True) or {})
         repository = get_repository()
+        find_daily = getattr(repository, "get_daily_run", None)
+        daily = find_daily(
+            user_id=_user_id(),
+            market=request_record["market"],
+            symbol=request_record["symbol"],
+            analysis_date=request_record["analysis_date"],
+        ) if callable(find_daily) else None
+        if daily:
+            return _ok({
+                "run_id": daily["run_id"],
+                "status": daily.get("status") or "queued",
+                "reused": True,
+                "daily_limit_reached": True,
+            })
         find_active = getattr(repository, "get_active_run", None)
         active = find_active(
             user_id=_user_id(),
@@ -232,6 +271,20 @@ def create_run():
             return _fail("trading_agents_queue_unavailable", 503)
         return _ok({"run_id": run["run_id"], "status": "queued"}, status=202)
     except ValueError as exc:
+        if str(exc) == "daily_run_exists":
+            record = get_repository().get_daily_run(
+                user_id=_user_id(),
+                market=str((request.get_json(silent=True) or {}).get("market") or ""),
+                symbol=str((request.get_json(silent=True) or {}).get("symbol") or ""),
+                analysis_date=str((request.get_json(silent=True) or {}).get("analysisDate") or _today_vietnam()),
+            )
+            if record:
+                return _ok({
+                    "run_id": record["run_id"],
+                    "status": record.get("status") or "queued",
+                    "reused": True,
+                    "daily_limit_reached": True,
+                })
         return _fail(str(exc), 400)
     except Exception:
         logger.exception("TradingAgents run creation failed")
@@ -345,6 +398,60 @@ def get_artifact(run_id: str, artifact_name: str):
     if len(expected_sha256) != 64 or hashlib.sha256(content).hexdigest() != expected_sha256:
         return _fail("trading_agents_artifact_unavailable", 503)
     return Response(content, content_type=content_type)
+
+
+@trading_agents_blp.route("/runs/<string:run_id>/report.pdf", methods=["GET"])
+@login_required
+def get_report_pdf(run_id: str):
+    """Export a verified private native report without trusting browser content."""
+    record = get_repository().get_owned_run(user_id=_user_id(), run_id=run_id)
+    if record is None:
+        return _fail("trading_agents_run_not_found", 404)
+    artifact = next(
+        (item for item in record.get("artifacts") or [] if item.get("artifact_name") == "complete_report.md"),
+        None,
+    )
+    if artifact is None:
+        return _fail("trading_agents_artifact_not_found", 404)
+    try:
+        content, _content_type = fetch_artifact_from_service(
+            user_id=int(record["user_id"]),
+            run_id=run_id,
+            artifact_name="complete_report.md",
+        )
+    except TradingAgentsServiceUnavailable:
+        return _fail("trading_agents_artifact_unavailable", 503)
+    expected_sha256 = str(artifact.get("sha256") or "").lower()
+    if len(expected_sha256) != 64 or hashlib.sha256(content).hexdigest() != expected_sha256:
+        return _fail("trading_agents_artifact_unavailable", 503)
+    try:
+        request_json = record.get("request_json") or {}
+        if isinstance(request_json, str):
+            request_json = json.loads(request_json)
+        pdf_bytes = build_trading_agents_report_pdf(
+            content=content.decode("utf-8", errors="replace"),
+            market=str(request_json.get("market") or ""),
+            symbol=str(request_json.get("symbol") or ""),
+            analysis_date=str(request_json.get("analysis_date") or ""),
+            language=_normalize_language(request_json.get("language")),
+            run_id=run_id,
+        )
+    except ImportError:
+        return _fail("trading_agents_pdf_dependency_missing", 500)
+    except Exception:
+        logger.exception("TradingAgents report PDF rendering failed")
+        return _fail("trading_agents_pdf_unavailable", 503)
+    symbol = re.sub(r"[^A-Za-z0-9._-]+", "_", str(request_json.get("symbol") or "report")).strip("_")
+    date_text = re.sub(r"[^0-9]", "", str(request_json.get("analysis_date") or ""))[:8] or _today_vietnam().replace("-", "")
+    filename = f"DataVest_TradingAgents_{symbol or 'report'}_{date_text}.pdf"
+    return Response(
+        pdf_bytes,
+        mimetype="application/pdf",
+        headers={
+            "Content-Disposition": f'inline; filename="{filename}"',
+            "Content-Length": str(len(pdf_bytes)),
+        },
+    )
 
 
 __all__ = ["trading_agents_blp"]

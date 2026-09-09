@@ -24,6 +24,19 @@ CREATE INDEX IF NOT EXISTS idx_trading_agents_runs_user_created
 CREATE INDEX IF NOT EXISTS idx_trading_agents_runs_user_status
     ON trading_agents_runs(user_id, status, created_at DESC);
 
+-- A persistent lock makes the one-report-per-owner/instrument/Vietnam-day
+-- policy safe even when two browser requests arrive concurrently.
+CREATE TABLE IF NOT EXISTS trading_agents_daily_runs (
+    user_id INTEGER NOT NULL REFERENCES qd_users(id) ON DELETE CASCADE,
+    market VARCHAR(40) NOT NULL,
+    symbol VARCHAR(80) NOT NULL,
+    analysis_date DATE NOT NULL,
+    run_id VARCHAR(128) NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (user_id, market, symbol, analysis_date),
+    UNIQUE (run_id)
+);
+
 CREATE TABLE IF NOT EXISTS trading_agents_events (
     id BIGSERIAL PRIMARY KEY,
     run_id VARCHAR(128) NOT NULL REFERENCES trading_agents_runs(run_id) ON DELETE CASCADE,
