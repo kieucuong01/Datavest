@@ -4,7 +4,7 @@ import json
 import re
 from datetime import datetime, timezone
 from io import BytesIO
-from typing import Any
+from typing import Any, Mapping
 
 from app.utils.logger import get_logger
 
@@ -483,6 +483,7 @@ def build_trading_agents_report_pdf(
     analysis_date: str,
     language: str,
     run_id: str,
+    executive_summary: Mapping[str, Any] | None = None,
 ) -> bytes:
     """Render the immutable native TradingAgents Markdown artifact as a PDF."""
     from reportlab.lib import colors
@@ -490,7 +491,7 @@ def build_trading_agents_report_pdf(
     from reportlab.lib.pagesizes import A4
     from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
     from reportlab.lib.units import mm
-    from reportlab.platypus import HRFlowable, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+    from reportlab.platypus import HRFlowable, PageBreak, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
     is_vietnamese = _language_key(language) == "vi"
     labels = {
@@ -499,6 +500,14 @@ def build_trading_agents_report_pdf(
         "asset": "Tài sản" if is_vietnamese else "Asset",
         "date": "Ngày phân tích" if is_vietnamese else "Analysis date",
         "run": "Mã lần chạy" if is_vietnamese else "Run ID",
+        "summary": "Tóm tắt toàn bộ báo cáo" if is_vietnamese else "Whole-report summary",
+        "summary_note": "Tóm lược tự động từ các kết luận đã có trong báo cáo gốc." if is_vietnamese else "Automatically condensed from conclusions already present in the native report.",
+        "summary_sections": "Tổng quan theo các phần" if is_vietnamese else "Overview by report section",
+        "scope": "Phạm vi" if is_vietnamese else "Coverage",
+        "decision": "Kết luận" if is_vietnamese else "Conclusion",
+        "key_point": "Điểm chính" if is_vietnamese else "Key point",
+        "summary_overview": "Tóm tắt điều hành" if is_vietnamese else "Executive summary",
+        "action": "Hành động cần theo dõi" if is_vietnamese else "Action to monitor",
         "disclaimer": "Không phải tư vấn đầu tư hoặc lệnh giao dịch." if is_vietnamese else "Not investment advice or an order instruction.",
     }
     font_name = _register_unicode_report_pdf_font() if is_vietnamese else _register_report_pdf_font(prefer_cjk=_has_cjk_text(content))
@@ -613,7 +622,136 @@ def build_trading_agents_report_pdf(
     def paragraph(value: object, style: ParagraphStyle = base) -> Paragraph:
         return Paragraph(formatted(value).replace("\n", "<br/>"), style)
 
+    lines = (content or "").replace("\r\n", "\n").replace("\r", "\n").split("\n")
+    llm_summary = dict(executive_summary) if isinstance(executive_summary, Mapping) else {}
     story: list[object] = []
+
+    def compact_summary(value: str, limit: int = 260) -> str:
+        cleaned = re.sub(r"\s+", " ", re.sub(r"[*`#]", "", value)).strip()
+        if len(cleaned) <= limit:
+            return cleaned
+        return f"{cleaned[:limit].rsplit(' ', 1)[0].rstrip()}..."
+
+    def build_summary_rows() -> list[tuple[str, str]]:
+        section_titles = [
+            re.sub(r"^[IVXLC]+\.\s*", "", match.group(1)).strip()
+            for raw_line in lines
+            if (match := re.match(r"^##\s+(.+)$", raw_line.strip()))
+        ]
+        scope = ", ".join(section_titles[:3])
+        if len(section_titles) > 3:
+            scope = f"{scope} và {len(section_titles) - 3} phần khác"
+        rows: list[tuple[str, str]] = [(labels["scope"], compact_summary(scope or labels["summary_note"], 180))]
+        if llm_summary:
+            overview = compact_summary(str(llm_summary.get("overview") or ""), 820)
+            conclusion = compact_summary(str(llm_summary.get("conclusion") or ""), 260)
+            key_points = "\n".join(compact_summary(str(item), 160) for item in (llm_summary.get("key_points") or [])[:3])
+            if conclusion:
+                rows.append((labels["decision"], conclusion))
+            if overview:
+                rows.append((labels["summary_overview"], overview))
+            if key_points:
+                rows.append((labels["action"], key_points))
+            return rows[:4]
+        field_patterns = (
+            (labels["decision"], ("khuyến nghị", "recommendation", "rating", "đánh giá", "quyết định")),
+            (labels["key_point"], ("tóm tắt điều hành", "executive summary", "rationale", "luận điểm")),
+            (labels["action"], ("hành động chiến lược", "strategic actions", "action", "hành động")),
+        )
+        seen_labels: set[str] = set()
+        for raw_line in lines:
+            match = re.match(r"^\s*(?:[-*+]\s+)?(?:\*\*)?(.+?)(?:\*\*)?\s*:\s*(.+)$", raw_line.strip())
+            if not match:
+                continue
+            field_name = match.group(1).strip().casefold()
+            field_value = compact_summary(match.group(2))
+            if not field_value:
+                continue
+            for output_label, candidates in field_patterns:
+                if output_label not in seen_labels and any(candidate in field_name for candidate in candidates):
+                    rows.append((output_label, field_value))
+                    seen_labels.add(output_label)
+                    break
+        return rows[:4]
+
+    def build_section_summaries() -> list[tuple[str, str]]:
+        if llm_summary:
+            return [
+                (compact_summary(str(item.get("title") or ""), 180), compact_summary(str(item.get("summary") or ""), 420))
+                for item in (llm_summary.get("sections") or [])[:5]
+                if isinstance(item, Mapping) and item.get("title") and item.get("summary")
+            ]
+        summaries: list[tuple[str, str]] = []
+        section_index = 0
+        while section_index < len(lines):
+            match = re.match(r"^##\s+(.+)$", lines[section_index].strip())
+            if not match:
+                section_index += 1
+                continue
+            section_title = re.sub(r"^[IVXLC]+\.\s*", "", match.group(1)).strip()
+            section_index += 1
+            excerpts: list[str] = []
+            active_subheading = ""
+            while section_index < len(lines) and not re.match(r"^##\s+", lines[section_index].strip()):
+                line = lines[section_index].strip()
+                subheading = re.match(r"^###\s+(.+)$", line)
+                if subheading:
+                    active_subheading = subheading.group(1).strip()
+                elif line and not line.startswith("|") and not re.match(r"^Generated\s*:", line, flags=re.IGNORECASE):
+                    text = re.sub(r"^[-*+]\s+", "", line)
+                    if active_subheading:
+                        text = f"{active_subheading}: {text}"
+                        active_subheading = ""
+                    excerpts.append(text)
+                section_index += 1
+            detail = compact_summary(" ".join(excerpts), 175)
+            if detail:
+                summaries.append((section_title, detail))
+        return summaries[:5]
+
+    def append_report_summary() -> None:
+        summary_title = ParagraphStyle(
+            "TradingAgentsPdfSummaryTitle", parent=heading, fontSize=13, leading=17, textColor=colors.HexColor("#12355b"), spaceAfter=2
+        )
+        summary_rows = build_summary_rows()
+        entries = [
+            [Paragraph(labels["summary"], summary_title), Paragraph(labels["summary_note"], small)],
+        ]
+        for row_label, row_value in summary_rows:
+            entries.append([Paragraph(row_label, small), paragraph(row_value)])
+        summary = Table(entries, colWidths=[doc.width * 0.25, doc.width * 0.75], hAlign="LEFT")
+        summary.setStyle(TableStyle([
+            ("SPAN", (0, 0), (1, 0)),
+            ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#f2f8f4")),
+            ("LINEBEFORE", (0, 0), (0, -1), 3, colors.HexColor("#39a36a")),
+            ("GRID", (0, 1), (-1, -1), 0.35, colors.HexColor("#dbece1")),
+            ("LEFTPADDING", (0, 0), (-1, -1), 10),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 10),
+            ("TOPPADDING", (0, 0), (-1, -1), 7),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 7),
+            ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ]))
+        story.extend([Spacer(1, 5 * mm), summary, Spacer(1, 3 * mm)])
+
+        section_rows = [[Paragraph(labels["summary_sections"], subheading)]]
+        for section_title, excerpt in build_section_summaries():
+            section_rows.append([Paragraph(f"<b>{formatted(section_title)}</b><br/>{formatted(excerpt)}", base)])
+        if len(section_rows) > 1:
+            section_summary = Table(section_rows, colWidths=[doc.width], hAlign="LEFT")
+            section_summary.setStyle(TableStyle([
+                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#f7fafc")),
+                ("BACKGROUND", (0, 1), (-1, -1), colors.white),
+                ("LINEABOVE", (0, 0), (-1, 0), 0.65, colors.HexColor("#cfdee9")),
+                ("LINEBELOW", (0, 0), (-1, -1), 0.35, colors.HexColor("#e1eaf1")),
+                ("LEFTPADDING", (0, 0), (-1, -1), 10),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 10),
+                ("TOPPADDING", (0, 0), (-1, -1), 5),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+            ]))
+            story.extend([section_summary, Spacer(1, 2 * mm)])
+        story.append(PageBreak())
+
     header = Table(
         [[
             [Paragraph(labels["title"], title), Paragraph(labels["subtitle"], subtitle)],
@@ -649,9 +787,9 @@ def build_trading_agents_report_pdf(
         ("VALIGN", (0, 0), (-1, -1), "TOP"),
     ]))
     story.append(metadata)
+    append_report_summary()
 
     paragraph_lines: list[str] = []
-    section_number = 0
 
     def flush_paragraph() -> None:
         if paragraph_lines:
@@ -659,12 +797,7 @@ def build_trading_agents_report_pdf(
             paragraph_lines.clear()
 
     def append_section(title_text: str) -> None:
-        nonlocal section_number
-        section_number += 1
-        marker = Paragraph(f"{section_number:02d}", ParagraphStyle(
-            "TradingAgentsPdfSectionMarker", parent=small, textColor=colors.HexColor("#176b87"), alignment=TA_RIGHT
-        ))
-        heading_row = Table([[marker, paragraph(title_text, heading)]], colWidths=[11 * mm, doc.width - 11 * mm], hAlign="LEFT")
+        heading_row = Table([[paragraph(title_text, heading)]], colWidths=[doc.width], hAlign="LEFT")
         heading_row.setStyle(TableStyle([
             ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#edf5fa")),
             ("LINEBEFORE", (0, 0), (0, -1), 3, colors.HexColor("#27a3c4")),
@@ -711,7 +844,6 @@ def build_trading_agents_report_pdf(
         ]))
         story.extend([Spacer(1, 2 * mm), report_table, Spacer(1, 2 * mm)])
 
-    lines = (content or "").replace("\r\n", "\n").replace("\r", "\n").split("\n")
     line_index = 0
     while line_index < len(lines):
         raw_line = lines[line_index]

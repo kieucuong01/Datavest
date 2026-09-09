@@ -23,6 +23,7 @@ from app.tasks.trading_agents import (
 )
 from app.services.trading_agents_progress import build_public_progress, public_event
 from app.services.ai_report_pdf import build_trading_agents_report_pdf
+from app.services.trading_agents_report_summary import generate_report_summary
 from app.utils.auth import login_required
 from app.utils.logger import get_logger
 
@@ -428,13 +429,31 @@ def get_report_pdf(run_id: str):
         request_json = record.get("request_json") or {}
         if isinstance(request_json, str):
             request_json = json.loads(request_json)
+        language = _normalize_language(request_json.get("language"))
+        report_text = content.decode("utf-8", errors="replace")
+        summary = None
+        if hasattr(get_repository(), "get_report_summary"):
+            repository = get_repository()
+            summary = repository.get_report_summary(
+                user_id=int(record["user_id"]), run_id=run_id, source_sha256=expected_sha256, language=language
+            )
+            if summary is None:
+                try:
+                    summary = generate_report_summary(report=report_text, language=language)
+                    repository.store_report_summary(
+                        user_id=int(record["user_id"]), run_id=run_id, source_sha256=expected_sha256, language=language, summary=summary
+                    )
+                except Exception:
+                    logger.warning("TradingAgents LLM summary unavailable for PDF run %s", run_id)
+                    summary = None
         pdf_bytes = build_trading_agents_report_pdf(
-            content=content.decode("utf-8", errors="replace"),
+            content=report_text,
             market=str(request_json.get("market") or ""),
             symbol=str(request_json.get("symbol") or ""),
             analysis_date=str(request_json.get("analysis_date") or ""),
-            language=_normalize_language(request_json.get("language")),
+            language=language,
             run_id=run_id,
+            executive_summary=summary,
         )
     except ImportError:
         return _fail("trading_agents_pdf_dependency_missing", 500)

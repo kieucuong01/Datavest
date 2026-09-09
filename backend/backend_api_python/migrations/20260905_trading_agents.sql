@@ -37,6 +37,16 @@ CREATE TABLE IF NOT EXISTS trading_agents_daily_runs (
     UNIQUE (run_id)
 );
 
+CREATE TABLE IF NOT EXISTS trading_agents_report_summaries (
+    run_id VARCHAR(128) NOT NULL,
+    user_id BIGINT NOT NULL REFERENCES qd_users(id) ON DELETE CASCADE,
+    source_sha256 CHAR(64) NOT NULL,
+    language VARCHAR(16) NOT NULL,
+    summary_json JSONB NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (run_id, source_sha256, language)
+);
+
 CREATE TABLE IF NOT EXISTS trading_agents_events (
     id BIGSERIAL PRIMARY KEY,
     run_id VARCHAR(128) NOT NULL REFERENCES trading_agents_runs(run_id) ON DELETE CASCADE,

@@ -399,7 +399,8 @@ def test_owned_report_pdf_is_rendered_from_the_verified_native_artifact(monkeypa
         "content": report.decode("utf-8"),
         "market": "Crypto",
         "symbol": "BTC/USDT",
-        "analysis_date": "2026-09-05",
-        "language": "vi-VN",
-        "run_id": "run-123",
-    }]
+            "analysis_date": "2026-09-05",
+            "language": "vi-VN",
+            "run_id": "run-123",
+            "executive_summary": None,
+        }]
