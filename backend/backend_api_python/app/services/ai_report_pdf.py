@@ -490,7 +490,7 @@ def build_trading_agents_report_pdf(
     from reportlab.lib.pagesizes import A4
     from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
     from reportlab.lib.units import mm
-    from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+    from reportlab.platypus import HRFlowable, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
     is_vietnamese = _language_key(language) == "vi"
     labels = {
@@ -518,10 +518,10 @@ def build_trading_agents_report_pdf(
         "TradingAgentsPdfBase",
         parent=styles["Normal"],
         fontName=font_name,
-        fontSize=9.5,
-        leading=15,
+        fontSize=10,
+        leading=15.5,
         textColor=colors.HexColor("#273449"),
-        spaceAfter=5,
+        spaceAfter=7,
     )
     title = ParagraphStyle(
         "TradingAgentsPdfTitle",
@@ -540,11 +540,11 @@ def build_trading_agents_report_pdf(
     heading = ParagraphStyle(
         "TradingAgentsPdfHeading",
         parent=base,
-        fontSize=14,
-        leading=19,
+        fontSize=13.5,
+        leading=18,
         textColor=colors.HexColor("#12355b"),
-        spaceBefore=12,
-        spaceAfter=6,
+        spaceBefore=10,
+        spaceAfter=5,
     )
     subheading = ParagraphStyle(
         "TradingAgentsPdfSubheading",
@@ -554,6 +554,15 @@ def build_trading_agents_report_pdf(
         spaceBefore=8,
         spaceAfter=4,
     )
+    document_heading = ParagraphStyle(
+        "TradingAgentsPdfDocumentHeading",
+        parent=heading,
+        fontSize=16,
+        leading=22,
+        textColor=colors.HexColor("#102f55"),
+        spaceBefore=12,
+        spaceAfter=7,
+    )
     small = ParagraphStyle(
         "TradingAgentsPdfSmall",
         parent=base,
@@ -561,9 +570,48 @@ def build_trading_agents_report_pdf(
         leading=11,
         textColor=colors.HexColor("#64748b"),
     )
+    bullet = ParagraphStyle(
+        "TradingAgentsPdfBullet",
+        parent=base,
+        leftIndent=7 * mm,
+        firstLineIndent=-4 * mm,
+        bulletIndent=0,
+        spaceAfter=3,
+    )
+    ordered = ParagraphStyle(
+        "TradingAgentsPdfOrdered",
+        parent=base,
+        leftIndent=8 * mm,
+        firstLineIndent=-5 * mm,
+        spaceAfter=3,
+    )
+    table_header = ParagraphStyle(
+        "TradingAgentsPdfTableHeader",
+        parent=small,
+        fontSize=8.2,
+        leading=10.5,
+        textColor=colors.HexColor("#17395f"),
+    )
+    table_cell = ParagraphStyle(
+        "TradingAgentsPdfTableCell",
+        parent=base,
+        fontSize=8.7,
+        leading=11.5,
+        spaceAfter=0,
+    )
 
     def escaped(value: object) -> str:
         return _plain_text(value).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").strip()
+
+    def formatted(value: object) -> str:
+        text = escaped(value)
+        text = re.sub(r"`([^`]+)`", r'<font color="#0f5f7a">\1</font>', text)
+        text = re.sub(r"\*\*(.+?)\*\*", r"<b>\1</b>", text)
+        text = re.sub(r"(?<!\*)\*([^*]+)\*(?!\*)", r"<i>\1</i>", text)
+        return text
+
+    def paragraph(value: object, style: ParagraphStyle = base) -> Paragraph:
+        return Paragraph(formatted(value).replace("\n", "<br/>"), style)
 
     story: list[object] = []
     header = Table(
@@ -586,14 +634,14 @@ def build_trading_agents_report_pdf(
     story.extend([header, Spacer(1, 6 * mm)])
 
     metadata = Table([[
-        [Paragraph(labels["asset"], small), Paragraph(f"{escaped(market)}: {escaped(symbol)}", base)],
-        [Paragraph(labels["date"], small), Paragraph(escaped(analysis_date), base)],
-        [Paragraph(labels["run"], small), Paragraph(escaped(run_id), base)],
-    ]], colWidths=[doc.width / 3] * 3)
+        [Paragraph(labels["asset"], small), paragraph(f"{market}: {symbol}")],
+        [Paragraph(labels["date"], small), paragraph(analysis_date)],
+        [Paragraph(labels["run"], small), paragraph(run_id)],
+    ]], colWidths=[doc.width / 3] * 3, hAlign="LEFT")
     metadata.setStyle(TableStyle([
         ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#f5f8fc")),
         ("BOX", (0, 0), (-1, -1), 0.5, colors.HexColor("#d8e1ee")),
-        ("INNERGRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#e6edf5")),
+        ("INNERGRID", (0, 0), (-1, -1), 5, colors.white),
         ("LEFTPADDING", (0, 0), (-1, -1), 9),
         ("RIGHTPADDING", (0, 0), (-1, -1), 9),
         ("TOPPADDING", (0, 0), (-1, -1), 7),
@@ -603,39 +651,115 @@ def build_trading_agents_report_pdf(
     story.append(metadata)
 
     paragraph_lines: list[str] = []
+    section_number = 0
 
     def flush_paragraph() -> None:
         if paragraph_lines:
-            story.append(Paragraph("<br/>".join(escaped(line) for line in paragraph_lines), base))
+            story.append(paragraph(" ".join(paragraph_lines)))
             paragraph_lines.clear()
 
-    for raw_line in (content or "").replace("\r\n", "\n").replace("\r", "\n").split("\n"):
+    def append_section(title_text: str) -> None:
+        nonlocal section_number
+        section_number += 1
+        marker = Paragraph(f"{section_number:02d}", ParagraphStyle(
+            "TradingAgentsPdfSectionMarker", parent=small, textColor=colors.HexColor("#176b87"), alignment=TA_RIGHT
+        ))
+        heading_row = Table([[marker, paragraph(title_text, heading)]], colWidths=[11 * mm, doc.width - 11 * mm], hAlign="LEFT")
+        heading_row.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#edf5fa")),
+            ("LINEBEFORE", (0, 0), (0, -1), 3, colors.HexColor("#27a3c4")),
+            ("LEFTPADDING", (0, 0), (-1, -1), 7),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 8),
+            ("TOPPADDING", (0, 0), (-1, -1), 5),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ]))
+        story.extend([Spacer(1, 3 * mm), heading_row, Spacer(1, 1.5 * mm)])
+
+    def split_table_row(value: str) -> list[str]:
+        return [cell.strip() for cell in value.strip().strip("|").split("|")]
+
+    def is_table_divider(cells: list[str]) -> bool:
+        return bool(cells) and all(re.fullmatch(r":?-{3,}:?", cell.strip()) for cell in cells)
+
+    def append_table(rows: list[list[str]]) -> None:
+        if not rows:
+            return
+        has_header = len(rows) > 1 and is_table_divider(rows[1])
+        body_rows = [rows[0]] + rows[2:] if has_header else rows
+        column_count = max(len(row) for row in body_rows)
+        padded_rows = [row + [""] * (column_count - len(row)) for row in body_rows]
+        rendered_rows = []
+        for row_index, row in enumerate(padded_rows):
+            style = table_header if has_header and row_index == 0 else table_cell
+            rendered_rows.append([paragraph(cell, style) for cell in row])
+        report_table = Table(
+            rendered_rows,
+            colWidths=[doc.width / column_count] * column_count,
+            repeatRows=1 if has_header else 0,
+            hAlign="LEFT",
+        )
+        report_table.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#e8f1f8") if has_header else colors.white),
+            ("BACKGROUND", (0, 1 if has_header else 0), (-1, -1), colors.HexColor("#fbfdff")),
+            ("GRID", (0, 0), (-1, -1), 0.45, colors.HexColor("#d6e2ed")),
+            ("LEFTPADDING", (0, 0), (-1, -1), 7),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 7),
+            ("TOPPADDING", (0, 0), (-1, -1), 6),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+            ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ]))
+        story.extend([Spacer(1, 2 * mm), report_table, Spacer(1, 2 * mm)])
+
+    lines = (content or "").replace("\r\n", "\n").replace("\r", "\n").split("\n")
+    line_index = 0
+    while line_index < len(lines):
+        raw_line = lines[line_index]
         line = raw_line.strip()
         if not line:
             flush_paragraph()
+            line_index += 1
             continue
         match = re.match(r"^(#{1,3})\s+(.+)$", line)
         if match:
             flush_paragraph()
             level = len(match.group(1))
-            story.append(Spacer(1, 2 * mm))
-            story.append(Paragraph(escaped(match.group(2)), heading if level == 1 else subheading if level == 2 else base))
-            continue
-        if re.match(r"^[-*+]\s+", line):
-            flush_paragraph()
-            story.append(Paragraph(f"• {escaped(re.sub(r'^[-*+]\\s+', '', line))}", base))
-            continue
-        if re.match(r"^\d+[.)]\s+", line):
-            flush_paragraph()
-            story.append(Paragraph(escaped(line), base))
+            heading_text = match.group(2)
+            if level == 1:
+                story.extend([Spacer(1, 4 * mm), paragraph(heading_text, document_heading), HRFlowable(width="100%", thickness=0.7, color=colors.HexColor("#b8cad9")), Spacer(1, 1.5 * mm)])
+            elif level == 2:
+                append_section(heading_text)
+            else:
+                story.append(paragraph(heading_text, subheading))
+            line_index += 1
             continue
         if line.startswith("|") and line.endswith("|"):
             flush_paragraph()
-            cells = [escaped(cell) for cell in line.strip("|").split("|")]
-            if not all(re.fullmatch(r"[: -]+", cell) for cell in cells):
-                story.append(Paragraph(" · ".join(cells), small))
+            raw_rows: list[list[str]] = []
+            while line_index < len(lines):
+                candidate = lines[line_index].strip()
+                if not (candidate.startswith("|") and candidate.endswith("|")):
+                    break
+                raw_rows.append(split_table_row(candidate))
+                line_index += 1
+            append_table(raw_rows)
+            continue
+        bullet_match = re.match(r"^(\s*)[-*+]\s+(.+)$", raw_line)
+        if bullet_match:
+            flush_paragraph()
+            indent = min(len(bullet_match.group(1).expandtabs(2)), 8)
+            item_style = ParagraphStyle(f"TradingAgentsPdfBullet{line_index}", parent=bullet, leftIndent=7 * mm + indent * 1.3)
+            story.append(paragraph(f"• {bullet_match.group(2)}", item_style))
+            line_index += 1
+            continue
+        ordered_match = re.match(r"^\s*(\d+[.)])\s+(.+)$", raw_line)
+        if ordered_match:
+            flush_paragraph()
+            story.append(paragraph(f"{ordered_match.group(1)} {ordered_match.group(2)}", ordered))
+            line_index += 1
             continue
         paragraph_lines.append(line)
+        line_index += 1
     flush_paragraph()
 
     def draw_page(canvas_obj: object, document: object) -> None:
@@ -643,7 +767,7 @@ def build_trading_agents_report_pdf(
         canvas_obj.setFillColor(colors.HexColor("#64748b"))
         canvas_obj.setFont(font_name, 7.5)
         canvas_obj.drawString(doc.leftMargin, 9 * mm, labels["disclaimer"])
-        canvas_obj.drawRightString(page_width - doc.rightMargin, 9 * mm, f"DataVest TradingAgents · {document.page}")
+        canvas_obj.drawRightString(page_width - doc.rightMargin, 9 * mm, f"DataVest - TradingAgents - {document.page}")
         canvas_obj.restoreState()
 
     doc.build(story, onFirstPage=draw_page, onLaterPages=draw_page)
