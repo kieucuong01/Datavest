@@ -29,7 +29,7 @@ test('deep analysis is a shared, owner-scoped TradingAgents panel', () => {
   assert.match(panel, /writePdfLoadingPreview/u)
   assert.match(panel, /preview\.document\.write/u)
   assert.match(panel, /reportPdfFilename/u)
-  assert.match(panel, /aria-expanded/u)
+  assert.match(panel, /<report-pdf-reader :run-id="run.run_id" :active="visible"/u)
   assert.match(panel, /isReportSectionOpen/u)
   assert.doesNotMatch(panel, /tradingAgents\.reportSection/u)
   assert.doesNotMatch(panel, /<pre v-text="reportContent"/u)

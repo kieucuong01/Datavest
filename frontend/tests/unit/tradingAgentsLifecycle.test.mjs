@@ -10,7 +10,7 @@ function panel (api = {}) {
   const script = source.split('<script>')[1].split('</script>')[0]
     .replace(/import[\s\S]*?from ['"][^'"]+['"]/g, '')
     .replace('export default', 'globalThis.component =')
-  const context = { ReportBranch: {}, ...api, window: { clearInterval () {}, setInterval () { return 1 } } }
+  const context = { ReportPdfReader: {}, ...api, window: { clearInterval () {}, setInterval () { return 1 } } }
   vm.runInNewContext(script, context)
   const definition = context.component
   const instance = { ...definition.data(), visible: true, $t: key => key, $emit: () => {}, run: { run_id: 'run-1', status: 'running' } }

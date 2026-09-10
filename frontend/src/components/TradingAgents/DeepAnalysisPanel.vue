@@ -174,93 +174,7 @@
             <div><span>{{ $t('tradingAgents.reportSource') }}</span><strong>{{ $t('tradingAgents.nativeGraph') }}</strong></div>
             <div><span>{{ $t('tradingAgents.reportRunId') }}</span><strong>{{ run.run_id }}</strong></div>
           </div>
-          <div class="report-body">
-            <div v-if="reportSections.length" class="report-sections">
-              <article v-for="(section, sectionIndex) in reportSections" :key="`${section.title}-${sectionIndex}`" class="report-section" :class="{ 'is-open': isReportSectionOpen(sectionIndex) }">
-                <button
-                  type="button"
-                  class="report-section-heading"
-                  :aria-expanded="isReportSectionOpen(sectionIndex)"
-                  :aria-controls="`report-section-content-${sectionIndex}`"
-                  :aria-label="$t('tradingAgents.toggleReportSection', { section: localizeHeading(section.title) })"
-                  @click="toggleReportSection(sectionIndex)"
-                >
-                  <span class="report-section-number">{{ String(sectionIndex + 1).padStart(2, '0') }}</span>
-                  <span class="report-section-icon"><a-icon :type="reportSectionIcon(section.title)" /></span>
-                  <span class="report-section-heading-copy">
-                    <h5>{{ localizeHeading(section.title) }}</h5>
-                  </span>
-                  <a-icon class="report-section-chevron" :type="isReportSectionOpen(sectionIndex) ? 'up' : 'down'" aria-hidden="true" />
-                </button>
-                <div
-                  :id="`report-section-content-${sectionIndex}`"
-                  v-show="isReportSectionOpen(sectionIndex)"
-                  class="report-section-content"
-                  :aria-hidden="!isReportSectionOpen(sectionIndex)"
-                >
-                  <div v-for="(block, blockIndex) in section.blocks" :key="`${sectionIndex}-${block.type}-${blockIndex}`" class="report-block" :class="`report-block--${block.type}`">
-                    <h6 v-if="block.type === 'heading'">{{ localizeHeading(block.text) }}</h6>
-                    <div v-else-if="block.type === 'callout'" class="report-callout" :class="`report-callout--${block.tone || 'info'}`">
-                      <span>{{ block.label }}</span><strong>{{ block.value }}</strong>
-                    </div>
-                    <ul v-else-if="block.type === 'list'" class="report-list">
-                      <li v-for="(item, itemIndex) in block.items" :key="`${sectionIndex}-${blockIndex}-${itemIndex}`">{{ item }}</li>
-                    </ul>
-                    <div v-else-if="block.type === 'table'" class="report-table-wrap">
-                      <table class="report-table">
-                        <thead><tr><th v-for="(header, headerIndex) in block.headers" :key="`${sectionIndex}-${blockIndex}-header-${headerIndex}`">{{ header }}</th></tr></thead>
-                        <tbody><tr v-for="(row, rowIndex) in block.rows" :key="`${sectionIndex}-${blockIndex}-row-${rowIndex}`"><td v-for="(cell, cellIndex) in row" :key="`${sectionIndex}-${blockIndex}-${rowIndex}-${cellIndex}`">{{ cell }}</td></tr></tbody>
-                      </table>
-                    </div>
-                    <pre v-else-if="block.type === 'code'">{{ block.text }}</pre>
-                    <p v-else>{{ block.text }}</p>
-                  </div>
-                  <div v-if="section.subsections && section.subsections.length" class="report-subsections">
-                    <article v-for="(subsection, subsectionIndex) in section.subsections" :key="`${sectionIndex}-${subsection.title}-${subsectionIndex}`" class="report-subsection" :class="{ 'is-open': isReportSubsectionOpen(sectionIndex, subsectionIndex) }">
-                      <button
-                        type="button"
-                        class="report-subsection-heading"
-                        :aria-expanded="isReportSubsectionOpen(sectionIndex, subsectionIndex)"
-                        :aria-controls="`report-subsection-content-${sectionIndex}-${subsectionIndex}`"
-                        :aria-label="$t('tradingAgents.toggleReportSection', { section: localizeHeading(subsection.title) })"
-                        @click="toggleReportSubsection(sectionIndex, subsectionIndex)"
-                      >
-                        <span class="report-subsection-number">{{ sectionIndex + 1 }}.{{ subsectionIndex + 1 }}</span>
-                        <span class="report-subsection-heading-copy"><h6>{{ localizeHeading(subsection.title) }}</h6></span>
-                        <a-icon class="report-section-chevron" :type="isReportSubsectionOpen(sectionIndex, subsectionIndex) ? 'up' : 'down'" aria-hidden="true" />
-                      </button>
-                      <div
-                        :id="`report-subsection-content-${sectionIndex}-${subsectionIndex}`"
-                        v-show="isReportSubsectionOpen(sectionIndex, subsectionIndex)"
-                        class="report-subsection-content"
-                        :aria-hidden="!isReportSubsectionOpen(sectionIndex, subsectionIndex)"
-                      >
-                        <div v-for="(block, blockIndex) in subsection.blocks" :key="`${sectionIndex}-${subsectionIndex}-${block.type}-${blockIndex}`" class="report-block" :class="`report-block--${block.type}`">
-                          <h6 v-if="block.type === 'heading'">{{ localizeHeading(block.text) }}</h6>
-                          <div v-else-if="block.type === 'callout'" class="report-callout" :class="`report-callout--${block.tone || 'info'}`">
-                            <span>{{ block.label }}</span><strong>{{ block.value }}</strong>
-                          </div>
-                          <ul v-else-if="block.type === 'list'" class="report-list">
-                            <li v-for="(item, itemIndex) in block.items" :key="`${sectionIndex}-${subsectionIndex}-${blockIndex}-${itemIndex}`">{{ item }}</li>
-                          </ul>
-                          <div v-else-if="block.type === 'table'" class="report-table-wrap">
-                            <table class="report-table">
-                              <thead><tr><th v-for="(header, headerIndex) in block.headers" :key="`${sectionIndex}-${subsectionIndex}-${blockIndex}-header-${headerIndex}`">{{ header }}</th></tr></thead>
-                              <tbody><tr v-for="(row, rowIndex) in block.rows" :key="`${sectionIndex}-${subsectionIndex}-${blockIndex}-row-${rowIndex}`"><td v-for="(cell, cellIndex) in row" :key="`${sectionIndex}-${subsectionIndex}-${rowIndex}-${cellIndex}`">{{ cell }}</td></tr></tbody>
-                            </table>
-                          </div>
-                          <pre v-else-if="block.type === 'code'">{{ block.text }}</pre>
-                          <p v-else>{{ block.text }}</p>
-                        </div>
-                        <report-branch v-for="(child, childIndex) in subsection.subsections" :key="childIndex" :section="child" :language="reportLocale" />
-                      </div>
-                    </article>
-                  </div>
-                </div>
-              </article>
-            </div>
-            <div v-else class="report-empty">{{ $t('tradingAgents.reportEmpty') }}</div>
-          </div>
+          <report-pdf-reader :run-id="run.run_id" :active="visible" />
         </section>
         <div v-else-if="run.status === 'succeeded'" class="deep-analysis-report-loading">
           <template v-if="reportError">
@@ -297,7 +211,7 @@ import {
 } from '@/utils/tradingAgentsReport'
 import { formatVietnamDateTime } from '@/utils/vietnamTime'
 import { parseUtcAwareInstant } from '@/utils/utcInstant'
-import ReportBranch from './ReportBranch.vue'
+import ReportPdfReader from './ReportPdfReader.vue'
 
 const FULL_ANALYSTS = ['market', 'social', 'news', 'fundamentals']
 const TERMINAL = new Set(['succeeded', 'failed', 'cancelled'])
@@ -317,7 +231,7 @@ function vietnamDay () {
 
 export default {
   name: 'DeepAnalysisPanel',
-  components: { ReportBranch },
+  components: { ReportPdfReader },
   props: {
     visible: { type: Boolean, default: false },
     target: { type: Object, default: null },
