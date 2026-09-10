@@ -10,6 +10,22 @@ from app.services.ai_report_pdf import (
 )
 
 
+def test_pdf_heading_depth_is_relative_to_each_agent_and_numbered_path() -> None:
+    blocks = structure_trading_agents_report(
+        "## I. Analyst Team Reports\n### Market Analyst\n"
+        "### Xu hướng\n#### Động lượng\n##### Chi tiết\n"
+        "### Thanh khoản\n### 1. Kịch bản\n#### 1.1 Xác nhận\n"
+        "##### 1.1.1 Khối lượng\n### 2. Rủi ro\n"
+        "### Sentiment Analyst\n## Tâm lý\n"
+        "### Overall Sentiment: Mixed\n"
+        "## III. Trading Team Plan\n## Kế hoạch\n"
+    )
+    assert [b['level'] for b in blocks if b['type'] == 'heading'] == [
+        2, 3, 4, 5, 6, 4, 4, 5, 6, 4, 3, 4, 2, 3,
+    ]
+    assert [b['value'] for b in blocks if b['type'] == 'callout'] == ['Mixed']
+
+
 def test_vietnamese_trading_agents_pdf_uses_an_extractable_unicode_font() -> None:
     pdf = build_trading_agents_report_pdf(
         content="# Báo cáo BTC\n\n## Tín hiệu\n- Dữ liệu đã xác thực",

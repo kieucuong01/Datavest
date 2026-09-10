@@ -80,6 +80,17 @@ def _register_unicode_report_pdf_font() -> str:
         try:
             if Path(path).exists():
                 pdfmetrics.registerFont(TTFont("DataVestUnicode", path))
+                bold_path = {
+                    "arial.ttf": "arialbd.ttf", "segoeui.ttf": "segoeuib.ttf",
+                    "DejaVuSans.ttf": "DejaVuSans-Bold.ttf",
+                    "LiberationSans-Regular.ttf": "LiberationSans-Bold.ttf",
+                    "NotoSans-Regular.ttf": "NotoSans-Bold.ttf",
+                }.get(Path(path).name)
+                if bold_path and Path(path).with_name(bold_path).exists():
+                    pdfmetrics.registerFont(TTFont("DataVestUnicodeBold", str(Path(path).with_name(bold_path))))
+                    pdfmetrics.registerFontFamily("DataVestUnicode", normal="DataVestUnicode",
+                                                 bold="DataVestUnicodeBold", italic="DataVestUnicode",
+                                                 boldItalic="DataVestUnicodeBold")
                 return "DataVestUnicode"
         except Exception as e:
             logger.debug(f"Failed to register Unicode PDF font {path}: {e}")
@@ -345,6 +356,17 @@ def structure_trading_agents_report(content: str) -> list[dict[str, Any]]:
     code_lines: list[str] = []
     inside_team = False
     inside_role = False
+    source_heading_stack: list[int] = []
+
+    def detail_level(text: str, source_level: int) -> int:
+        base_level = 3 if inside_role else 2
+        numbered = re.match(r"^(\d{1,2}(?:\.\d{1,2})*)(?:[.)])?\s+", _clean_trading_report_text(text))
+        if numbered:
+            return min(6, base_level + len(numbered.group(1).split(".")))
+        while source_heading_stack and source_heading_stack[-1] >= source_level:
+            source_heading_stack.pop()
+        source_heading_stack.append(source_level)
+        return min(6, base_level + len(source_heading_stack))
 
     def flush_paragraph() -> None:
         if paragraph_lines:
@@ -387,7 +409,7 @@ def structure_trading_agents_report(content: str) -> list[dict[str, Any]]:
             blocks.append({"type": "heading", "level": level, "text": clean})
 
     def add_labeled_section(label: str, value: str) -> None:
-        add_heading(label, 4)
+        add_heading(label, 4 if inside_role else 3)
         blocks.append({"type": "paragraph", "text": value})
 
     for raw_line in lines:
@@ -415,30 +437,40 @@ def structure_trading_agents_report(content: str) -> list[dict[str, Any]]:
             source_level = len(heading_match.group(1))
             heading_text = heading_match.group(2).strip()
             heading_key = _trading_report_heading_key(heading_text)
+            heading_field = _parse_trading_report_field(heading_text)
+            if heading_field and heading_field[0].casefold() in _TRADING_REPORT_CALLOUTS:
+                label, value = heading_field
+                blocks.append({"type": "callout", "label": label, "value": value,
+                               "tone": _trading_report_tone(label, value)})
+                continue
             if heading_key in _TRADING_REPORT_TEAMS:
+                source_heading_stack.clear()
                 add_heading(heading_text, 2)
                 inside_team = True
                 inside_role = False
             elif heading_key in _TRADING_REPORT_ROLES:
+                source_heading_stack.clear()
                 add_heading(heading_text, 3)
                 inside_team = True
                 inside_role = True
             elif inside_role:
-                add_heading(heading_text, min(6, 3 + max(1, source_level)))
+                add_heading(heading_text, detail_level(heading_text, source_level))
             elif inside_team:
-                add_heading(heading_text, min(6, 2 + max(1, source_level)))
+                add_heading(heading_text, detail_level(heading_text, source_level))
             else:
                 add_heading(heading_text, min(6, source_level))
             continue
 
         plain_key = _trading_report_heading_key(line)
         if plain_key in _TRADING_REPORT_TEAMS:
+            source_heading_stack.clear()
             flush_all()
             add_heading(line, 2)
             inside_team = True
             inside_role = False
             continue
         if plain_key in _TRADING_REPORT_ROLES:
+            source_heading_stack.clear()
             flush_all()
             add_heading(line, 3)
             inside_team = True
@@ -446,10 +478,10 @@ def structure_trading_agents_report(content: str) -> list[dict[str, Any]]:
             continue
 
         normalized_line = _clean_trading_report_text(line)
-        numbered = re.match(r"^(\d{1,2}[.)])\s+(.+)$", normalized_line)
-        if inside_role and numbered:
+        numbered = re.match(r"^(\d{1,2}(?:\.\d{1,2})*[.)]?)\s+(.+)$", normalized_line)
+        if (inside_role or inside_team) and numbered:
             flush_all()
-            add_heading(f"{numbered.group(1)} {numbered.group(2)}", 4)
+            add_heading(normalized_line, detail_level(normalized_line, 1))
             continue
 
         field = _parse_trading_report_field(line)
@@ -465,7 +497,7 @@ def structure_trading_agents_report(content: str) -> list[dict[str, Any]]:
                     "tone": _trading_report_tone(label, value),
                 })
                 continue
-            if inside_role and label_key in _TRADING_REPORT_SECTION_LABELS:
+            if (inside_role or inside_team) and label_key in _TRADING_REPORT_SECTION_LABELS:
                 flush_all()
                 add_labeled_section(label, value)
                 continue
@@ -1325,6 +1357,19 @@ def build_trading_agents_report_pdf(
     append_report_summary()
 
     def append_hierarchy_heading(title_text: str, level: int) -> None:
+        if level >= 4:
+            # Detail headings use typography, not another team-sized banner.
+            detail_style = ParagraphStyle(
+                f"TradingAgentsPdfDetail{level}", parent=detail_heading,
+                fontSize={4: 11, 5: 10, 6: 9.5}[min(level, 6)],
+                leading={4: 15, 5: 14, 6: 13}[min(level, 6)],
+                textColor=colors.HexColor({4: "#123b61", 5: "#334155", 6: "#64748b"}[min(level, 6)]),
+                leftIndent=(level - 4) * 3 * mm,
+                spaceBefore=9 if level == 4 else 6, spaceAfter=4,
+                keepWithNext=True,
+            )
+            story.append(paragraph(f"**{title_text}**", detail_style))
+            return
         if level <= 2:
             style = team_heading
             background = "#123b61"
@@ -1340,7 +1385,7 @@ def build_trading_agents_report_pdf(
             background = "#f1f8f3"
             accent = "#16a34a" if level == 4 else "#94a3b8"
             before = 2
-        heading_row = Table([[paragraph(title_text, style)]], colWidths=[doc.width], hAlign="LEFT")
+        heading_row = Table([[paragraph(f"**{title_text}**", style)]], colWidths=[doc.width], hAlign="LEFT")
         heading_row.setStyle(TableStyle([
             ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor(background)),
             ("LINEBEFORE", (0, 0), (0, -1), 4 if level <= 2 else 3, colors.HexColor(accent)),
@@ -1350,7 +1395,10 @@ def build_trading_agents_report_pdf(
             ("BOTTOMPADDING", (0, 0), (-1, -1), 7 if level <= 3 else 5),
             ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
         ]))
-        story.extend([Spacer(1, before * mm), heading_row, Spacer(1, 1.5 * mm)])
+        heading_row.keepWithNext = True
+        heading_row.spaceBefore = before * mm
+        heading_row.spaceAfter = 1.5 * mm
+        story.append(heading_row)
 
     def append_callout(block: dict[str, Any]) -> None:
         tone = str(block.get("tone") or "info")
@@ -1379,7 +1427,9 @@ def build_trading_agents_report_pdf(
             ("BOTTOMPADDING", (0, 0), (-1, -1), 7),
             ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
         ]))
-        story.extend([Spacer(1, 1.4 * mm), table, Spacer(1, 1.4 * mm)])
+        table.spaceBefore = 1.4 * mm
+        table.spaceAfter = 1.4 * mm
+        story.append(table)
 
     def is_table_divider(cells: list[str]) -> bool:
         return bool(cells) and all(re.fullmatch(r":?-{3,}:?", cell.strip()) for cell in cells)
