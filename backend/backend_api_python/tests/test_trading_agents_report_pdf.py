@@ -6,6 +6,7 @@ from app.services.ai_report_pdf import (
     build_trading_agents_report_pdf,
     extract_portfolio_manager_decision,
     extract_portfolio_manager_decision_sections,
+    structure_trading_agents_report,
 )
 
 
@@ -95,6 +96,17 @@ def test_portfolio_decision_sections_recognize_plain_text_bull_bear_markers() ->
     assert decision["fields"]["watchlist"] == "FOMC và CPI."
 
 
+def test_portfolio_decision_sections_normalize_prefixed_manager_rating() -> None:
+    decision = extract_portfolio_manager_decision_sections(
+        "V. Portfolio Manager Decision\n"
+        "### Portfolio Manager\n"
+        "Portfolio Manager Rating: Reduce\n"
+        "Executive Summary: Giảm tỷ trọng cho tới khi có xác nhận."
+    )
+
+    assert decision["fields"]["rating"] == "Reduce"
+
+
 def test_portfolio_decision_sections_split_inline_upgrade_and_downgrade_scenarios() -> None:
     decision = extract_portfolio_manager_decision_sections(
         "V. Portfolio Manager Decision\n"
@@ -172,3 +184,43 @@ def test_trading_agents_pdf_structures_portfolio_decision_into_action_thesis_and
     assert "PHE TRUNG LẬP" in first_page
     assert "DANH SÁCH THEO DÕI & KỊCH BẢN" in first_page
     assert "2-6 tuần" in first_page
+
+
+def test_trading_agents_report_preserves_team_role_and_nested_analysis_levels() -> None:
+    blocks = structure_trading_agents_report(
+        "# Trading Analysis Report: BTC-USD\n"
+        "## I. Analyst Team Reports\n"
+        "### Market Analyst\n"
+        "# Market review\n"
+        "1. Xác nhận dữ liệu và ghi chú sai lệch\n"
+        "Giá đóng cửa tăng nhẹ.\n"
+        "FINAL TRANSACTION PROPOSAL: **HOLD**\n"
+        "## II. Research Team Decision\n"
+        "### Research Manager\n"
+        "Recommendation: Hold\n"
+        "## V. Portfolio Manager Decision\n"
+        "Portfolio Manager\n"
+        "Portfolio Manager Rating: Hold\n"
+    )
+
+    headings = [(block["level"], block["text"]) for block in blocks if block["type"] == "heading"]
+    assert headings == [
+        (1, "Trading Analysis Report: BTC-USD"),
+        (2, "I. Analyst Team Reports"),
+        (3, "Market Analyst"),
+        (4, "Market review"),
+        (4, "1. Xác nhận dữ liệu và ghi chú sai lệch"),
+        (2, "II. Research Team Decision"),
+        (3, "Research Manager"),
+        (2, "V. Portfolio Manager Decision"),
+        (3, "Portfolio Manager"),
+    ]
+    assert [
+        (block["label"], block["value"], block["tone"])
+        for block in blocks
+        if block["type"] == "callout"
+    ] == [
+        ("FINAL TRANSACTION PROPOSAL", "HOLD", "hold"),
+        ("Recommendation", "Hold", "hold"),
+        ("Portfolio Manager Rating", "Hold", "hold"),
+    ]

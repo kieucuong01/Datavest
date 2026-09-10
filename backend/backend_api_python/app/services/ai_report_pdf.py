@@ -201,6 +201,310 @@ def _report_pdf_labels(language: str = "") -> dict[str, str]:
     return labels
 
 
+_TRADING_REPORT_TEAMS = {
+    "analyst team reports",
+    "research team decision",
+    "trading team plan",
+    "risk management team decision",
+    "portfolio manager decision",
+    "báo cáo nhóm phân tích",
+    "quyết định của nhóm nghiên cứu",
+    "kế hoạch của nhóm giao dịch",
+    "quyết định của nhóm quản trị rủi ro",
+    "quyết định của quản lý danh mục",
+}
+
+_TRADING_REPORT_ROLES = {
+    "market analyst",
+    "sentiment analyst",
+    "news analyst",
+    "fundamentals analyst",
+    "bull researcher",
+    "bear researcher",
+    "research manager",
+    "trader",
+    "aggressive analyst",
+    "conservative analyst",
+    "neutral analyst",
+    "portfolio manager",
+    "chuyên gia phân tích thị trường",
+    "chuyên gia phân tích tâm lý",
+    "chuyên gia phân tích tin tức",
+    "chuyên gia phân tích cơ bản",
+    "nhà nghiên cứu xu hướng tăng",
+    "nhà nghiên cứu xu hướng giảm",
+    "quản lý nghiên cứu",
+    "chuyên gia giao dịch",
+    "chuyên gia chủ động",
+    "chuyên gia thận trọng",
+    "chuyên gia trung lập",
+    "quản lý danh mục",
+}
+
+_TRADING_REPORT_CALLOUTS = {
+    "action",
+    "confidence",
+    "decision",
+    "final transaction proposal",
+    "overall sentiment",
+    "portfolio manager rating",
+    "rating",
+    "recommendation",
+    "trader action",
+}
+
+_TRADING_REPORT_SECTION_LABELS = {
+    "data validation",
+    "data validation and discrepancy notes",
+    "executive summary",
+    "investment thesis",
+    "risk control",
+    "reasoning",
+    "rationale",
+    "strategic actions",
+    "entry price",
+    "stop loss",
+    "stop-loss",
+    "position sizing",
+    "price target",
+    "time horizon",
+    "watchlist",
+    "watchlist and scenarios",
+    "danh sách theo dõi",
+    "danh sách theo dõi và kịch bản",
+    "phe bò",
+    "phe gấu",
+    "phe trung lập",
+    "cân lại",
+    "kết luận",
+    "conclusion",
+}
+
+
+def _clean_trading_report_text(value: Any) -> str:
+    text = re.sub(r"[*`#]", "", str(value or ""))
+    # PDF text extraction can splice the repeated footer into the middle of
+    # an agent paragraph. Remove only the known generated footer signature so
+    # the saved TradingAgents prose remains intact.
+    text = re.sub(
+        r"(?:Không phải tư vấn đầu tư hoặc lệnh giao dịch\.|Not investment advice or an order instruction\.)?\s*DataVest\s*-\s*TradingAgents\s*-\s*\d+",
+        " ",
+        text,
+        flags=re.IGNORECASE,
+    )
+    return re.sub(r"\s+", " ", text).strip()
+
+
+def _trading_report_heading_key(value: str) -> str:
+    cleaned = _clean_trading_report_text(value).rstrip(":").strip().casefold()
+    return re.sub(r"^[ivxlc]+\.\s*", "", cleaned)
+
+
+def _trading_report_tone(label: str, value: str) -> str:
+    text = f"{label} {value}".casefold()
+    if any(token in text for token in ("sell", "underweight", "bearish", "bán", "giảm", "hạ xuống")):
+        return "negative"
+    if any(token in text for token in ("buy", "overweight", "bullish", "mua", "tăng", "nâng lên")):
+        return "positive"
+    if any(token in text for token in ("hold", "neutral", "mixed", "giữ", "trung lập")):
+        return "hold"
+    return "info"
+
+
+def _parse_trading_report_field(line: str) -> tuple[str, str] | None:
+    match = re.match(r"^(?:\*\*)?(.{2,100}?)(?:\*\*)?\s*:\s*(.+)$", line.strip())
+    if not match:
+        return None
+    label = _clean_trading_report_text(match.group(1)).strip()
+    value = _clean_trading_report_text(match.group(2))
+    return (label, value) if label and value else None
+
+
+def _parse_trading_report_table_row(line: str) -> list[str]:
+    return [_clean_trading_report_text(cell) for cell in line.strip().strip("|").split("|")]
+
+
+def _is_trading_report_table_separator(row: list[str]) -> bool:
+    return bool(row) and all(re.fullmatch(r":?-{3,}:?", cell.strip()) for cell in row)
+
+
+def structure_trading_agents_report(content: str) -> list[dict[str, Any]]:
+    """Normalize native TradingAgents markdown into a stable report hierarchy.
+
+    The upstream agents can emit H1/H2 markdown, numbered headings, or plain
+    text labels depending on the model/provider. The saved report writer adds
+    the team and role wrappers, so normalize those wrappers to H1 → H2 → H3
+    and keep all agent-authored analysis below its role at H4+.
+    """
+    lines = str(content or "").replace("\r\n", "\n").replace("\r", "\n").split("\n")
+    blocks: list[dict[str, Any]] = []
+    paragraph_lines: list[str] = []
+    list_items: list[str] = []
+    table_lines: list[str] = []
+    fence = ""
+    code_lines: list[str] = []
+    inside_team = False
+    inside_role = False
+
+    def flush_paragraph() -> None:
+        if paragraph_lines:
+            text = _clean_trading_report_text(" ".join(paragraph_lines))
+            if text:
+                blocks.append({"type": "paragraph", "text": text})
+            paragraph_lines.clear()
+
+    def flush_list() -> None:
+        if list_items:
+            blocks.append({"type": "list", "items": [_clean_trading_report_text(item) for item in list_items]})
+            list_items.clear()
+
+    def flush_table() -> None:
+        if len(table_lines) < 2:
+            table_lines.clear()
+            return
+        rows = [_parse_trading_report_table_row(row) for row in table_lines]
+        table_lines.clear()
+        rows = [row for row in rows if row]
+        if len(rows) < 2:
+            return
+        headers = rows[0]
+        body = rows[2:] if _is_trading_report_table_separator(rows[1]) else rows[1:]
+        if headers and body:
+            blocks.append({
+                "type": "table",
+                "headers": headers,
+                "rows": [row + [""] * (len(headers) - len(row)) for row in body],
+            })
+
+    def flush_all() -> None:
+        flush_paragraph()
+        flush_list()
+        flush_table()
+
+    def add_heading(text: str, level: int) -> None:
+        clean = _clean_trading_report_text(text)
+        if clean:
+            blocks.append({"type": "heading", "level": level, "text": clean})
+
+    def add_labeled_section(label: str, value: str) -> None:
+        add_heading(label, 4)
+        blocks.append({"type": "paragraph", "text": value})
+
+    for raw_line in lines:
+        line = raw_line.strip()
+        fence_match = re.match(r"^(`{3,}|~{3,})", line)
+        if fence:
+            if fence_match and fence_match.group(1)[0] == fence[0] and len(fence_match.group(1)) >= len(fence):
+                blocks.append({"type": "code", "text": "\n".join(code_lines)})
+                fence = ""
+                code_lines = []
+            else:
+                code_lines.append(raw_line)
+            continue
+        if fence_match:
+            flush_all()
+            fence = fence_match.group(1)
+            continue
+        if not line:
+            flush_all()
+            continue
+
+        heading_match = re.match(r"^(#{1,6})\s+(.+)$", line)
+        if heading_match:
+            flush_all()
+            source_level = len(heading_match.group(1))
+            heading_text = heading_match.group(2).strip()
+            heading_key = _trading_report_heading_key(heading_text)
+            if heading_key in _TRADING_REPORT_TEAMS:
+                add_heading(heading_text, 2)
+                inside_team = True
+                inside_role = False
+            elif heading_key in _TRADING_REPORT_ROLES:
+                add_heading(heading_text, 3)
+                inside_team = True
+                inside_role = True
+            elif inside_role:
+                add_heading(heading_text, min(6, 3 + max(1, source_level)))
+            elif inside_team:
+                add_heading(heading_text, min(6, 2 + max(1, source_level)))
+            else:
+                add_heading(heading_text, min(6, source_level))
+            continue
+
+        plain_key = _trading_report_heading_key(line)
+        if plain_key in _TRADING_REPORT_TEAMS:
+            flush_all()
+            add_heading(line, 2)
+            inside_team = True
+            inside_role = False
+            continue
+        if plain_key in _TRADING_REPORT_ROLES:
+            flush_all()
+            add_heading(line, 3)
+            inside_team = True
+            inside_role = True
+            continue
+
+        normalized_line = _clean_trading_report_text(line)
+        numbered = re.match(r"^(\d{1,2}[.)])\s+(.+)$", normalized_line)
+        if inside_role and numbered:
+            flush_all()
+            add_heading(f"{numbered.group(1)} {numbered.group(2)}", 4)
+            continue
+
+        field = _parse_trading_report_field(line)
+        if field:
+            label, value = field
+            label_key = label.casefold()
+            if label_key in _TRADING_REPORT_CALLOUTS:
+                flush_all()
+                blocks.append({
+                    "type": "callout",
+                    "label": label,
+                    "value": value,
+                    "tone": _trading_report_tone(label, value),
+                })
+                continue
+            if inside_role and label_key in _TRADING_REPORT_SECTION_LABELS:
+                flush_all()
+                add_labeled_section(label, value)
+                continue
+
+        thesis_marker = re.match(
+            r"^(PHE\s+(?:BÒ|GẤU|TRUNG LẬP)|CÂN LẠI|DANH SÁCH THEO DÕI)(?:\s*\([^)]*\))?(?::|\s+)?(.*)$",
+            normalized_line,
+            flags=re.IGNORECASE,
+        )
+        if inside_role and thesis_marker:
+            flush_all()
+            label = thesis_marker.group(1)
+            value = thesis_marker.group(2).strip()
+            add_heading(label, 4)
+            if value:
+                blocks.append({"type": "paragraph", "text": value})
+            continue
+
+        list_match = re.match(r"^(?:[-*+]\s+)(.+)$", raw_line)
+        if list_match:
+            flush_table()
+            flush_paragraph()
+            list_items.append(list_match.group(1))
+            continue
+        if line.startswith("|") and line.endswith("|"):
+            flush_paragraph()
+            flush_list()
+            table_lines.append(line)
+            continue
+        flush_table()
+        flush_list()
+        paragraph_lines.append(line)
+
+    flush_all()
+    if fence:
+        blocks.append({"type": "code", "text": "\n".join(code_lines)})
+    return blocks
+
+
 def extract_portfolio_manager_decision(content: str) -> dict[str, Any]:
     """Return only the native section V decision, never a model-written summary."""
     lines = str(content or "").replace("\r\n", "\n").replace("\r", "\n").split("\n")
@@ -228,7 +532,7 @@ def extract_portfolio_manager_decision(content: str) -> dict[str, Any]:
     paragraph_lines: list[str] = []
 
     def clean(value: str, limit: int = 1_200) -> str:
-        text = re.sub(r"\s+", " ", re.sub(r"[*`#]", "", str(value or ""))).strip()
+        text = _clean_trading_report_text(value)
         return text[:limit].rstrip()
 
     def add_card(title: str, value: str) -> None:
@@ -281,13 +585,15 @@ def extract_portfolio_manager_decision_sections(content: str) -> dict[str, Any]:
             section_title = candidate
             collecting = True
             continue
-        if collecting and heading:
+        # Keep role and nested analysis headings inside section V. Stop only
+        # when the next document-level heading begins a new top-level section.
+        if collecting and heading and len(heading.group(1)) <= 2:
             break
         if collecting:
             section_lines.append(raw_line)
 
     def clean(value: str, limit: int = 6_000) -> str:
-        text = re.sub(r"\s+", " ", re.sub(r"[*`#]", "", str(value or ""))).strip()
+        text = _clean_trading_report_text(value)
         return text[:limit].rstrip()
 
     def field_key(label: str) -> str | None:
@@ -308,6 +614,8 @@ def extract_portfolio_manager_decision_sections(content: str) -> dict[str, Any]:
             return "downgrade"
         if "time horizon" in normalized or "khung thời gian" in normalized:
             return "time_horizon"
+        if normalized.startswith("portfolio manager rating"):
+            return "rating"
         if normalized.startswith("rating") or normalized.startswith("khuyến nghị"):
             return "rating"
         if "executive summary" in normalized or "tóm tắt điều hành" in normalized:
@@ -646,7 +954,7 @@ def build_trading_agents_report_pdf(
     from reportlab.lib.pagesizes import A4
     from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
     from reportlab.lib.units import mm
-    from reportlab.platypus import HRFlowable, PageBreak, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+    from reportlab.platypus import PageBreak, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
     is_vietnamese = _language_key(language) == "vi"
     labels = {
@@ -728,14 +1036,29 @@ def build_trading_agents_report_pdf(
         spaceBefore=8,
         spaceAfter=4,
     )
-    document_heading = ParagraphStyle(
-        "TradingAgentsPdfDocumentHeading",
-        parent=heading,
-        fontSize=16,
-        leading=22,
-        textColor=colors.HexColor("#102f55"),
-        spaceBefore=12,
-        spaceAfter=7,
+    team_heading = ParagraphStyle(
+        "TradingAgentsPdfTeamHeading",
+        parent=base,
+        fontSize=13.5,
+        leading=18,
+        textColor=colors.white,
+        spaceAfter=0,
+    )
+    role_heading = ParagraphStyle(
+        "TradingAgentsPdfRoleHeading",
+        parent=base,
+        fontSize=12.5,
+        leading=17,
+        textColor=colors.HexColor("#123b61"),
+        spaceAfter=0,
+    )
+    detail_heading = ParagraphStyle(
+        "TradingAgentsPdfDetailHeading",
+        parent=base,
+        fontSize=10.5,
+        leading=14,
+        textColor=colors.HexColor("#14532d"),
+        spaceAfter=0,
     )
     small = ParagraphStyle(
         "TradingAgentsPdfSmall",
@@ -752,13 +1075,6 @@ def build_trading_agents_report_pdf(
         bulletIndent=0,
         spaceAfter=3,
     )
-    ordered = ParagraphStyle(
-        "TradingAgentsPdfOrdered",
-        parent=base,
-        leftIndent=8 * mm,
-        firstLineIndent=-5 * mm,
-        spaceAfter=3,
-    )
     table_header = ParagraphStyle(
         "TradingAgentsPdfTableHeader",
         parent=small,
@@ -771,6 +1087,22 @@ def build_trading_agents_report_pdf(
         parent=base,
         fontSize=8.7,
         leading=11.5,
+        spaceAfter=0,
+    )
+    callout_label = ParagraphStyle(
+        "TradingAgentsPdfCalloutLabel",
+        parent=small,
+        fontSize=8,
+        leading=10,
+        textColor=colors.HexColor("#475569"),
+        spaceAfter=0,
+    )
+    callout_value = ParagraphStyle(
+        "TradingAgentsPdfCalloutValue",
+        parent=base,
+        fontSize=12.5,
+        leading=16,
+        textColor=colors.HexColor("#172033"),
         spaceAfter=0,
     )
 
@@ -787,7 +1119,6 @@ def build_trading_agents_report_pdf(
     def paragraph(value: object, style: ParagraphStyle = base) -> Paragraph:
         return Paragraph(formatted(value).replace("\n", "<br/>"), style)
 
-    lines = (content or "").replace("\r\n", "\n").replace("\r", "\n").split("\n")
     portfolio_decision = extract_portfolio_manager_decision(content)
     portfolio_sections = extract_portfolio_manager_decision_sections(content)
     story: list[object] = []
@@ -993,28 +1324,62 @@ def build_trading_agents_report_pdf(
     story.append(metadata)
     append_report_summary()
 
-    paragraph_lines: list[str] = []
-
-    def flush_paragraph() -> None:
-        if paragraph_lines:
-            story.append(paragraph(" ".join(paragraph_lines)))
-            paragraph_lines.clear()
-
-    def append_section(title_text: str) -> None:
-        heading_row = Table([[paragraph(title_text, heading)]], colWidths=[doc.width], hAlign="LEFT")
+    def append_hierarchy_heading(title_text: str, level: int) -> None:
+        if level <= 2:
+            style = team_heading
+            background = "#123b61"
+            accent = "#22c55e"
+            before = 4
+        elif level == 3:
+            style = role_heading
+            background = "#eaf3fb"
+            accent = "#2563eb"
+            before = 3
+        else:
+            style = detail_heading
+            background = "#f1f8f3"
+            accent = "#16a34a" if level == 4 else "#94a3b8"
+            before = 2
+        heading_row = Table([[paragraph(title_text, style)]], colWidths=[doc.width], hAlign="LEFT")
         heading_row.setStyle(TableStyle([
-            ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#edf5fa")),
-            ("LINEBEFORE", (0, 0), (0, -1), 3, colors.HexColor("#27a3c4")),
-            ("LEFTPADDING", (0, 0), (-1, -1), 7),
-            ("RIGHTPADDING", (0, 0), (-1, -1), 8),
-            ("TOPPADDING", (0, 0), (-1, -1), 5),
-            ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+            ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor(background)),
+            ("LINEBEFORE", (0, 0), (0, -1), 4 if level <= 2 else 3, colors.HexColor(accent)),
+            ("LEFTPADDING", (0, 0), (-1, -1), 10 if level <= 3 else 8),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 10),
+            ("TOPPADDING", (0, 0), (-1, -1), 7 if level <= 3 else 5),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 7 if level <= 3 else 5),
             ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
         ]))
-        story.extend([Spacer(1, 3 * mm), heading_row, Spacer(1, 1.5 * mm)])
+        story.extend([Spacer(1, before * mm), heading_row, Spacer(1, 1.5 * mm)])
 
-    def split_table_row(value: str) -> list[str]:
-        return [cell.strip() for cell in value.strip().strip("|").split("|")]
+    def append_callout(block: dict[str, Any]) -> None:
+        tone = str(block.get("tone") or "info")
+        palette = {
+            "positive": ("#ecfdf3", "#16a34a"),
+            "negative": ("#fff1f2", "#dc2626"),
+            "hold": ("#fffbeb", "#d97706"),
+            "info": ("#eff6ff", "#2563eb"),
+        }
+        background, accent = palette.get(tone, palette["info"])
+        table = Table(
+            [[
+                Paragraph(escaped(block.get("label", "Decision")).upper(), callout_label),
+                Paragraph(formatted(block.get("value", "")), callout_value),
+            ]],
+            colWidths=[doc.width * 0.34, doc.width * 0.66],
+            hAlign="LEFT",
+        )
+        table.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor(background)),
+            ("LINEBEFORE", (0, 0), (0, -1), 4, colors.HexColor(accent)),
+            ("BOX", (0, 0), (-1, -1), 0.45, colors.HexColor("#d8e1ee")),
+            ("LEFTPADDING", (0, 0), (-1, -1), 10),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 10),
+            ("TOPPADDING", (0, 0), (-1, -1), 7),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 7),
+            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ]))
+        story.extend([Spacer(1, 1.4 * mm), table, Spacer(1, 1.4 * mm)])
 
     def is_table_divider(cells: list[str]) -> bool:
         return bool(cells) and all(re.fullmatch(r":?-{3,}:?", cell.strip()) for cell in cells)
@@ -1048,55 +1413,29 @@ def build_trading_agents_report_pdf(
         ]))
         story.extend([Spacer(1, 2 * mm), report_table, Spacer(1, 2 * mm)])
 
-    line_index = 0
-    while line_index < len(lines):
-        raw_line = lines[line_index]
-        line = raw_line.strip()
-        if not line:
-            flush_paragraph()
-            line_index += 1
-            continue
-        match = re.match(r"^(#{1,3})\s+(.+)$", line)
-        if match:
-            flush_paragraph()
-            level = len(match.group(1))
-            heading_text = match.group(2)
-            if level == 1:
-                story.extend([Spacer(1, 4 * mm), paragraph(heading_text, document_heading), HRFlowable(width="100%", thickness=0.7, color=colors.HexColor("#b8cad9")), Spacer(1, 1.5 * mm)])
-            elif level == 2:
-                append_section(heading_text)
-            else:
-                story.append(paragraph(heading_text, subheading))
-            line_index += 1
-            continue
-        if line.startswith("|") and line.endswith("|"):
-            flush_paragraph()
-            raw_rows: list[list[str]] = []
-            while line_index < len(lines):
-                candidate = lines[line_index].strip()
-                if not (candidate.startswith("|") and candidate.endswith("|")):
-                    break
-                raw_rows.append(split_table_row(candidate))
-                line_index += 1
-            append_table(raw_rows)
-            continue
-        bullet_match = re.match(r"^(\s*)[-*+]\s+(.+)$", raw_line)
-        if bullet_match:
-            flush_paragraph()
-            indent = min(len(bullet_match.group(1).expandtabs(2)), 8)
-            item_style = ParagraphStyle(f"TradingAgentsPdfBullet{line_index}", parent=bullet, leftIndent=7 * mm + indent * 1.3)
-            story.append(paragraph(f"• {bullet_match.group(2)}", item_style))
-            line_index += 1
-            continue
-        ordered_match = re.match(r"^\s*(\d+[.)])\s+(.+)$", raw_line)
-        if ordered_match:
-            flush_paragraph()
-            story.append(paragraph(f"{ordered_match.group(1)} {ordered_match.group(2)}", ordered))
-            line_index += 1
-            continue
-        paragraph_lines.append(line)
-        line_index += 1
-    flush_paragraph()
+    for block_index, block in enumerate(structure_trading_agents_report(content)):
+        block_type = block.get("type")
+        if block_type == "heading":
+            level = int(block.get("level") or 4)
+            heading_text = str(block.get("text") or "")
+            if level == 1 and heading_text.casefold().startswith("trading analysis report:"):
+                continue
+            append_hierarchy_heading(heading_text, level)
+        elif block_type == "callout":
+            append_callout(block)
+        elif block_type == "list":
+            for item in block.get("items", []):
+                story.append(paragraph(f"• {item}", bullet))
+        elif block_type == "table":
+            rows = [block.get("headers", [])]
+            rows.append(["---"] * len(rows[0]))
+            rows.extend(block.get("rows", []))
+            append_table(rows)
+        elif block_type == "code":
+            code_style = ParagraphStyle(f"TradingAgentsPdfCode{block_index}", parent=small, backColor=colors.HexColor("#f8fafc"), borderColor=colors.HexColor("#d8e1ee"), borderWidth=0.5, borderPadding=6, fontName=font_name, leading=11)
+            story.append(paragraph(block.get("text", ""), code_style))
+        elif block_type == "paragraph":
+            story.append(paragraph(block.get("text", "")))
 
     def draw_page(canvas_obj: object, document: object) -> None:
         canvas_obj.saveState()

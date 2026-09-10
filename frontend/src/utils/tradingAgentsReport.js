@@ -18,12 +18,116 @@ const HEADING_TRANSLATIONS = {
   'Portfolio Manager': 'Quản lý danh mục'
 }
 
+const TEAM_HEADING_KEYS = new Set([
+  'i. analyst team reports',
+  'ii. research team decision',
+  'iii. trading team plan',
+  'iv. risk management team decision',
+  'v. portfolio manager decision',
+  'i. báo cáo nhóm phân tích',
+  'ii. quyết định của nhóm nghiên cứu',
+  'iii. kế hoạch của nhóm giao dịch',
+  'iv. quyết định của nhóm quản trị rủi ro',
+  'v. quyết định của quản lý danh mục'
+])
+
+const ROLE_HEADING_KEYS = new Set([
+  'market analyst',
+  'sentiment analyst',
+  'news analyst',
+  'fundamentals analyst',
+  'bull researcher',
+  'bear researcher',
+  'research manager',
+  'trader',
+  'aggressive analyst',
+  'conservative analyst',
+  'neutral analyst',
+  'portfolio manager',
+  'chuyên gia phân tích thị trường',
+  'chuyên gia phân tích tâm lý',
+  'chuyên gia phân tích tin tức',
+  'chuyên gia phân tích cơ bản',
+  'nhà nghiên cứu xu hướng tăng',
+  'nhà nghiên cứu xu hướng giảm',
+  'quản lý nghiên cứu',
+  'chuyên gia giao dịch',
+  'chuyên gia chủ động',
+  'chuyên gia thận trọng',
+  'chuyên gia trung lập',
+  'quản lý danh mục'
+])
+
+const CALLOUT_LABELS = new Set([
+  'action',
+  'confidence',
+  'decision',
+  'final transaction proposal',
+  'overall sentiment',
+  'portfolio manager rating',
+  'rating',
+  'recommendation',
+  'trader action'
+])
+
+const SECTION_LABELS = new Set([
+  'data validation',
+  'data validation and discrepancy notes',
+  'executive summary',
+  'investment thesis',
+  'risk control',
+  'reasoning',
+  'rationale',
+  'strategic actions',
+  'entry price',
+  'stop loss',
+  'stop-loss',
+  'position sizing',
+  'price target',
+  'time horizon',
+  'watchlist',
+  'watchlist and scenarios',
+  'danh sách theo dõi',
+  'danh sách theo dõi và kịch bản',
+  'kết luận',
+  'conclusion'
+])
+
 function cleanInlineMarkdown (value) {
   return String(value || '')
     .replace(/\*\*(.*?)\*\*/g, '$1')
     .replace(/__(.*?)__/g, '$1')
     .replace(/`([^`]+)`/g, '$1')
     .trim()
+}
+
+function headingKey (value) {
+  return cleanInlineMarkdown(value).replace(/:$/, '').trim().toLowerCase()
+}
+
+function calloutTone (label, value) {
+  const text = `${label} ${value}`.toLowerCase()
+  if (/(sell|underweight|bearish|bán|giảm|hạ xuống)/.test(text)) return 'negative'
+  if (/(buy|overweight|bullish|mua|tăng|nâng lên)/.test(text)) return 'positive'
+  if (/(hold|neutral|mixed|giữ|trung lập)/.test(text)) return 'hold'
+  return 'info'
+}
+
+function parseReportField (line) {
+  const match = /^(?:\*\*)?(.{2,100}?)(?:\*\*)?\s*:\s*(.+)$/.exec(String(line || '').trim())
+  if (!match) return null
+  const label = cleanInlineMarkdown(match[1])
+  const value = cleanInlineMarkdown(match[2])
+  return label && value ? { label, value } : null
+}
+
+function pushReportCallout (blocks, field) {
+  blocks.push({
+    type: 'callout',
+    label: field.label,
+    value: field.value,
+    tone: calloutTone(field.label, field.value)
+  })
 }
 
 function pushParagraph (blocks, lines) {
@@ -121,29 +225,60 @@ export function parseTradingAgentsReport (content) {
       let level = heading[1].length
       // Native team/analyst wrappers own their AI-written content, even when
       // the model starts its individual report with another H1 or H2.
-      if (level === 2 && /^(I|II|III|IV|V)\. /.test(text) && HEADING_TRANSLATIONS[text]) {
+      const key = headingKey(text)
+      if (TEAM_HEADING_KEYS.has(key)) {
         nativeGroup = true
         nativeAnalyst = false
-      } else if (nativeGroup && level === 3 && HEADING_TRANSLATIONS[text]) {
+        level = 2
+      } else if (nativeGroup && ROLE_HEADING_KEYS.has(key)) {
         nativeAnalyst = true
+        level = 3
       } else if (nativeGroup) level += nativeAnalyst ? 3 : 2
       blocks.push({
         type: 'heading',
         level,
         text
       })
-    } else if (list) {
-      pushTable(blocks, tableLines)
-      pushParagraph(blocks, paragraphs)
-      listItems.push(list[1])
-    } else if (line.startsWith('|')) {
-      pushParagraph(blocks, paragraphs)
-      pushList(blocks, listItems)
-      tableLines.push(line)
+    } else if (TEAM_HEADING_KEYS.has(headingKey(line))) {
+      flush()
+      nativeGroup = true
+      nativeAnalyst = false
+      blocks.push({ type: 'heading', level: 2, text: cleanInlineMarkdown(line) })
+    } else if (ROLE_HEADING_KEYS.has(headingKey(line))) {
+      flush()
+      nativeGroup = true
+      nativeAnalyst = true
+      blocks.push({ type: 'heading', level: 3, text: cleanInlineMarkdown(line) })
+    } else if (nativeAnalyst && /^(?:\d{1,2}[.)])\s+/.test(cleanInlineMarkdown(line))) {
+      flush()
+      blocks.push({ type: 'heading', level: 4, text: cleanInlineMarkdown(line) })
+    } else if (nativeAnalyst && /^(PHE\s+(?:BÒ|GẤU|TRUNG LẬP)|CÂN LẠI|DANH SÁCH THEO DÕI)(?:\s*\([^)]*\))?(?::|\s+)?(.*)$/i.test(cleanInlineMarkdown(line))) {
+      flush()
+      const marker = /^(PHE\s+(?:BÒ|GẤU|TRUNG LẬP)|CÂN LẠI|DANH SÁCH THEO DÕI)(?:\s*\([^)]*\))?(?::|\s+)?(.*)$/i.exec(cleanInlineMarkdown(line))
+      blocks.push({ type: 'heading', level: 4, text: marker[1] })
+      if (marker[2]) blocks.push({ type: 'paragraph', text: marker[2].trim() })
     } else {
-      pushTable(blocks, tableLines)
-      pushList(blocks, listItems)
-      paragraphs.push(line)
+      const field = parseReportField(line)
+      if (field && CALLOUT_LABELS.has(field.label.toLowerCase())) {
+        flush()
+        pushReportCallout(blocks, field)
+      } else if (field && nativeAnalyst && SECTION_LABELS.has(field.label.toLowerCase())) {
+        flush()
+        blocks.push({ type: 'heading', level: 4, text: field.label })
+        blocks.push({ type: 'paragraph', text: field.value })
+      } else if (list) {
+        pushTable(blocks, tableLines)
+        pushParagraph(blocks, paragraphs)
+        listItems.push(list[1])
+      } else if (line.startsWith('|')) {
+        pushParagraph(blocks, paragraphs)
+        pushList(blocks, listItems)
+        tableLines.push(line)
+      } else {
+        pushTable(blocks, tableLines)
+        pushList(blocks, listItems)
+        paragraphs.push(line)
+      }
     }
   }
   flush()

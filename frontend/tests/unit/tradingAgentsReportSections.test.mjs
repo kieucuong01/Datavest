@@ -13,6 +13,36 @@ test('native analyst headings stay under their team even when AI emits H1', () =
   assert.equal(report.sections[0].subsections[0].subsections[0].subsections[0].subsections[0].blocks[0].text, 'Deep content')
 })
 
+test('standalone numbered analysis sections stay below the analyst role and decisions are highlighted', () => {
+  const blocks = parseTradingAgentsReport(
+    '# Trading Analysis Report: BTC\n' +
+    '## I. Analyst Team Reports\n' +
+    '### Market Analyst\n' +
+    '1. Xác nhận dữ liệu và ghi chú sai lệch\n' +
+    'Giá đóng cửa tăng nhẹ.\n' +
+    'FINAL TRANSACTION PROPOSAL: **HOLD**\n' +
+    '## II. Research Team Decision\n' +
+    '### Research Manager\n' +
+    'Recommendation: Hold'
+  )
+
+  assert.deepEqual(
+    blocks.filter(block => block.type === 'heading').map(block => [block.level, block.text]),
+    [
+      [1, 'Trading Analysis Report: BTC'],
+      [2, 'I. Analyst Team Reports'],
+      [3, 'Market Analyst'],
+      [4, '1. Xác nhận dữ liệu và ghi chú sai lệch'],
+      [2, 'II. Research Team Decision'],
+      [3, 'Research Manager']
+    ]
+  )
+  assert.deepEqual(blocks.filter(block => block.type === 'callout'), [
+    { type: 'callout', label: 'FINAL TRANSACTION PROPOSAL', value: 'HOLD', tone: 'hold' },
+    { type: 'callout', label: 'Recommendation', value: 'Hold', tone: 'hold' }
+  ])
+})
+
 test('fenced code and lone pipe text are not discarded or treated as report headings', () => {
   const blocks = parseTradingAgentsReport('```text\n# not a heading\n```\n\n| source pending')
   assert.equal(blocks[0].type, 'code')
