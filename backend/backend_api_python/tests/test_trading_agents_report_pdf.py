@@ -1,4 +1,5 @@
 from io import BytesIO
+import re
 
 from pypdf import PdfReader
 
@@ -304,3 +305,48 @@ def test_trading_agents_report_preserves_team_role_and_nested_analysis_levels() 
         ("Recommendation", "Hold", "hold"),
         ("Portfolio Manager Rating", "Hold", "hold"),
     ]
+
+
+def test_trading_agents_report_starts_major_teams_and_following_analysts_on_new_pages() -> None:
+    pdf = build_trading_agents_report_pdf(
+        content=(
+            "# Trading Analysis Report: BTC-USD\n"
+            "## I. Analyst Team Reports\n"
+            "### Market Analyst\n"
+            "Market data review.\n"
+            "### Sentiment Analyst\n"
+            "Sentiment review.\n"
+            "### News Analyst\n"
+            "News review.\n"
+            "## II. Research Team Decision\n"
+            "### Bull Researcher\n"
+            "Bull case.\n"
+            "### Bear Researcher\n"
+            "Bear case.\n"
+            "## V. Portfolio Manager Decision\n"
+            "### Portfolio Manager\n"
+            "Portfolio Manager Rating: Hold\n"
+        ),
+        market="Crypto",
+        symbol="BTC-USD",
+        analysis_date="2026-09-10",
+        language="vi-VN",
+        run_id="page-breaks",
+    )
+
+    pages = [" ".join((page.extract_text() or "").split()) for page in PdfReader(BytesIO(pdf)).pages]
+    pages = [re.sub(r"^(?:Không phải tư vấn đầu tư hoặc lệnh giao dịch\.\s*)?DataVest - TradingAgents - \d+\s*", "", page) for page in pages]
+
+    def page_starting_with(text: str) -> str:
+        return next(page for page in pages if page.startswith(text))
+
+    page_starting_with("I. Analyst Team Reports")
+    page_starting_with("Sentiment Analyst")
+    page_starting_with("News Analyst")
+    page_starting_with("II. Research Team Decision")
+    page_starting_with("Bear Researcher")
+    page_starting_with("V. Portfolio Manager Decision")
+
+    # Semantic subsections emitted as H3 stay with their current team/role;
+    # only actual analyst/researcher roles receive a forced page break.
+    assert not any(page.startswith("Executive Summary") for page in pages)

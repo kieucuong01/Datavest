@@ -1411,7 +1411,35 @@ def build_trading_agents_report_pdf(
     story.append(metadata)
     append_report_summary()
 
+    report_page_has_content = False
+    allow_first_role_on_team_page = False
+
     def append_hierarchy_heading(title_text: str, level: int) -> None:
+        nonlocal report_page_has_content, allow_first_role_on_team_page
+        is_role_heading = (
+            level == 3
+            and _trading_report_heading_key(title_text) in _TRADING_REPORT_ROLES
+        )
+        if level == 2:
+            if report_page_has_content:
+                story.append(PageBreak())
+            report_page_has_content = True
+            allow_first_role_on_team_page = True
+        elif is_role_heading:
+            if not allow_first_role_on_team_page:
+                story.append(PageBreak())
+            report_page_has_content = True
+            allow_first_role_on_team_page = False
+        elif level == 3:
+            # Some upstream outputs use H3 for a team-level subsection such as
+            # "Executive Summary" or "Trading Plan". These are content
+            # headings, not a new analyst role, so keep them with the current
+            # team page and do not add a mostly-empty page.
+            report_page_has_content = True
+            allow_first_role_on_team_page = False
+        else:
+            report_page_has_content = True
+            allow_first_role_on_team_page = False
         if level >= 4:
             # Detail headings use typography, not another team-sized banner.
             detail_style = ParagraphStyle(
@@ -1430,7 +1458,7 @@ def build_trading_agents_report_pdf(
             background = "#123b61"
             accent = "#22c55e"
             before = 4
-        elif level == 3:
+        elif is_role_heading:
             style = role_heading
             background = "#eaf3fb"
             accent = "#2563eb"
@@ -1528,19 +1556,29 @@ def build_trading_agents_report_pdf(
             append_hierarchy_heading(heading_text, level)
         elif block_type == "callout":
             append_callout(block)
+            report_page_has_content = True
+            allow_first_role_on_team_page = False
         elif block_type == "list":
             for item in block.get("items", []):
                 story.append(paragraph(f"• {item}", bullet))
+            report_page_has_content = True
+            allow_first_role_on_team_page = False
         elif block_type == "table":
             rows = [block.get("headers", [])]
             rows.append(["---"] * len(rows[0]))
             rows.extend(block.get("rows", []))
             append_table(rows)
+            report_page_has_content = True
+            allow_first_role_on_team_page = False
         elif block_type == "code":
             code_style = ParagraphStyle(f"TradingAgentsPdfCode{block_index}", parent=small, backColor=colors.HexColor("#f8fafc"), borderColor=colors.HexColor("#d8e1ee"), borderWidth=0.5, borderPadding=6, fontName=font_name, leading=11)
             story.append(paragraph(block.get("text", ""), code_style))
+            report_page_has_content = True
+            allow_first_role_on_team_page = False
         elif block_type == "paragraph":
             story.append(paragraph(block.get("text", "")))
+            report_page_has_content = True
+            allow_first_role_on_team_page = False
 
     def draw_page(canvas_obj: object, document: object) -> None:
         canvas_obj.saveState()
