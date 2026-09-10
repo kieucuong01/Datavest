@@ -103,3 +103,43 @@ def test_callback_persists_only_redacted_payload_after_valid_signature():
             "traceback": "[REDACTED]",
         },
     }]
+
+
+def test_succeeded_callback_queues_the_report_summary_in_background(monkeypatch):
+    _enable_lightweight_app_imports()
+    from app.services import trading_agents as callback_module
+
+    queued = []
+    monkeypatch.setattr(callback_module, "enqueue_report_summary", lambda run_id: queued.append(run_id), raising=False)
+
+    class Repository:
+        def append_event(self, **_event):
+            return None
+
+        def transition_run(self, **_transition):
+            return None
+
+    service = callback_module.TradingAgentsCallbackService(
+        repository=Repository(),
+        secret="not-a-real-secret",
+        now=lambda: 1_788_832_400,
+    )
+    body = json.dumps(
+        {
+            "run_id": "run-123",
+            "sequence": 9,
+            "event_type": "run_status",
+            "payload": {"status": "succeeded"},
+        },
+        separators=(",", ":"),
+    ).encode("utf-8")
+
+    service.persist_callback(
+        headers={
+            "X-DataVest-Trading-Agents-Timestamp": "1788832400",
+            "X-DataVest-Trading-Agents-Signature": service.sign(timestamp="1788832400", body=body),
+        },
+        raw_body=body,
+    )
+
+    assert queued == ["run-123"]

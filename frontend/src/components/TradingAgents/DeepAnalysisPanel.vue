@@ -705,6 +705,7 @@ export default {
     async exportReportPdf () {
       if (!this.run || !this.run.run_id || this.exportingPdf) return
       const preview = window.open('', '_blank')
+      this.writePdfLoadingPreview(preview)
       this.exportingPdf = true
       try {
         const response = await getTradingAgentsReportPdf(this.run.run_id)
@@ -733,6 +734,7 @@ export default {
     async openHistoryReport (report) {
       if (!report || !report.run_id || this.historyReportOpening) return
       const preview = window.open('', '_blank')
+      this.writePdfLoadingPreview(preview)
       this.historyReportOpening = report.run_id
       try {
         const response = await getTradingAgentsReportPdf(report.run_id)
@@ -754,6 +756,18 @@ export default {
       if (!this.todayRun) return
       this.run = this.todayRun
       this.restorePolling()
+    },
+    writePdfLoadingPreview (preview) {
+      if (!preview || !preview.document) return
+      const escapeHtml = (value) => String(value || '').replace(/[&<>'"]/g, (character) => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;'
+      }[character]))
+      const title = escapeHtml(this.$t('tradingAgents.pdfPreparingTitle'))
+      const description = escapeHtml(this.$t('tradingAgents.pdfPreparingDescription'))
+      preview.opener = null
+      preview.document.title = title
+      preview.document.write(`<!doctype html><html lang="${this.isVietnamese ? 'vi' : 'en'}"><head><meta charset="utf-8"><title>${title}</title><style>body{margin:0;min-height:100vh;display:grid;place-items:center;background:#f7fafc;color:#15324d;font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}.card{width:min(420px,calc(100vw - 48px));padding:30px;border:1px solid #dbe7f1;border-radius:18px;background:#fff;box-shadow:0 18px 48px rgba(15,48,76,.12)}.spinner{width:26px;height:26px;border:3px solid #dbeafe;border-top-color:#2563eb;border-radius:50%;animation:spin .8s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}h1{margin:18px 0 8px;font-size:20px}p{margin:0;color:#61758a;line-height:1.55}</style></head><body><main class="card"><div class="spinner" aria-hidden="true"></div><h1>${title}</h1><p>${description}</p></main></body></html>`)
+      preview.document.close()
     },
     reportPdfFilename () {
       const symbol = String((this.run && this.run.symbol) || this.targetLabel || 'report').replace(/[\\/:*?"<>|]+/g, '_')

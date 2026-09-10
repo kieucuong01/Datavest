@@ -107,3 +107,25 @@ def test_trading_agents_pdf_summary_includes_an_excerpt_from_each_main_section()
     assert "Động lượng giá đang cải thiện, nhưng khối lượng giao dịch chưa xác nhận bứt phá." in extracted
     assert "Kịch bản tăng cần giữ vững vùng hỗ trợ và dòng tiền vào thị trường." in extracted
     assert extracted.index("Động lượng giá đang cải thiện") < extracted.index("Báo cáo phân tích BTC/USDT")
+
+
+def test_trading_agents_pdf_summary_overview_gives_each_section_an_ordinal_label() -> None:
+    pdf = build_trading_agents_report_pdf(
+        content=(
+            "# Báo cáo phân tích BTC/USDT\n\n"
+            "## Luận điểm thị trường\n\n"
+            "Xu hướng trung hạn đang tích cực.\n\n"
+            "## Quản trị rủi ro\n\n"
+            "Rủi ro thanh khoản vẫn cần được theo dõi."
+        ),
+        market="Crypto",
+        symbol="BTC/USDT",
+        analysis_date="2026-09-09",
+        language="vi-VN",
+        run_id="section-cards",
+    )
+
+    extracted = "\n".join(page.extract_text() or "" for page in PdfReader(BytesIO(pdf)).pages)
+
+    assert "01" in extracted
+    assert "02" in extracted

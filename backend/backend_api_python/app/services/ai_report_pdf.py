@@ -711,45 +711,107 @@ def build_trading_agents_report_pdf(
 
     def append_report_summary() -> None:
         summary_title = ParagraphStyle(
-            "TradingAgentsPdfSummaryTitle", parent=heading, fontSize=13, leading=17, textColor=colors.HexColor("#12355b"), spaceAfter=2
+            "TradingAgentsPdfSummaryTitle", parent=heading, fontSize=14, leading=18, textColor=colors.white, spaceAfter=0
+        )
+        summary_note = ParagraphStyle(
+            "TradingAgentsPdfSummaryNote", parent=small, fontSize=8.3, leading=11.5, textColor=colors.HexColor("#dbeafe"), spaceAfter=0
+        )
+        summary_label = ParagraphStyle(
+            "TradingAgentsPdfSummaryLabel", parent=small, fontSize=8, leading=10, textColor=colors.HexColor("#52677f"), spaceAfter=0
+        )
+        summary_value = ParagraphStyle(
+            "TradingAgentsPdfSummaryValue", parent=base, fontSize=9.4, leading=13.2, textColor=colors.HexColor("#1e293b"), spaceAfter=0
+        )
+        section_number = ParagraphStyle(
+            "TradingAgentsPdfSectionNumber", parent=base, fontSize=15, leading=18, alignment=TA_RIGHT, textColor=colors.HexColor("#174d7c"), spaceAfter=0
+        )
+        section_title_style = ParagraphStyle(
+            "TradingAgentsPdfSectionOverviewTitle", parent=base, fontSize=9.8, leading=13, textColor=colors.HexColor("#143b63"), spaceAfter=2
+        )
+        section_excerpt = ParagraphStyle(
+            "TradingAgentsPdfSectionOverviewExcerpt", parent=base, fontSize=8.7, leading=12.2, textColor=colors.HexColor("#52677f"), spaceAfter=0
         )
         summary_rows = build_summary_rows()
-        entries = [
-            [Paragraph(labels["summary"], summary_title), Paragraph(labels["summary_note"], small)],
-        ]
-        for row_label, row_value in summary_rows:
-            entries.append([Paragraph(row_label, small), paragraph(row_value)])
-        summary = Table(entries, colWidths=[doc.width * 0.25, doc.width * 0.75], hAlign="LEFT")
-        summary.setStyle(TableStyle([
-            ("SPAN", (0, 0), (1, 0)),
-            ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#f2f8f4")),
-            ("LINEBEFORE", (0, 0), (0, -1), 3, colors.HexColor("#39a36a")),
-            ("GRID", (0, 1), (-1, -1), 0.35, colors.HexColor("#dbece1")),
-            ("LEFTPADDING", (0, 0), (-1, -1), 10),
-            ("RIGHTPADDING", (0, 0), (-1, -1), 10),
-            ("TOPPADDING", (0, 0), (-1, -1), 7),
-            ("BOTTOMPADDING", (0, 0), (-1, -1), 7),
-            ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        summary_header = Table(
+            [[Paragraph(labels["summary"], summary_title)], [Paragraph(labels["summary_note"], summary_note)]],
+            colWidths=[doc.width],
+            hAlign="LEFT",
+        )
+        summary_header.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#123b61")),
+            ("LINEBEFORE", (0, 0), (0, -1), 4, colors.HexColor("#22c55e")),
+            ("LEFTPADDING", (0, 0), (-1, -1), 12),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 12),
+            ("TOPPADDING", (0, 0), (-1, 0), 8),
+            ("BOTTOMPADDING", (0, 0), (-1, 0), 2),
+            ("TOPPADDING", (0, 1), (-1, 1), 1),
+            ("BOTTOMPADDING", (0, 1), (-1, 1), 8),
         ]))
-        story.extend([Spacer(1, 5 * mm), summary, Spacer(1, 3 * mm)])
+        story.extend([Spacer(1, 5 * mm), summary_header, Spacer(1, 2.2 * mm)])
 
-        section_rows = [[Paragraph(labels["summary_sections"], subheading)]]
-        for section_title, excerpt in build_section_summaries():
-            section_rows.append([Paragraph(f"<b>{formatted(section_title)}</b><br/>{formatted(excerpt)}", base)])
-        if len(section_rows) > 1:
-            section_summary = Table(section_rows, colWidths=[doc.width], hAlign="LEFT")
-            section_summary.setStyle(TableStyle([
-                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#f7fafc")),
-                ("BACKGROUND", (0, 1), (-1, -1), colors.white),
-                ("LINEABOVE", (0, 0), (-1, 0), 0.65, colors.HexColor("#cfdee9")),
-                ("LINEBELOW", (0, 0), (-1, -1), 0.35, colors.HexColor("#e1eaf1")),
-                ("LEFTPADDING", (0, 0), (-1, -1), 10),
-                ("RIGHTPADDING", (0, 0), (-1, -1), 10),
-                ("TOPPADDING", (0, 0), (-1, -1), 5),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+        palette = {
+            labels["scope"]: ("#f1f5f9", "#64748b"),
+            labels["decision"]: ("#ecfdf3", "#16a34a"),
+            labels["summary_overview"]: ("#eff6ff", "#2563eb"),
+            labels["action"]: ("#fff7e6", "#d97706"),
+            labels["key_point"]: ("#f5f3ff", "#7c3aed"),
+        }
+        for row_label, row_value in summary_rows:
+            background, accent = palette.get(row_label, ("#f8fafc", "#0f766e"))
+            card = Table(
+                [[Paragraph(row_label.upper(), summary_label), Paragraph(formatted(row_value).replace("\n", "<br/>"), summary_value)]],
+                colWidths=[doc.width * 0.22, doc.width * 0.78],
+                hAlign="LEFT",
+            )
+            card.setStyle(TableStyle([
+                ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor(background)),
+                ("LINEBEFORE", (0, 0), (0, -1), 3, colors.HexColor(accent)),
+                ("BOX", (0, 0), (-1, -1), 0.35, colors.HexColor("#dce6f0")),
+                ("LEFTPADDING", (0, 0), (-1, -1), 9),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 9),
+                ("TOPPADDING", (0, 0), (-1, -1), 6),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
                 ("VALIGN", (0, 0), (-1, -1), "TOP"),
             ]))
-            story.extend([section_summary, Spacer(1, 2 * mm)])
+            story.extend([card, Spacer(1, 1.8 * mm)])
+
+        section_heading = Table([[Paragraph(labels["summary_sections"], subheading)]], colWidths=[doc.width], hAlign="LEFT")
+        section_heading.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#edf5fa")),
+            ("LINEBEFORE", (0, 0), (0, -1), 3, colors.HexColor("#27a3c4")),
+            ("LEFTPADDING", (0, 0), (-1, -1), 10),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 10),
+            ("TOPPADDING", (0, 0), (-1, -1), 5),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+        ]))
+        section_summaries = build_section_summaries()
+        if section_summaries:
+            story.extend([section_heading, Spacer(1, 1.8 * mm)])
+        section_palette = [
+            ("#eff6ff", "#2563eb"),
+            ("#ecfdf5", "#059669"),
+            ("#f5f3ff", "#7c3aed"),
+            ("#fff7ed", "#ea580c"),
+            ("#fdf2f8", "#db2777"),
+        ]
+        for index, (section_title, excerpt) in enumerate(section_summaries, start=1):
+            background, accent = section_palette[(index - 1) % len(section_palette)]
+            section_card = Table(
+                [[Paragraph(f"{index:02d}", section_number), [Paragraph(formatted(section_title), section_title_style), Paragraph(formatted(excerpt), section_excerpt)]]],
+                colWidths=[doc.width * 0.11, doc.width * 0.89],
+                hAlign="LEFT",
+            )
+            section_card.setStyle(TableStyle([
+                ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor(background)),
+                ("LINEBEFORE", (0, 0), (0, -1), 3, colors.HexColor(accent)),
+                ("BOX", (0, 0), (-1, -1), 0.35, colors.HexColor("#dce6f0")),
+                ("LEFTPADDING", (0, 0), (-1, -1), 9),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 9),
+                ("TOPPADDING", (0, 0), (-1, -1), 6),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+            ]))
+            story.extend([section_card, Spacer(1, 1.6 * mm)])
         story.append(PageBreak())
 
     header = Table(

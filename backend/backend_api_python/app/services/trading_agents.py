@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import hmac
 import json
+import logging
 import os
 import re
 import time
@@ -34,6 +35,14 @@ _SENSITIVE_KEY_PARTS = (
     "traceback",
     "stacktrace",
 )
+logger = logging.getLogger(__name__)
+
+
+def enqueue_report_summary(run_id: str) -> None:
+    """Queue post-completion work without making the signed callback wait."""
+    from app.tasks.trading_agents import enqueue_trading_agents_report_summary
+
+    enqueue_trading_agents_report_summary(str(run_id))
 
 
 class CallbackAuthenticationError(ValueError):
@@ -105,12 +114,20 @@ class TradingAgentsCallbackService:
                 content_type=str(payload.get("content_type") or "text/markdown"),
             )
         elif event_type == "run_status":
+            status = str(payload.get("status") or "")
             self._repository.transition_run(
                 run_id=run_id,
-                status=str(payload.get("status") or ""),
+                status=status,
                 failure_code=str(payload.get("failure_code") or "") or None,
                 failure_message=str(payload.get("failure_message") or "") or None,
             )
+            if status == "succeeded":
+                try:
+                    enqueue_report_summary(run_id)
+                except Exception:
+                    # A report is already durable. Summary generation is an
+                    # enhancement and must never make its private callback fail.
+                    logger.warning("TradingAgents report summary enqueue failed: run=%s", run_id)
 
     def _verify_signature(self, *, timestamp: str, signature: str, body: bytes) -> None:
         try:

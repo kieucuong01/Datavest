@@ -169,3 +169,57 @@ def test_artifact_fetch_signs_owner_scoped_body(monkeypatch):
         "artifact_name": "complete_report.md",
     }
     assert "private-signing-secret" not in repr(request.headers)
+
+
+def test_completed_report_generates_summary_before_pdf_export(monkeypatch):
+    _install_task_dependencies()
+    sys.modules.pop("app.tasks.trading_agents", None)
+    from app.tasks import trading_agents as task_module
+
+    report = b"# BTC research\n\n## Market analysis\nNative report content."
+    stored = []
+
+    class Repository:
+        def get_run_for_worker(self, *, run_id):
+            assert run_id == "run-123"
+            return {
+                "run_id": run_id,
+                "user_id": 7,
+                "status": "succeeded",
+                "request_json": {"language": "vi-VN"},
+                "config_json": {"report_summary_generation": "async-v1"},
+            }
+
+        def get_owned_run(self, *, user_id, run_id):
+            assert (user_id, run_id) == (7, "run-123")
+            return {
+                "artifacts": [{
+                    "artifact_name": "complete_report.md",
+                    "sha256": __import__("hashlib").sha256(report).hexdigest(),
+                }],
+            }
+
+        def get_report_summary(self, **_kwargs):
+            return None
+
+        def store_report_summary(self, **kwargs):
+            stored.append(kwargs)
+
+    monkeypatch.setattr(task_module, "get_repository", lambda: Repository())
+    monkeypatch.setattr(task_module, "fetch_artifact_from_service", lambda **_kwargs: (report, "text/markdown"))
+    monkeypatch.setattr(
+        task_module,
+        "generate_report_summary",
+        lambda **_kwargs: {"overview": "Tóm tắt đã lưu trước khi xuất PDF."},
+        raising=False,
+    )
+
+    task_module.execute_trading_agents_report_summary("run-123")
+
+    assert stored == [{
+        "user_id": 7,
+        "run_id": "run-123",
+        "source_sha256": __import__("hashlib").sha256(report).hexdigest(),
+        "language": "vi-VN",
+        "summary": {"overview": "Tóm tắt đã lưu trước khi xuất PDF."},
+    }]
