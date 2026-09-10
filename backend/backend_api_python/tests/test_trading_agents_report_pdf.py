@@ -350,3 +350,43 @@ def test_trading_agents_report_starts_major_teams_and_following_analysts_on_new_
     # Semantic subsections emitted as H3 stay with their current team/role;
     # only actual analyst/researcher roles receive a forced page break.
     assert not any(page.startswith("Executive Summary") for page in pages)
+
+
+def test_report_preamble_does_not_create_a_timestamp_only_page() -> None:
+    pdf = build_trading_agents_report_pdf(
+        content="# Trading Analysis Report: BTC-USD\n\nGenerated: 2026-09-10 08:16:50\n\n"
+        "## I. Analyst Team Reports\n### Market Analyst\nMarket review.\n"
+        "## V. Portfolio Manager Decision\nPortfolio Manager Rating: Hold\n",
+        market="Crypto", symbol="BTC-USD", analysis_date="2026-09-10",
+        language="vi-VN", run_id="preamble-test",
+    )
+    pages = [page.extract_text() or "" for page in PdfReader(BytesIO(pdf)).pages]
+    assert len(pages) == 3
+    assert "2026-09-10 08:16:50" in pages[0]
+    assert "chưa ghi múi giờ" in pages[0]
+    assert "I. Analyst Team Reports" in pages[1]
+    assert "V. Portfolio Manager Decision" in pages[2]
+    assert "đã xác thực" not in pages[0]
+
+
+def test_numbered_prose_and_indented_bullets_are_not_headings_or_merged_text() -> None:
+    prose = "2. Khoảng trống dữ liệu: " + "Cần kiểm tra lại nguồn dữ liệu. " * 6
+    blocks = structure_trading_agents_report(
+        "## I. Analyst Team Reports\n### Market Analyst\n## 0. Data checks\n"
+        + prose + "\n   - Snapshot: 78.386,20\n   - Vendor: 78.389,01\n\n---\n"
+    )
+    assert any(b.get("type") == "paragraph" and b.get("text") == prose.strip() for b in blocks)
+    assert any(b.get("items") == ["Snapshot: 78.386,20", "Vendor: 78.389,01"] for b in blocks)
+    assert not any(b.get("text") == "---" for b in blocks)
+
+
+def test_summary_keeps_long_action_and_scenario_text_without_ellipsis() -> None:
+    action = "Giữ vị thế " + "với giới hạn rủi ro phù hợp " * 30 + "ACTION-END."
+    pdf = build_trading_agents_report_pdf(
+        content="## V. Portfolio Manager Decision\nPortfolio Manager Rating: Hold\nExecutive Summary: " + action,
+        market="Crypto", symbol="BTC-USD", analysis_date="2026-09-10",
+        language="vi-VN", run_id="long-action",
+    )
+    pages = [page.extract_text() or "" for page in PdfReader(BytesIO(pdf)).pages]
+    assert "ACTION-END" in pages[0]
+    assert "..." not in pages[0]

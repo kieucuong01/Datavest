@@ -430,6 +430,9 @@ def structure_trading_agents_report(content: str) -> list[dict[str, Any]]:
         if not line:
             flush_all()
             continue
+        if re.fullmatch(r"(?:-{3,}|\*{3,}|_{3,})", line):
+            flush_all()
+            continue
 
         heading_match = re.match(r"^(#{1,6})\s+(.+)$", line)
         if heading_match:
@@ -481,7 +484,12 @@ def structure_trading_agents_report(content: str) -> list[dict[str, Any]]:
         numbered = re.match(r"^(\d{1,2}(?:\.\d{1,2})*[.)]?)\s+(.+)$", normalized_line)
         if (inside_role or inside_team) and numbered:
             flush_all()
-            add_heading(normalized_line, detail_level(normalized_line, 1))
+            # Long numbered prose is not a heading. Retain short plain-text
+            # headings for providers that omit Markdown heading markers.
+            if len(normalized_line) > 140 or ":" in normalized_line or normalized_line.endswith("."):
+                blocks.append({"type": "paragraph", "text": normalized_line})
+            else:
+                add_heading(normalized_line, detail_level(normalized_line, 1))
             continue
 
         field = _parse_trading_report_field(line)
@@ -516,7 +524,7 @@ def structure_trading_agents_report(content: str) -> list[dict[str, Any]]:
                 blocks.append({"type": "paragraph", "text": value})
             continue
 
-        list_match = re.match(r"^(?:[-*+]\s+)(.+)$", raw_line)
+        list_match = re.match(r"^\s*(?:[-*+]\s+)(.+)$", raw_line)
         if list_match:
             flush_table()
             flush_paragraph()
@@ -1030,12 +1038,12 @@ def build_trading_agents_report_pdf(
     is_vietnamese = _language_key(language) == "vi"
     labels = {
         "title": "Báo cáo chuyên sâu TradingAgents" if is_vietnamese else "TradingAgents Deep Research Report",
-        "subtitle": "Báo cáo gốc đã xác thực, chỉ phục vụ mục đích nghiên cứu" if is_vietnamese else "Verified native report for research use only",
+        "subtitle": "Báo cáo nghiên cứu do AI tạo; xem giới hạn dữ liệu trong từng phần." if is_vietnamese else "AI-generated research; see data limitations in each section.",
         "asset": "Tài sản" if is_vietnamese else "Asset",
         "date": "Ngày phân tích" if is_vietnamese else "Analysis date",
         "run": "Mã lần chạy" if is_vietnamese else "Run ID",
         "summary": "TÓM TẮT BÁO CÁO QUYẾT ĐỊNH DANH MỤC ĐẦU TƯ" if is_vietnamese else "PORTFOLIO DECISION REPORT SUMMARY",
-        "summary_note": "Tách trực tiếp từ Mục V của báo cáo TradingAgents; không dùng tóm tắt LLM." if is_vietnamese else "Directly structured from section V of the native TradingAgents report; no LLM summary.",
+        "summary_note": "Trích từ quyết định của Quản lý danh mục tại Mục V." if is_vietnamese else "Extracted from the Portfolio Manager decision in section V.",
         "action": "1. TÓM TẮT HÀNH ĐỘNG" if is_vietnamese else "1. ACTION SUMMARY",
         "thesis": "2. LUẬN ĐIỂM ĐẦU TƯ" if is_vietnamese else "2. INVESTMENT THESIS",
         "scenarios": "3. DANH SÁCH THEO DÕI & KỊCH BẢN" if is_vietnamese else "3. WATCHLIST & SCENARIOS",
@@ -1178,7 +1186,13 @@ def build_trading_agents_report_pdf(
     )
 
     def escaped(value: object) -> str:
-        return _plain_text(value).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").strip()
+        text = _plain_text(value)
+        # Emoji are not covered by the embedded report font. Preserve their
+        # signal meaning with readable labels instead of missing-glyph boxes.
+        for icon, replacement in {"🟢": "[+]", "🔴": "[-]", "✅": "[OK]", "❌": "[X]", "⚠": "[!]", "⚪": "[-]", "🎯": "[Target]", "🚀": "[+]"}.items():
+            text = text.replace(icon, replacement)
+        text = re.sub(r"[\U0001f300-\U0001faff\ufe0e\ufe0f\u200d\ufffd]", "", text)
+        return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").strip()
 
     def formatted(value: object) -> str:
         text = escaped(value)
@@ -1222,7 +1236,7 @@ def build_trading_agents_report_pdf(
 
         def sentences(value: str, limit: int = 4) -> list[str]:
             parts = re.split(r"(?<=[.!?])\s+(?=[A-ZÀ-Ỵ])", clean_text(value))
-            return [compact_summary(item, 320) for item in parts if item.strip()][:limit]
+            return [item.strip() for item in parts if item.strip()]
 
         def clean_text(value: str) -> str:
             return re.sub(r"\s+", " ", re.sub(r"[*`#]", "", str(value or ""))).strip()
@@ -1251,6 +1265,9 @@ def build_trading_agents_report_pdf(
                 if match and match not in seen:
                     rows.append((label, match))
                     seen.add(match)
+            for fragment in fragments:
+                if fragment not in seen:
+                    rows.append((labels["action"], fragment))
             return rows
 
         def heading_row(text: str, accent: str) -> Table:
@@ -1263,6 +1280,7 @@ def build_trading_agents_report_pdf(
                 ("TOPPADDING", (0, 0), (-1, -1), 5),
                 ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
             ]))
+            table.keepWithNext = True
             return table
 
         def summary_card(label: str, value: str | list[str], background: str, accent: str) -> Table:
@@ -1270,10 +1288,12 @@ def build_trading_agents_report_pdf(
                 value_items = [item for item in value if clean_text(item)]
                 value_cell = [Paragraph(f"- {formatted(clean_text(item))}", summary_bullet) for item in value_items]
             else:
-                value_cell = Paragraph(formatted(compact_summary(value, 900)).replace("\n", "<br/>"), summary_value)
+                value_cell = Paragraph(formatted(clean_text(value)).replace("\n", "<br/>"), summary_value)
             card = Table(
-                [[Paragraph(label.upper(), summary_label), value_cell]],
-                colWidths=[doc.width * 0.26, doc.width * 0.74],
+                [[Paragraph(label.upper(), summary_label)], [value_cell]] if isinstance(value, list) else [[Paragraph(label.upper(), summary_label), value_cell]],
+                colWidths=[doc.width] if isinstance(value, list) else [doc.width * 0.26, doc.width * 0.74],
+                repeatRows=1 if isinstance(value, list) else 0,
+                splitInRow=1,
                 hAlign="LEFT",
             )
             card.setStyle(TableStyle([
@@ -1305,7 +1325,7 @@ def build_trading_agents_report_pdf(
         ]))
         story.extend([Spacer(1, 5 * mm), summary_header, Spacer(1, 2.2 * mm)])
 
-        rating = clean_text(fields.get("rating", "Hold")).upper()
+        rating = clean_text(fields.get("rating") or ("Chưa có kết luận" if is_vietnamese else "Not provided")).upper()
         rating_color = "#d97706" if "HOLD" in rating or "GIỮ" in rating else "#16a34a" if any(token in rating for token in ("BUY", "OVERWEIGHT", "MUA")) else "#dc2626"
         decision_snapshot = Table([[
             [Paragraph(labels["rating"], summary_label), Paragraph(rating, ParagraphStyle("TradingAgentsPdfRating", parent=summary_value, fontSize=18, leading=22, textColor=colors.HexColor(rating_color)))],
@@ -1409,6 +1429,17 @@ def build_trading_agents_report_pdf(
         ("VALIGN", (0, 0), (-1, -1), "TOP"),
     ]))
     story.append(metadata)
+    report_blocks = structure_trading_agents_report(content)
+    # The upstream preamble timestamp belongs with metadata, not on an
+    # otherwise empty page immediately before section I. Its timezone is not
+    # guaranteed by this legacy field, so do not silently relabel it as VN.
+    for block in report_blocks:
+        if block.get("type") == "heading" and block.get("level") == 2:
+            break
+        if block.get("type") == "paragraph" and str(block.get("text", "")).startswith("Generated:"):
+            stamp = str(block["text"]).removeprefix("Generated:").strip()
+            caption = "Thời điểm trong báo cáo gốc (chưa ghi múi giờ)" if is_vietnamese else "Original report timestamp (timezone unspecified)"
+            story.append(paragraph(f"{caption}: {stamp}", small))
     append_report_summary()
 
     report_page_has_content = False
@@ -1528,9 +1559,14 @@ def build_trading_agents_report_pdf(
         for row_index, row in enumerate(padded_rows):
             style = table_header if has_header and row_index == 0 else table_cell
             rendered_rows.append([paragraph(cell, style) for cell in row])
+        column_widths = [doc.width / column_count] * column_count
+        if column_count > 2 and all(re.fullmatch(r"\d+", row[0]) for row in padded_rows[1:] if row):
+            column_widths = [doc.width * 0.07] + [doc.width * 0.93 / (column_count - 1)] * (column_count - 1)
+            if has_header and not padded_rows[0][0]:
+                rendered_rows[0][0] = paragraph("STT" if is_vietnamese else "No.", table_header)
         report_table = Table(
             rendered_rows,
-            colWidths=[doc.width / column_count] * column_count,
+            colWidths=column_widths,
             repeatRows=1 if has_header else 0,
             hAlign="LEFT",
         )
@@ -1546,8 +1582,13 @@ def build_trading_agents_report_pdf(
         ]))
         story.extend([Spacer(1, 2 * mm), report_table, Spacer(1, 2 * mm)])
 
-    for block_index, block in enumerate(structure_trading_agents_report(content)):
+    in_report_preamble = True
+    for block_index, block in enumerate(report_blocks):
         block_type = block.get("type")
+        if block_type == "heading" and block.get("level") == 2:
+            in_report_preamble = False
+        if in_report_preamble and block_type == "paragraph" and str(block.get("text", "")).startswith("Generated:"):
+            continue
         if block_type == "heading":
             level = int(block.get("level") or 4)
             heading_text = str(block.get("text") or "")
