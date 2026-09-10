@@ -264,6 +264,99 @@ def extract_portfolio_manager_decision(content: str) -> dict[str, Any]:
     return {"title": section_title, "cards": cards}
 
 
+def extract_portfolio_manager_decision_sections(content: str) -> dict[str, Any]:
+    """Structure direct facts from section V for the decision-summary template."""
+    lines = str(content or "").replace("\r\n", "\n").replace("\r", "\n").split("\n")
+    section_lines: list[str] = []
+    section_title = ""
+    collecting = False
+
+    for raw_line in lines:
+        line = raw_line.strip()
+        heading = re.match(r"^#{1,6}\s+(.+)$", line)
+        candidate = heading.group(1).strip() if heading else line
+        normalized = re.sub(r"^[IVXLC]+\.\s*", "", candidate, flags=re.IGNORECASE).casefold()
+        is_portfolio_decision = "portfolio manager" in normalized or "quản lý danh mục" in normalized
+        if is_portfolio_decision and not collecting:
+            section_title = candidate
+            collecting = True
+            continue
+        if collecting and heading:
+            break
+        if collecting:
+            section_lines.append(raw_line)
+
+    def clean(value: str, limit: int = 6_000) -> str:
+        text = re.sub(r"\s+", " ", re.sub(r"[*`#]", "", str(value or ""))).strip()
+        return text[:limit].rstrip()
+
+    def field_key(label: str) -> str | None:
+        normalized = clean(label, 160).casefold()
+        if "phe bò" in normalized:
+            return "bull"
+        if "phe gấu" in normalized:
+            return "bear"
+        if "phe trung lập" in normalized:
+            return "neutral"
+        if "cân lại" in normalized or "kết luận cân bằng" in normalized:
+            return "balance"
+        if "danh sách theo dõi" in normalized or "watchlist" in normalized:
+            return "watchlist"
+        if normalized.startswith("nâng") or "nâng rating" in normalized:
+            return "upgrade"
+        if normalized.startswith("hạ") or "hạ rating" in normalized:
+            return "downgrade"
+        if "time horizon" in normalized or "khung thời gian" in normalized:
+            return "time_horizon"
+        if normalized.startswith("rating") or normalized.startswith("khuyến nghị"):
+            return "rating"
+        if "executive summary" in normalized or "tóm tắt điều hành" in normalized:
+            return "executive_summary"
+        if "investment thesis" in normalized or "luận điểm đầu tư" in normalized:
+            return "investment_thesis"
+        return None
+
+    fields: dict[str, str] = {}
+    current_key: str | None = None
+    for raw_line in section_lines:
+        line = raw_line.strip()
+        if not line:
+            continue
+        line = re.sub(r"^#{1,6}\s+", "", line)
+        line = re.sub(r"^[-*+]\s+", "", line)
+        thesis_marker = re.match(r"^(PHE (?:BÒ|GẤU|TRUNG LẬP))(?:\s*\([^)]*\))?(?::|\s+)?(.*)$", line, flags=re.IGNORECASE)
+        if thesis_marker:
+            key = field_key(thesis_marker.group(1))
+            if key:
+                fields[key] = clean(thesis_marker.group(2))
+                current_key = key
+                continue
+        match = re.match(r"^(?:\*\*)?(.+?)(?:\*\*)?\s*:\s*(.+)$", line)
+        if match:
+            key = field_key(match.group(1))
+            if key:
+                fields[key] = clean(match.group(2))
+                current_key = key
+                continue
+        inline_key = field_key(line)
+        if inline_key and ":" not in line:
+            current_key = inline_key
+            continue
+        if current_key:
+            fields[current_key] = clean(f"{fields.get(current_key, '')} {line}")
+
+    watchlist = fields.get("watchlist", "")
+    scenario_markers = list(re.finditer(r"(?P<label>Nâng\s+lên.+?nếu|Hạ\s+xuống.+?nếu)\s*:\s*", watchlist, flags=re.IGNORECASE))
+    if scenario_markers:
+        fields["watchlist"] = clean(watchlist[:scenario_markers[0].start()])
+        for index, marker in enumerate(scenario_markers):
+            end = scenario_markers[index + 1].start() if index + 1 < len(scenario_markers) else len(watchlist)
+            key = "upgrade" if marker.group("label").casefold().startswith("nâng") else "downgrade"
+            fields[key] = clean(watchlist[marker.end():end])
+
+    return {"title": section_title, "fields": fields}
+
+
 def build_ai_report_pdf(report: dict, target: dict | None = None, language: str = "en-US") -> bytes:
     from reportlab.lib import colors
     from reportlab.lib.pagesizes import A4
@@ -562,9 +655,23 @@ def build_trading_agents_report_pdf(
         "asset": "Tài sản" if is_vietnamese else "Asset",
         "date": "Ngày phân tích" if is_vietnamese else "Analysis date",
         "run": "Mã lần chạy" if is_vietnamese else "Run ID",
-        "summary": "Quyết định quản lý danh mục" if is_vietnamese else "Portfolio Manager Decision",
-        "summary_note": "Trích nguyên ý từ Mục V của báo cáo TradingAgents; không dùng tóm tắt LLM." if is_vietnamese else "Directly structured from section V of the native TradingAgents report; no LLM summary.",
-        "details": "Điều kiện và hành động" if is_vietnamese else "Conditions and actions",
+        "summary": "TÓM TẮT BÁO CÁO QUYẾT ĐỊNH DANH MỤC ĐẦU TƯ" if is_vietnamese else "PORTFOLIO DECISION REPORT SUMMARY",
+        "summary_note": "Tách trực tiếp từ Mục V của báo cáo TradingAgents; không dùng tóm tắt LLM." if is_vietnamese else "Directly structured from section V of the native TradingAgents report; no LLM summary.",
+        "action": "1. TÓM TẮT HÀNH ĐỘNG" if is_vietnamese else "1. ACTION SUMMARY",
+        "thesis": "2. LUẬN ĐIỂM ĐẦU TƯ" if is_vietnamese else "2. INVESTMENT THESIS",
+        "scenarios": "3. DANH SÁCH THEO DÕI & KỊCH BẢN" if is_vietnamese else "3. WATCHLIST & SCENARIOS",
+        "rating": "RATING" if is_vietnamese else "RATING",
+        "time_horizon": "Khung thời gian" if is_vietnamese else "Time horizon",
+        "core_strategy": "Chiến lược cốt lõi" if is_vietnamese else "Core strategy",
+        "capital_management": "Quản trị vốn" if is_vietnamese else "Capital management",
+        "stop_loss": "Kỷ luật cắt lỗ" if is_vietnamese else "Stop-loss discipline",
+        "add_position": "Điều kiện mua thêm/DCA" if is_vietnamese else "Add position/DCA conditions",
+        "bull": "Phe Bò - tích cực" if is_vietnamese else "Bull case",
+        "bear": "Phe Gấu - thận trọng" if is_vietnamese else "Bear case",
+        "neutral": "Phe Trung lập - cân bằng" if is_vietnamese else "Neutral case",
+        "balance": "Kết luận của Portfolio Manager" if is_vietnamese else "Portfolio Manager conclusion",
+        "upgrade": "Nâng rating" if is_vietnamese else "Upgrade rating",
+        "downgrade": "Hạ rating" if is_vietnamese else "Downgrade rating",
         "unavailable": "Báo cáo gốc chưa có Mục V. Quyết định quản lý danh mục." if is_vietnamese else "The native report does not contain a Portfolio Manager Decision section.",
         "disclaimer": "Không phải tư vấn đầu tư hoặc lệnh giao dịch." if is_vietnamese else "Not investment advice or an order instruction.",
     }
@@ -682,6 +789,7 @@ def build_trading_agents_report_pdf(
 
     lines = (content or "").replace("\r\n", "\n").replace("\r", "\n").split("\n")
     portfolio_decision = extract_portfolio_manager_decision(content)
+    portfolio_sections = extract_portfolio_manager_decision_sections(content)
     story: list[object] = []
 
     def compact_summary(value: str, limit: int = 260) -> str:
@@ -689,12 +797,6 @@ def build_trading_agents_report_pdf(
         if len(cleaned) <= limit:
             return cleaned
         return f"{cleaned[:limit].rsplit(' ', 1)[0].rstrip()}..."
-
-    def build_summary_rows() -> list[tuple[str, str]]:
-        return [
-            (compact_summary(title, 100), compact_summary(value, 820))
-            for title, value in portfolio_decision["cards"]
-        ]
 
     def append_report_summary() -> None:
         summary_title = ParagraphStyle(
@@ -709,9 +811,73 @@ def build_trading_agents_report_pdf(
         summary_value = ParagraphStyle(
             "TradingAgentsPdfSummaryValue", parent=base, fontSize=9.4, leading=13.2, textColor=colors.HexColor("#1e293b"), spaceAfter=0
         )
-        summary_rows = build_summary_rows()
+        fields = portfolio_sections["fields"]
+
+        def sentences(value: str, limit: int = 4) -> list[str]:
+            parts = re.split(r"(?<=[.!?])\s+(?=[A-ZÀ-Ỵ])", clean_text(value))
+            return [compact_summary(item, 320) for item in parts if item.strip()][:limit]
+
+        def clean_text(value: str) -> str:
+            return re.sub(r"\s+", " ", re.sub(r"[*`#]", "", str(value or ""))).strip()
+
+        def first_matching(items: list[str], expressions: tuple[str, ...]) -> str:
+            for item in items:
+                lowered = item.casefold()
+                if any(expression in lowered for expression in expressions):
+                    return item
+            return ""
+
+        def action_rows() -> list[tuple[str, str]]:
+            executive_summary = fields.get("executive_summary", "")
+            fragments = sentences(executive_summary, limit=8)
+            if not fragments:
+                return [(compact_summary(title, 100), compact_summary(value, 820)) for title, value in portfolio_decision["cards"][:4]]
+            rows = [(labels["core_strategy"], fragments[0])]
+            categories = [
+                (labels["capital_management"], ("sizing", "đòn bẩy", "tiền mặt", "cắt tỉa", "tỷ trọng", "quản trị vốn")),
+                (labels["stop_loss"], ("stop", "thủng", "phòng thủ", "cắt lỗ")),
+                (labels["add_position"], ("thêm vị thế", "dca", "gia tăng", "mua thêm", "đóng cửa trên")),
+            ]
+            seen = {fragments[0]}
+            for label, expressions in categories:
+                match = first_matching(fragments, expressions)
+                if match and match not in seen:
+                    rows.append((label, match))
+                    seen.add(match)
+            return rows
+
+        def heading_row(text: str, accent: str) -> Table:
+            table = Table([[Paragraph(text, subheading)]], colWidths=[doc.width], hAlign="LEFT")
+            table.setStyle(TableStyle([
+                ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#edf5fa")),
+                ("LINEBEFORE", (0, 0), (0, -1), 3, colors.HexColor(accent)),
+                ("LEFTPADDING", (0, 0), (-1, -1), 10),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 10),
+                ("TOPPADDING", (0, 0), (-1, -1), 5),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+            ]))
+            return table
+
+        def summary_card(label: str, value: str, background: str, accent: str) -> Table:
+            card = Table(
+                [[Paragraph(label.upper(), summary_label), Paragraph(formatted(compact_summary(value, 900)).replace("\n", "<br/>"), summary_value)]],
+                colWidths=[doc.width * 0.26, doc.width * 0.74],
+                hAlign="LEFT",
+            )
+            card.setStyle(TableStyle([
+                ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor(background)),
+                ("LINEBEFORE", (0, 0), (0, -1), 3, colors.HexColor(accent)),
+                ("BOX", (0, 0), (-1, -1), 0.35, colors.HexColor("#dce6f0")),
+                ("LEFTPADDING", (0, 0), (-1, -1), 9),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 9),
+                ("TOPPADDING", (0, 0), (-1, -1), 6),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+            ]))
+            return card
+
         summary_header = Table(
-            [[Paragraph(portfolio_decision["title"] or labels["summary"], summary_title)], [Paragraph(labels["summary_note"], summary_note)]],
+            [[Paragraph(labels["summary"], summary_title)], [Paragraph(labels["summary_note"], summary_note)]],
             colWidths=[doc.width],
             hAlign="LEFT",
         )
@@ -727,69 +893,56 @@ def build_trading_agents_report_pdf(
         ]))
         story.extend([Spacer(1, 5 * mm), summary_header, Spacer(1, 2.2 * mm)])
 
-        palette = [
-            ("#ecfdf3", "#16a34a"),
-            ("#eff6ff", "#2563eb"),
-            ("#fff7e6", "#d97706"),
-            ("#f5f3ff", "#7c3aed"),
+        rating = clean_text(fields.get("rating", "Hold")).upper()
+        rating_color = "#d97706" if "HOLD" in rating or "GIỮ" in rating else "#16a34a" if any(token in rating for token in ("BUY", "OVERWEIGHT", "MUA")) else "#dc2626"
+        decision_snapshot = Table([[
+            [Paragraph(labels["rating"], summary_label), Paragraph(rating, ParagraphStyle("TradingAgentsPdfRating", parent=summary_value, fontSize=18, leading=22, textColor=colors.HexColor(rating_color)))],
+            [Paragraph(labels["asset"], summary_label), Paragraph(escaped(symbol), ParagraphStyle("TradingAgentsPdfAsset", parent=summary_value, fontSize=12, leading=16, textColor=colors.HexColor("#123b61")))],
+            [Paragraph(labels["time_horizon"], summary_label), Paragraph(escaped(fields.get("time_horizon", "-")), ParagraphStyle("TradingAgentsPdfHorizon", parent=summary_value, fontSize=11, leading=15, textColor=colors.HexColor("#123b61")))],
+        ]], colWidths=[doc.width / 3] * 3, hAlign="LEFT")
+        decision_snapshot.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#f8fbff")),
+            ("BOX", (0, 0), (-1, -1), 0.5, colors.HexColor("#d8e7f4")),
+            ("INNERGRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#d8e7f4")),
+            ("LEFTPADDING", (0, 0), (-1, -1), 9),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 9),
+            ("TOPPADDING", (0, 0), (-1, -1), 8),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
+            ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ]))
+        story.extend([decision_snapshot, Spacer(1, 2.4 * mm)])
+
+        actions = action_rows()
+        if actions:
+            story.extend([heading_row(labels["action"], "#16a34a"), Spacer(1, 1.6 * mm)])
+            for index, (label, value) in enumerate(actions):
+                story.extend([summary_card(label, value, "#f7fcf8", "#16a34a"), Spacer(1, 1.3 * mm)])
+
+        thesis_values = [
+            (labels["bull"], fields.get("bull", ""), "#ecfdf3", "#16a34a"),
+            (labels["bear"], fields.get("bear", ""), "#fff7ed", "#dc2626"),
+            (labels["neutral"], fields.get("neutral", ""), "#fffbeb", "#d97706"),
+            (labels["balance"], fields.get("balance", fields.get("investment_thesis", "")), "#eff6ff", "#2563eb"),
         ]
-        if summary_rows:
-            snapshot = summary_rows[:3]
-            snapshot_cards = []
-            for index, (row_label, row_value) in enumerate(snapshot):
-                background, accent = palette[index % len(palette)]
-                snapshot_cards.append([
-                    Paragraph(row_label.upper(), summary_label),
-                    Paragraph(formatted(compact_summary(row_value, 118)), ParagraphStyle(
-                        f"TradingAgentsPdfDecisionMetric{index}", parent=summary_value, fontSize=11.5,
-                        leading=15, textColor=colors.HexColor(accent), spaceAfter=0,
-                    )),
-                ])
-            infographic = Table([snapshot_cards], colWidths=[doc.width / len(snapshot_cards)] * len(snapshot_cards), hAlign="LEFT")
-            infographic.setStyle(TableStyle([
-                ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#f8fbff")),
-                ("BOX", (0, 0), (-1, -1), 0.5, colors.HexColor("#d8e7f4")),
-                ("INNERGRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#d8e7f4")),
-                ("LEFTPADDING", (0, 0), (-1, -1), 9),
-                ("RIGHTPADDING", (0, 0), (-1, -1), 9),
-                ("TOPPADDING", (0, 0), (-1, -1), 8),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
-                ("VALIGN", (0, 0), (-1, -1), "TOP"),
-            ]))
-            story.extend([infographic, Spacer(1, 2.4 * mm)])
+        if any(value for _, value, _, _ in thesis_values):
+            story.extend([heading_row(labels["thesis"], "#2563eb"), Spacer(1, 1.6 * mm)])
+            for label, value, background, accent in thesis_values:
+                if value:
+                    story.extend([summary_card(label, value, background, accent), Spacer(1, 1.3 * mm)])
 
-        detail_rows = summary_rows[3:]
-        if detail_rows:
-            detail_heading = Table([[Paragraph(labels["details"], subheading)]], colWidths=[doc.width], hAlign="LEFT")
-            detail_heading.setStyle(TableStyle([
-                ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#edf5fa")),
-                ("LINEBEFORE", (0, 0), (0, -1), 3, colors.HexColor("#27a3c4")),
-                ("LEFTPADDING", (0, 0), (-1, -1), 10),
-                ("RIGHTPADDING", (0, 0), (-1, -1), 10),
-                ("TOPPADDING", (0, 0), (-1, -1), 5),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
-            ]))
-            story.extend([detail_heading, Spacer(1, 1.8 * mm)])
+        scenarios = [
+            (labels["upgrade"], fields.get("upgrade", ""), "#ecfdf3", "#16a34a"),
+            (labels["downgrade"], fields.get("downgrade", ""), "#fff1f2", "#dc2626"),
+        ]
+        if fields.get("watchlist") or any(value for _, value, _, _ in scenarios):
+            story.extend([heading_row(labels["scenarios"], "#7c3aed"), Spacer(1, 1.6 * mm)])
+            if fields.get("watchlist"):
+                story.extend([summary_card("Watchlist", fields["watchlist"], "#f5f3ff", "#7c3aed"), Spacer(1, 1.3 * mm)])
+            for label, value, background, accent in scenarios:
+                if value:
+                    story.extend([summary_card(label, value, background, accent), Spacer(1, 1.3 * mm)])
 
-        for index, (row_label, row_value) in enumerate(detail_rows, start=3):
-            background, accent = palette[index % len(palette)]
-            card = Table(
-                [[Paragraph(row_label.upper(), summary_label), Paragraph(formatted(row_value).replace("\n", "<br/>"), summary_value)]],
-                colWidths=[doc.width * 0.22, doc.width * 0.78],
-                hAlign="LEFT",
-            )
-            card.setStyle(TableStyle([
-                ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor(background)),
-                ("LINEBEFORE", (0, 0), (0, -1), 3, colors.HexColor(accent)),
-                ("BOX", (0, 0), (-1, -1), 0.35, colors.HexColor("#dce6f0")),
-                ("LEFTPADDING", (0, 0), (-1, -1), 9),
-                ("RIGHTPADDING", (0, 0), (-1, -1), 9),
-                ("TOPPADDING", (0, 0), (-1, -1), 6),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
-                ("VALIGN", (0, 0), (-1, -1), "TOP"),
-            ]))
-            story.extend([card, Spacer(1, 1.8 * mm)])
-        if not summary_rows:
+        if not fields and not portfolio_decision["cards"]:
             unavailable = Table([[Paragraph(labels["unavailable"], summary_value)]], colWidths=[doc.width], hAlign="LEFT")
             unavailable.setStyle(TableStyle([
                 ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#fff7ed")),
