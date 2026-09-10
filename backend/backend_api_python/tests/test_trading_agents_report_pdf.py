@@ -136,6 +136,70 @@ def test_portfolio_decision_sections_split_inline_upgrade_and_downgrade_scenario
     assert decision["fields"]["downgrade"] == "thủng 76.248 kèm khối lượng lớn."
 
 
+def test_portfolio_decision_sections_preserve_thesis_items_without_text_truncation() -> None:
+    decision = extract_portfolio_manager_decision_sections(
+        "V. Portfolio Manager Decision\n"
+        "### Bull Case\n"
+        "- Giá giữ trên SMA50 và SMA200; dòng tiền ETF vẫn dương.\n"
+        "- Hạ tầng pháp lý mở rộng, hỗ trợ luận điểm dài hạn.\n"
+        "### Bear Case\n"
+        "- Giá dưới VWMA và khối lượng suy yếu rõ rệt.\n"
+        "- Rủi ro FOMC có thể làm tăng biến động ngắn hạn.\n"
+        "### Neutral Case\n"
+        "- Stop quá gần dễ bị quét nhiễu, nhưng stop quá xa làm tăng rủi ro.\n"
+        "### Portfolio Manager Conclusion\n"
+        "- HOLD với tỷ trọng thu gọn cho tới khi có xác nhận."
+    )
+
+    assert decision["field_items"]["bull"] == [
+        "Giá giữ trên SMA50 và SMA200; dòng tiền ETF vẫn dương.",
+        "Hạ tầng pháp lý mở rộng, hỗ trợ luận điểm dài hạn.",
+    ]
+    assert decision["field_items"]["bear"] == [
+        "Giá dưới VWMA và khối lượng suy yếu rõ rệt.",
+        "Rủi ro FOMC có thể làm tăng biến động ngắn hạn.",
+    ]
+    assert decision["field_items"]["neutral"] == [
+        "Stop quá gần dễ bị quét nhiễu, nhưng stop quá xa làm tăng rủi ro.",
+    ]
+    assert decision["field_items"]["balance"] == [
+        "HOLD với tỷ trọng thu gọn cho tới khi có xác nhận."
+    ]
+    assert "..." not in decision["fields"]["bull"]
+    assert "..." not in decision["fields"]["bear"]
+
+
+def test_trading_agents_summary_renders_all_thesis_items_on_the_summary_page() -> None:
+    pdf = build_trading_agents_report_pdf(
+        content=(
+            "# Trading Analysis Report: BTC-USD\n"
+            "## V. Portfolio Manager Decision\n"
+            "### Bull Case\n"
+            "- BULL-UNIQUE-ONE: Giá giữ trên SMA50 và SMA200.\n"
+            "- BULL-UNIQUE-TWO: Dòng tiền ETF vẫn dương.\n"
+            "### Bear Case\n"
+            "- BEAR-UNIQUE-ONE: Khối lượng suy yếu rõ rệt.\n"
+            "- BEAR-UNIQUE-TWO: Rủi ro FOMC tăng.\n"
+            "### Neutral Case\n"
+            "- NEUTRAL-UNIQUE: Hai phía chưa có xác nhận đầy đủ.\n"
+            "### Portfolio Manager Conclusion\n"
+            "- BALANCE-UNIQUE: HOLD với tỷ trọng thu gọn."
+        ),
+        market="Crypto",
+        symbol="BTC-USD",
+        analysis_date="2026-09-10",
+        language="vi-VN",
+        run_id="full-thesis-summary",
+    )
+
+    summary_pages = " ".join(
+        (page.extract_text() or "")
+        for page in PdfReader(BytesIO(pdf)).pages[:2]
+    )
+    for marker in ("BULL-UNIQUE-ONE", "BULL-UNIQUE-TWO", "BEAR-UNIQUE-ONE", "BEAR-UNIQUE-TWO", "NEUTRAL-UNIQUE", "BALANCE-UNIQUE"):
+        assert marker in summary_pages
+
+
 def test_trading_agents_pdf_uses_portfolio_manager_decision_as_its_first_page_summary() -> None:
     pdf = build_trading_agents_report_pdf(
         content=(

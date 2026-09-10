@@ -630,19 +630,24 @@ def extract_portfolio_manager_decision_sections(content: str) -> dict[str, Any]:
 
     def field_key(label: str) -> str | None:
         normalized = clean(label, 160).casefold()
-        if "phe bò" in normalized:
+        if "phe bò" in normalized or re.match(r"^bull(?:\s+case)?(?:\s|:|$|\()", normalized):
             return "bull"
-        if "phe gấu" in normalized:
+        if "phe gấu" in normalized or re.match(r"^bear(?:\s+case)?(?:\s|:|$|\()", normalized):
             return "bear"
-        if "phe trung lập" in normalized:
+        if "phe trung lập" in normalized or re.match(r"^neutral(?:\s+case)?(?:\s|:|$|\()", normalized):
             return "neutral"
-        if "cân lại" in normalized or "kết luận cân bằng" in normalized:
+        if (
+            "cân lại" in normalized
+            or "kết luận cân bằng" in normalized
+            or "portfolio manager conclusion" in normalized
+            or "balanced conclusion" in normalized
+        ):
             return "balance"
         if "danh sách theo dõi" in normalized or "watchlist" in normalized:
             return "watchlist"
-        if normalized.startswith("nâng") or "nâng rating" in normalized:
+        if normalized.startswith(("nâng rating", "nâng lên", "upgrade", "upgrade rating")):
             return "upgrade"
-        if normalized.startswith("hạ") or "hạ rating" in normalized:
+        if normalized.startswith(("hạ rating", "hạ xuống", "downgrade", "downgrade rating")):
             return "downgrade"
         if "time horizon" in normalized or "khung thời gian" in normalized:
             return "time_horizon"
@@ -657,25 +662,54 @@ def extract_portfolio_manager_decision_sections(content: str) -> dict[str, Any]:
         return None
 
     fields: dict[str, str] = {}
+    field_items: dict[str, list[str]] = {}
     current_key: str | None = None
+
+    def add_field_item(key: str, value: str) -> None:
+        cleaned = clean(value)
+        if not cleaned:
+            return
+        items = field_items.setdefault(key, [])
+        if not items or items[-1] != cleaned:
+            items.append(cleaned)
+        fields[key] = clean(" ".join(items))
+
+    def append_field_text(key: str, value: str) -> None:
+        cleaned = clean(value)
+        if not cleaned:
+            return
+        items = field_items.setdefault(key, [])
+        if items:
+            items[-1] = clean(f"{items[-1]} {cleaned}")
+        else:
+            items.append(cleaned)
+        fields[key] = clean(" ".join(items))
+
     for raw_line in section_lines:
         line = raw_line.strip()
         if not line:
             continue
         line = re.sub(r"^#{1,6}\s+", "", line)
-        line = re.sub(r"^[-*+]\s+", "", line)
-        thesis_marker = re.match(r"^(PHE (?:BÒ|GẤU|TRUNG LẬP))(?:\s*\([^)]*\))?(?::|\s+)?(.*)$", line, flags=re.IGNORECASE)
+        list_item = bool(re.match(r"^(?:[-*+]\s+|\d{1,2}(?:\.\d{1,2})*[.)]\s+)", line))
+        line = re.sub(r"^(?:[-*+]\s+|\d{1,2}(?:\.\d{1,2})*[.)]\s+)", "", line)
+        thesis_marker = re.match(
+            r"^((?:PHE\s+)?(?:BÒ|GẤU|TRUNG LẬP|BULL(?:\s+CASE)?|BEAR(?:\s+CASE)?|NEUTRAL(?:\s+CASE)?))"
+            r"(?=\s|:|$|\()"
+            r"(?:\s*\([^)]*\))?(?::|\s+)?(.*)$",
+            line,
+            flags=re.IGNORECASE,
+        )
         if thesis_marker:
             key = field_key(thesis_marker.group(1))
             if key:
-                fields[key] = clean(thesis_marker.group(2))
+                add_field_item(key, thesis_marker.group(2))
                 current_key = key
                 continue
         match = re.match(r"^(?:\*\*)?(.+?)(?:\*\*)?\s*:\s*(.+)$", line)
         if match:
             key = field_key(match.group(1))
             if key:
-                fields[key] = clean(match.group(2))
+                add_field_item(key, match.group(2))
                 current_key = key
                 continue
         inline_key = field_key(line)
@@ -683,18 +717,23 @@ def extract_portfolio_manager_decision_sections(content: str) -> dict[str, Any]:
             current_key = inline_key
             continue
         if current_key:
-            fields[current_key] = clean(f"{fields.get(current_key, '')} {line}")
+            if list_item:
+                add_field_item(current_key, line)
+            else:
+                append_field_text(current_key, line)
 
     watchlist = fields.get("watchlist", "")
     scenario_markers = list(re.finditer(r"(?P<label>Nâng\s+lên.+?nếu|Hạ\s+xuống.+?nếu)\s*:\s*", watchlist, flags=re.IGNORECASE))
     if scenario_markers:
         fields["watchlist"] = clean(watchlist[:scenario_markers[0].start()])
+        field_items["watchlist"] = [fields["watchlist"]] if fields["watchlist"] else []
         for index, marker in enumerate(scenario_markers):
             end = scenario_markers[index + 1].start() if index + 1 < len(scenario_markers) else len(watchlist)
             key = "upgrade" if marker.group("label").casefold().startswith("nâng") else "downgrade"
             fields[key] = clean(watchlist[marker.end():end])
+            field_items[key] = [fields[key]] if fields[key] else []
 
-    return {"title": section_title, "fields": fields}
+    return {"title": section_title, "fields": fields, "field_items": field_items}
 
 
 def build_ai_report_pdf(report: dict, target: dict | None = None, language: str = "en-US") -> bytes:
@@ -1174,7 +1213,12 @@ def build_trading_agents_report_pdf(
         summary_value = ParagraphStyle(
             "TradingAgentsPdfSummaryValue", parent=base, fontSize=9.4, leading=13.2, textColor=colors.HexColor("#1e293b"), spaceAfter=0
         )
+        summary_bullet = ParagraphStyle(
+            "TradingAgentsPdfSummaryBullet", parent=summary_value, leftIndent=7, firstLineIndent=-7,
+            spaceAfter=3, leading=13.4,
+        )
         fields = portfolio_sections["fields"]
+        field_items = portfolio_sections.get("field_items", {})
 
         def sentences(value: str, limit: int = 4) -> list[str]:
             parts = re.split(r"(?<=[.!?])\s+(?=[A-ZÀ-Ỵ])", clean_text(value))
@@ -1221,9 +1265,14 @@ def build_trading_agents_report_pdf(
             ]))
             return table
 
-        def summary_card(label: str, value: str, background: str, accent: str) -> Table:
+        def summary_card(label: str, value: str | list[str], background: str, accent: str) -> Table:
+            if isinstance(value, list):
+                value_items = [item for item in value if clean_text(item)]
+                value_cell = [Paragraph(f"- {formatted(clean_text(item))}", summary_bullet) for item in value_items]
+            else:
+                value_cell = Paragraph(formatted(compact_summary(value, 900)).replace("\n", "<br/>"), summary_value)
             card = Table(
-                [[Paragraph(label.upper(), summary_label), Paragraph(formatted(compact_summary(value, 900)).replace("\n", "<br/>"), summary_value)]],
+                [[Paragraph(label.upper(), summary_label), value_cell]],
                 colWidths=[doc.width * 0.26, doc.width * 0.74],
                 hAlign="LEFT",
             )
@@ -1282,10 +1331,16 @@ def build_trading_agents_report_pdf(
                 story.extend([summary_card(label, value, "#f7fcf8", "#16a34a"), Spacer(1, 1.3 * mm)])
 
         thesis_values = [
-            (labels["bull"], fields.get("bull", ""), "#ecfdf3", "#16a34a"),
-            (labels["bear"], fields.get("bear", ""), "#fff7ed", "#dc2626"),
-            (labels["neutral"], fields.get("neutral", ""), "#fffbeb", "#d97706"),
-            (labels["balance"], fields.get("balance", fields.get("investment_thesis", "")), "#eff6ff", "#2563eb"),
+            (labels["bull"], field_items.get("bull") or ([fields["bull"]] if fields.get("bull") else []), "#ecfdf3", "#16a34a"),
+            (labels["bear"], field_items.get("bear") or ([fields["bear"]] if fields.get("bear") else []), "#fff7ed", "#dc2626"),
+            (labels["neutral"], field_items.get("neutral") or ([fields["neutral"]] if fields.get("neutral") else []), "#fffbeb", "#d97706"),
+            (
+                labels["balance"],
+                field_items.get("balance") or field_items.get("investment_thesis")
+                or ([fields["balance"]] if fields.get("balance") else [fields["investment_thesis"]] if fields.get("investment_thesis") else []),
+                "#eff6ff",
+                "#2563eb",
+            ),
         ]
         if any(value for _, value, _, _ in thesis_values):
             story.extend([heading_row(labels["thesis"], "#2563eb"), Spacer(1, 1.6 * mm)])
