@@ -263,7 +263,7 @@ def test_run_is_queued_without_exposing_service_secret(monkeypatch):
             assert kwargs["request"]["market"] == "Crypto"
             assert kwargs["request"]["language"] == "en-US"
             assert kwargs["config"]["native_config"]["checkpoint_enabled"] is True
-            assert kwargs["config"]["report_summary_generation"] == "async-v1"
+            assert "report_summary_generation" not in kwargs["config"]
             return {"run_id": "run-123", "status": "queued", "source_pin": kwargs["source_pin"]}
 
         def transition_run(self, **_kwargs):
@@ -362,6 +362,7 @@ def test_owned_report_pdf_is_rendered_from_the_verified_native_artifact(monkeypa
     client, route_module = _client(monkeypatch)
     report = b"# BTC research\n\nVerified report content."
     rendered = []
+    summary_reads = []
 
     class Repository:
         def get_owned_run(self, **kwargs):
@@ -380,6 +381,10 @@ def test_owned_report_pdf_is_rendered_from_the_verified_native_artifact(monkeypa
                     "sha256": hashlib.sha256(report).hexdigest(),
                 }],
             }
+
+        def get_report_summary(self, **kwargs):
+            summary_reads.append(kwargs)
+            return {"overview": "This must not be read"}
 
     monkeypatch.setattr(route_module, "get_repository", lambda: Repository())
     monkeypatch.setattr(route_module, "fetch_artifact_from_service", lambda **_kwargs: (report, "text/markdown"))
@@ -403,42 +408,5 @@ def test_owned_report_pdf_is_rendered_from_the_verified_native_artifact(monkeypa
             "analysis_date": "2026-09-05",
             "language": "vi-VN",
             "run_id": "run-123",
-            "executive_summary": None,
         }]
-
-
-def test_async_summary_report_pdf_does_not_wait_for_llm(monkeypatch):
-    client, route_module = _client(monkeypatch)
-    report = b"# BTC research\n\nVerified report content."
-    rendered = []
-
-    class Repository:
-        def get_owned_run(self, **_kwargs):
-            return {
-                "run_id": "run-123",
-                "user_id": 7,
-                "request_json": {
-                    "market": "Crypto",
-                    "symbol": "BTC/USDT",
-                    "analysis_date": "2026-09-05",
-                    "language": "vi-VN",
-                },
-                "config_json": {"report_summary_generation": "async-v1"},
-                "artifacts": [{
-                    "artifact_name": "complete_report.md",
-                    "sha256": hashlib.sha256(report).hexdigest(),
-                }],
-            }
-
-        def get_report_summary(self, **_kwargs):
-            return None
-
-    monkeypatch.setattr(route_module, "get_repository", lambda: Repository())
-    monkeypatch.setattr(route_module, "fetch_artifact_from_service", lambda **_kwargs: (report, "text/markdown"))
-    monkeypatch.setattr(route_module, "generate_report_summary", lambda **_kwargs: (_ for _ in ()).throw(AssertionError("PDF must not call LLM")))
-    monkeypatch.setattr(route_module, "build_trading_agents_report_pdf", lambda **kwargs: rendered.append(kwargs) or b"%PDF-1.4 test")
-
-    response = client.get("/api/trading-agents/runs/run-123/report.pdf")
-
-    assert response.status_code == 200
-    assert rendered[0]["executive_summary"] is None
+    assert summary_reads == []

@@ -2,7 +2,10 @@ from io import BytesIO
 
 from pypdf import PdfReader
 
-from app.services.ai_report_pdf import build_trading_agents_report_pdf
+from app.services.ai_report_pdf import (
+    build_trading_agents_report_pdf,
+    extract_portfolio_manager_decision,
+)
 
 
 def test_vietnamese_trading_agents_pdf_uses_an_extractable_unicode_font() -> None:
@@ -50,14 +53,34 @@ def test_trading_agents_pdf_renders_markdown_tables_as_readable_cells() -> None:
     assert "RSI 14 · 58.4" not in extracted
 
 
-def test_trading_agents_pdf_adds_a_short_summary_before_the_report_body() -> None:
+def test_portfolio_manager_summary_extracts_only_section_v() -> None:
+    decision = extract_portfolio_manager_decision(
+        "# Báo cáo phân tích BTC/USDT\n\n"
+        "## I. Báo cáo nhóm phân tích\n\n"
+        "**Luận điểm ngoài phạm vi**: Không được đưa vào trang tóm tắt.\n\n"
+        "## V. Portfolio Manager Decision\n\n"
+        "### Portfolio Manager\n"
+        "**Rating**: Overweight\n\n"
+        "**Executive Summary**: Build position gradually after confirmation.\n\n"
+        "**Risk Control**: Exit if daily support fails.\n\n"
+        "## Appendix\n\n"
+        "**Ngoài quyết định**: Không được đưa vào trang tóm tắt."
+    )
+
+    assert decision["title"] == "V. Portfolio Manager Decision"
+    assert decision["cards"] == [
+        ("Rating", "Overweight"),
+        ("Executive Summary", "Build position gradually after confirmation."),
+        ("Risk Control", "Exit if daily support fails."),
+    ]
+
+
+def test_trading_agents_pdf_uses_portfolio_manager_decision_as_its_first_page_summary() -> None:
     pdf = build_trading_agents_report_pdf(
         content=(
             "# Báo cáo phân tích BTC/USDT\n\n"
-            "Generated: 2026-09-09 07:00:00\n\n"
             "## I. Báo cáo nhóm phân tích\n\n"
-            "### Chuyên gia thị trường\n"
-            "Xu hướng trung hạn tích cực nhưng thanh khoản cần được theo dõi.\n\n"
+            "**Luận điểm ngoài phạm vi**: Không được đưa vào tóm tắt.\n\n"
             "## V. Quyết định quản lý danh mục\n\n"
             "### Quản lý danh mục\n"
             "**Khuyến nghị**: HOLD\n\n"
@@ -71,61 +94,10 @@ def test_trading_agents_pdf_adds_a_short_summary_before_the_report_body() -> Non
         run_id="summary-preview",
     )
 
-    extracted = "\n".join(page.extract_text() or "" for page in PdfReader(BytesIO(pdf)).pages)
+    first_page = PdfReader(BytesIO(pdf)).pages[0].extract_text() or ""
+    normalized_first_page = " ".join(first_page.split())
 
-    assert "Tóm tắt toàn bộ báo cáo" in extracted
-    assert "Giữ tỷ trọng hiện tại và chờ xác nhận tại vùng kháng cự." in extracted
-    assert extracted.index("Tóm tắt toàn bộ báo cáo") < extracted.index("Báo cáo phân tích BTC/USDT")
-    assert "01\nI. Báo cáo nhóm phân tích" not in extracted
-
-
-def test_trading_agents_pdf_summary_includes_an_excerpt_from_each_main_section() -> None:
-    pdf = build_trading_agents_report_pdf(
-        content=(
-            "# Báo cáo phân tích BTC/USDT\n\n"
-            "## I. Báo cáo nhóm phân tích\n\n"
-            "### Chuyên gia thị trường\n"
-            "Động lượng giá đang cải thiện, nhưng khối lượng giao dịch chưa xác nhận bứt phá.\n\n"
-            "## II. Quyết định nhóm nghiên cứu\n\n"
-            "### Nhà nghiên cứu tăng giá\n"
-            "Kịch bản tăng cần giữ vững vùng hỗ trợ và dòng tiền vào thị trường.\n\n"
-            "## V. Quyết định quản lý danh mục\n\n"
-            "### Quản lý danh mục\n"
-            "**Khuyến nghị**: HOLD\n\n"
-            "**Tóm tắt điều hành**: Chờ thêm xác nhận trước khi thay đổi tỷ trọng."
-        ),
-        market="Crypto",
-        symbol="BTC/USDT",
-        analysis_date="2026-09-09",
-        language="vi-VN",
-        run_id="detailed-summary",
-    )
-
-    extracted = "\n".join(page.extract_text() or "" for page in PdfReader(BytesIO(pdf)).pages)
-
-    assert "Tổng quan theo các phần" in extracted
-    assert "Động lượng giá đang cải thiện, nhưng khối lượng giao dịch chưa xác nhận bứt phá." in extracted
-    assert "Kịch bản tăng cần giữ vững vùng hỗ trợ và dòng tiền vào thị trường." in extracted
-    assert extracted.index("Động lượng giá đang cải thiện") < extracted.index("Báo cáo phân tích BTC/USDT")
-
-
-def test_trading_agents_pdf_summary_overview_gives_each_section_an_ordinal_label() -> None:
-    pdf = build_trading_agents_report_pdf(
-        content=(
-            "# Báo cáo phân tích BTC/USDT\n\n"
-            "## Luận điểm thị trường\n\n"
-            "Xu hướng trung hạn đang tích cực.\n\n"
-            "## Quản trị rủi ro\n\n"
-            "Rủi ro thanh khoản vẫn cần được theo dõi."
-        ),
-        market="Crypto",
-        symbol="BTC/USDT",
-        analysis_date="2026-09-09",
-        language="vi-VN",
-        run_id="section-cards",
-    )
-
-    extracted = "\n".join(page.extract_text() or "" for page in PdfReader(BytesIO(pdf)).pages)
-
-    assert "01" in extracted
-    assert "02" in extracted
+    assert "Quyết định quản lý danh mục" in first_page
+    assert "tóm tắt điều hành" in first_page.casefold()
+    assert "Giữ tỷ trọng hiện tại và chờ xác nhận tại vùng kháng cự." in normalized_first_page
+    assert "Luận điểm ngoài phạm vi" not in normalized_first_page

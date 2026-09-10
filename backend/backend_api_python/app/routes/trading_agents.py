@@ -23,7 +23,6 @@ from app.tasks.trading_agents import (
 )
 from app.services.trading_agents_progress import build_public_progress, public_event
 from app.services.ai_report_pdf import build_trading_agents_report_pdf
-from app.services.trading_agents_report_summary import generate_report_summary
 from app.utils.auth import login_required
 from app.utils.logger import get_logger
 
@@ -38,7 +37,6 @@ _SUPPORTED_LANGUAGES = frozenset({"vi-VN", "en-US"})
 _RUN_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$")
 _SENSITIVE_CONFIG_PARTS = ("api_key", "apikey", "authorization", "cookie", "password", "secret", "token")
 _TERMINAL_STATUSES = frozenset({"succeeded", "failed", "cancelled"})
-_ASYNC_SUMMARY_VERSION = "async-v1"
 
 
 def get_repository():
@@ -74,16 +72,6 @@ def _normalize_language(value: Any) -> str:
     return language if language in _SUPPORTED_LANGUAGES else "vi-VN"
 
 
-def _uses_async_report_summary(record: Mapping[str, Any]) -> bool:
-    config = record.get("config_json") or {}
-    if isinstance(config, str):
-        try:
-            config = json.loads(config)
-        except (TypeError, ValueError):
-            config = {}
-    return isinstance(config, Mapping) and config.get("report_summary_generation") == _ASYNC_SUMMARY_VERSION
-
-
 def _validate_request(payload: Any) -> tuple[dict[str, Any], dict[str, Any]]:
     if not isinstance(payload, Mapping):
         raise ValueError("invalid_request")
@@ -117,7 +105,6 @@ def _validate_request(payload: Any) -> tuple[dict[str, Any], dict[str, Any]]:
     config_record = {
         "native_config": native_config,
         "selected_analysts": list(FULL_ANALYST_SELECTION),
-        "report_summary_generation": _ASYNC_SUMMARY_VERSION,
     }
     return request_record, config_record
 
@@ -443,24 +430,6 @@ def get_report_pdf(run_id: str):
             request_json = json.loads(request_json)
         language = _normalize_language(request_json.get("language"))
         report_text = content.decode("utf-8", errors="replace")
-        summary = None
-        repository = get_repository()
-        if hasattr(repository, "get_report_summary"):
-            summary = repository.get_report_summary(
-                user_id=int(record["user_id"]), run_id=run_id, source_sha256=expected_sha256, language=language
-            )
-            # New reports have an async materialization task, so PDF export
-            # never waits on an LLM request. Legacy records lack this immutable
-            # config marker and are upgraded lazily on their first export.
-            if summary is None and not _uses_async_report_summary(record):
-                try:
-                    summary = generate_report_summary(report=report_text, language=language)
-                    repository.store_report_summary(
-                        user_id=int(record["user_id"]), run_id=run_id, source_sha256=expected_sha256, language=language, summary=summary
-                    )
-                except Exception:
-                    logger.warning("TradingAgents LLM summary unavailable for PDF run %s", run_id)
-                    summary = None
         pdf_bytes = build_trading_agents_report_pdf(
             content=report_text,
             market=str(request_json.get("market") or ""),
@@ -468,7 +437,6 @@ def get_report_pdf(run_id: str):
             analysis_date=str(request_json.get("analysis_date") or ""),
             language=language,
             run_id=run_id,
-            executive_summary=summary,
         )
     except ImportError:
         return _fail("trading_agents_pdf_dependency_missing", 500)

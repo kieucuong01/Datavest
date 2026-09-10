@@ -5,7 +5,6 @@ from __future__ import annotations
 import hashlib
 import hmac
 import json
-import logging
 import os
 import time
 from typing import Any, Mapping
@@ -14,14 +13,11 @@ from urllib.parse import quote, urljoin
 from urllib.request import Request, urlopen
 
 from app.celery_app import celery_app
-from app.services.trading_agents_report_summary import generate_report_summary
 
 
 REQUEST_TIMESTAMP_HEADER = "X-DataVest-Trading-Agents-Request-Timestamp"
 REQUEST_SIGNATURE_HEADER = "X-DataVest-Trading-Agents-Request-Signature"
 _TERMINAL_STATUSES = frozenset({"succeeded", "failed", "cancelled"})
-_ASYNC_SUMMARY_VERSION = "async-v1"
-logger = logging.getLogger(__name__)
 
 
 class TradingAgentsServiceUnavailable(RuntimeError):
@@ -177,66 +173,6 @@ def execute_trading_agents_run(run_id: str) -> None:
         )
 
 
-@celery_app.task(name="datavest.tasks.trading_agents_report_summary", acks_late=True)
-def execute_trading_agents_report_summary(run_id: str) -> None:
-    """Materialize the LLM summary after a new native report has completed.
-
-    This deliberately runs outside the PDF request. A retry or duplicate queue
-    message is safe because the immutable source checksum is the cache key.
-    """
-    repository = get_repository()
-    record = repository.get_run_for_worker(run_id=str(run_id))
-    if not record or str(record.get("status") or "") != "succeeded":
-        return
-    config = _json_object(record.get("config_json"))
-    if config.get("report_summary_generation") != _ASYNC_SUMMARY_VERSION:
-        return
-    request_record = _json_object(record.get("request_json"))
-    user_id = int(record.get("user_id") or 0)
-    if user_id <= 0:
-        return
-    owned = repository.get_owned_run(user_id=user_id, run_id=str(run_id))
-    artifact = next(
-        (item for item in (owned or {}).get("artifacts") or [] if item.get("artifact_name") == "complete_report.md"),
-        None,
-    )
-    expected_sha256 = str((artifact or {}).get("sha256") or "").lower()
-    if len(expected_sha256) != 64:
-        return
-    language = str(request_record.get("language") or "vi-VN")[:16]
-    try:
-        if repository.get_report_summary(
-            user_id=user_id,
-            run_id=str(run_id),
-            source_sha256=expected_sha256,
-            language=language,
-        ) is not None:
-            return
-        content, _content_type = fetch_artifact_from_service(
-            user_id=user_id,
-            run_id=str(run_id),
-            artifact_name="complete_report.md",
-        )
-        if hashlib.sha256(content).hexdigest() != expected_sha256:
-            logger.warning("TradingAgents report summary source checksum mismatch: run=%s", run_id)
-            return
-        summary = generate_report_summary(
-            report=content.decode("utf-8", errors="replace"),
-            language=language,
-        )
-        repository.store_report_summary(
-            user_id=user_id,
-            run_id=str(run_id),
-            source_sha256=expected_sha256,
-            language=language,
-            summary=summary,
-        )
-    except (TradingAgentsServiceUnavailable, TradingAgentsServiceRejected):
-        logger.warning("TradingAgents report summary artifact unavailable: run=%s", run_id)
-    except Exception:
-        logger.exception("TradingAgents report summary generation failed: run=%s", run_id)
-
-
 @celery_app.task(name="datavest.tasks.trading_agents_control", acks_late=True)
 def execute_trading_agents_control(run_id: str, action: str) -> None:
     repository = get_repository()
@@ -273,7 +209,3 @@ def enqueue_trading_agents_run(run_id: str):
 
 def enqueue_trading_agents_control(run_id: str, action: str):
     return execute_trading_agents_control.delay(str(run_id), str(action))
-
-
-def enqueue_trading_agents_report_summary(run_id: str):
-    return execute_trading_agents_report_summary.delay(str(run_id))

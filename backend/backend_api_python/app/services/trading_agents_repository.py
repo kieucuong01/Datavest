@@ -221,41 +221,6 @@ class TradingAgentsRepository:
             finally:
                 cur.close()
 
-    def get_report_summary(self, *, user_id: int, run_id: str, source_sha256: str, language: str) -> dict[str, Any] | None:
-        with get_db_connection() as db:
-            cur = db.cursor()
-            try:
-                cur.execute(
-                    """SELECT summary_json FROM trading_agents_report_summaries
-                       WHERE user_id = ? AND run_id = ? AND source_sha256 = ? AND language = ?""",
-                    (int(user_id), self._validate_run_id(run_id), str(source_sha256).lower(), str(language)[:16]),
-                )
-                row = cur.fetchone()
-                value = row["summary_json"] if row else None
-                if isinstance(value, str):
-                    value = json.loads(value)
-                return dict(value) if isinstance(value, Mapping) else None
-            finally:
-                cur.close()
-
-    def store_report_summary(self, *, user_id: int, run_id: str, source_sha256: str, language: str, summary: Mapping[str, Any]) -> None:
-        checksum = str(source_sha256 or "").lower()
-        if not _SHA256_RE.fullmatch(checksum):
-            raise ValueError("source_sha256 must be a lowercase SHA-256 digest")
-        with get_db_connection() as db:
-            cur = db.cursor()
-            try:
-                cur.execute(
-                    """INSERT INTO trading_agents_report_summaries
-                       (run_id, user_id, source_sha256, language, summary_json)
-                       VALUES (?, ?, ?, ?, ?::jsonb)
-                       ON CONFLICT (run_id, source_sha256, language) DO NOTHING""",
-                    (self._validate_run_id(run_id), int(user_id), checksum, str(language)[:16], self._json_mapping(summary, "summary")),
-                )
-                db.commit()
-            finally:
-                cur.close()
-
     def expire_stale_running_runs(
         self,
         *,
