@@ -1053,10 +1053,13 @@ def build_trading_agents_report_pdf(
         "capital_management": "Quản trị vốn" if is_vietnamese else "Capital management",
         "stop_loss": "Kỷ luật cắt lỗ" if is_vietnamese else "Stop-loss discipline",
         "add_position": "Điều kiện mua thêm/DCA" if is_vietnamese else "Add position/DCA conditions",
-        "bull": "Phe Bò - tích cực" if is_vietnamese else "Bull case",
-        "bear": "Phe Gấu - thận trọng" if is_vietnamese else "Bear case",
-        "neutral": "Phe Trung lập - cân bằng" if is_vietnamese else "Neutral case",
-        "balance": "Kết luận của Portfolio Manager" if is_vietnamese else "Portfolio Manager conclusion",
+        # Keep thesis labels short. The tone is already communicated by the
+        # accent line, so repeating it in the label makes narrow PDF layouts
+        # wrap awkwardly and visually over-emphasizes the marker.
+        "bull": "Phe Bò" if is_vietnamese else "Bull case",
+        "bear": "Phe Gấu" if is_vietnamese else "Bear case",
+        "neutral": "Phe Trung lập" if is_vietnamese else "Neutral case",
+        "balance": "Kết luận Portfolio Manager" if is_vietnamese else "Portfolio Manager conclusion",
         "upgrade": "Nâng rating" if is_vietnamese else "Upgrade rating",
         "downgrade": "Hạ rating" if is_vietnamese else "Downgrade rating",
         "unavailable": "Báo cáo gốc chưa có Mục V. Quyết định quản lý danh mục." if is_vietnamese else "The native report does not contain a Portfolio Manager Decision section.",
@@ -1283,29 +1286,36 @@ def build_trading_agents_report_pdf(
             table.keepWithNext = True
             return table
 
-        def summary_card(label: str, value: str | list[str], background: str, accent: str) -> Table:
+        def summary_card(label: str, value: str | list[str], background: str, accent: str, *, thesis: bool = False) -> Table:
             if isinstance(value, list):
                 value_items = [item for item in value if clean_text(item)]
                 value_cell = [Paragraph(f"- {formatted(clean_text(item))}", summary_bullet) for item in value_items]
             else:
                 value_cell = Paragraph(formatted(clean_text(value)).replace("\n", "<br/>"), summary_value)
+            stacked = isinstance(value, list)
             card = Table(
-                [[Paragraph(label.upper(), summary_label)], [value_cell]] if isinstance(value, list) else [[Paragraph(label.upper(), summary_label), value_cell]],
-                colWidths=[doc.width] if isinstance(value, list) else [doc.width * 0.26, doc.width * 0.74],
-                repeatRows=1 if isinstance(value, list) else 0,
+                [[Paragraph(label.upper(), summary_label)], [value_cell]] if stacked else [[Paragraph(label.upper(), summary_label), value_cell]],
+                colWidths=[doc.width] if stacked else [doc.width * 0.26, doc.width * 0.74],
+                repeatRows=1 if stacked else 0,
                 splitInRow=1,
                 hAlign="LEFT",
             )
-            card.setStyle(TableStyle([
+            card_styles = [
+                # Thesis cards use a neutral label row and a light body tint.
+                # This keeps the role readable without highlighting every
+                # occurrence of "Phe Bò" or "Phe Gấu" as a callout.
+                ("BACKGROUND", (0, 0), (-1, 0), colors.white if thesis and stacked else colors.HexColor(background)),
+                ("BACKGROUND", (0, 1), (-1, -1), colors.white if thesis else colors.HexColor(background)) if stacked else
                 ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor(background)),
-                ("LINEBEFORE", (0, 0), (0, -1), 3, colors.HexColor(accent)),
+                ("LINEBEFORE", (0, 0), (0, -1), 2 if thesis else 3, colors.HexColor(accent)),
                 ("BOX", (0, 0), (-1, -1), 0.35, colors.HexColor("#dce6f0")),
                 ("LEFTPADDING", (0, 0), (-1, -1), 9),
                 ("RIGHTPADDING", (0, 0), (-1, -1), 9),
                 ("TOPPADDING", (0, 0), (-1, -1), 6),
                 ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
                 ("VALIGN", (0, 0), (-1, -1), "TOP"),
-            ]))
+            ]
+            card.setStyle(TableStyle(card_styles))
             return card
 
         summary_header = Table(
@@ -1350,23 +1360,38 @@ def build_trading_agents_report_pdf(
             for index, (label, value) in enumerate(actions):
                 story.extend([summary_card(label, value, "#f7fcf8", "#16a34a"), Spacer(1, 1.3 * mm)])
 
+        def thesis_items(key: str, fallback_key: str | None = None) -> list[str]:
+            raw_items = field_items.get(key)
+            if not raw_items and fallback_key:
+                raw_items = field_items.get(fallback_key)
+            if not raw_items:
+                raw_value = fields.get(key) or (fields.get(fallback_key) if fallback_key else "")
+                raw_items = [raw_value] if raw_value else []
+            if isinstance(raw_items, str):
+                raw_items = [raw_items]
+            # Marker lines in the source often start with a lowercase word
+            # after the heading ("đưa ra...", "thắng..."). Capitalize only
+            # that first character for the standalone summary card.
+            items = []
+            for item in raw_items:
+                cleaned = clean_text(item)
+                if cleaned and cleaned[0].islower():
+                    cleaned = cleaned[0].upper() + cleaned[1:]
+                if cleaned:
+                    items.append(cleaned)
+            return items
+
         thesis_values = [
-            (labels["bull"], field_items.get("bull") or ([fields["bull"]] if fields.get("bull") else []), "#ecfdf3", "#16a34a"),
-            (labels["bear"], field_items.get("bear") or ([fields["bear"]] if fields.get("bear") else []), "#fff7ed", "#dc2626"),
-            (labels["neutral"], field_items.get("neutral") or ([fields["neutral"]] if fields.get("neutral") else []), "#fffbeb", "#d97706"),
-            (
-                labels["balance"],
-                field_items.get("balance") or field_items.get("investment_thesis")
-                or ([fields["balance"]] if fields.get("balance") else [fields["investment_thesis"]] if fields.get("investment_thesis") else []),
-                "#eff6ff",
-                "#2563eb",
-            ),
+            (labels["bull"], thesis_items("bull"), "#ecfdf3", "#16a34a"),
+            (labels["bear"], thesis_items("bear"), "#fff7ed", "#dc2626"),
+            (labels["neutral"], thesis_items("neutral"), "#fffbeb", "#d97706"),
+            (labels["balance"], thesis_items("balance", "investment_thesis"), "#eff6ff", "#2563eb"),
         ]
         if any(value for _, value, _, _ in thesis_values):
             story.extend([heading_row(labels["thesis"], "#2563eb"), Spacer(1, 1.6 * mm)])
             for label, value, background, accent in thesis_values:
                 if value:
-                    story.extend([summary_card(label, value, background, accent), Spacer(1, 1.3 * mm)])
+                    story.extend([summary_card(label, value, background, accent, thesis=True), Spacer(1, 1.3 * mm)])
 
         scenarios = [
             (labels["upgrade"], fields.get("upgrade", ""), "#ecfdf3", "#16a34a"),
@@ -1473,6 +1498,24 @@ def build_trading_agents_report_pdf(
             allow_first_role_on_team_page = False
         if level >= 4:
             # Detail headings use typography, not another team-sized banner.
+            thesis_marker_key = re.sub(r"\s+", " ", title_text).strip().casefold()
+            if thesis_marker_key in {"phe bò", "phe gấu", "phe trung lập", "cân lại", "bull case", "bear case", "neutral case", "balanced conclusion", "portfolio manager conclusion"}:
+                thesis_detail_style = ParagraphStyle(
+                    f"TradingAgentsPdfThesisDetail{level}",
+                    parent=detail_heading,
+                    fontSize=10.5,
+                    leading=14,
+                    textColor=colors.HexColor("#475569"),
+                    leftIndent=(level - 4) * 3 * mm,
+                    spaceBefore=6,
+                    spaceAfter=3,
+                    keepWithNext=True,
+                )
+                # The heading remains H4 semantically, but is intentionally
+                # plain in the detailed report; tone is presentation-only in
+                # the summary and should not compete with the analysis.
+                story.append(paragraph(title_text, thesis_detail_style))
+                return
             detail_style = ParagraphStyle(
                 f"TradingAgentsPdfDetail{level}", parent=detail_heading,
                 fontSize={4: 11, 5: 10, 6: 9.5}[min(level, 6)],

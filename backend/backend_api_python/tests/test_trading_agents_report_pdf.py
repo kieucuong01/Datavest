@@ -201,6 +201,35 @@ def test_trading_agents_summary_renders_all_thesis_items_on_the_summary_page() -
         assert marker in summary_pages
 
 
+def test_trading_agents_summary_uses_compact_plain_thesis_labels() -> None:
+    pdf = build_trading_agents_report_pdf(
+        content=(
+            "# Trading Analysis Report: BTC-USD\n"
+            "## V. Portfolio Manager Decision\n"
+            "Rating: Hold\n"
+            "PHE BÒ (Aggressive): Giá giữ trên SMA50.\n"
+            "PHE GẤU (Conservative): Giá dưới VWMA.\n"
+            "PHE TRUNG LẬP (Neutral): Hai phía chưa xác nhận.\n"
+            "CÂN LẠI: HOLD với tỷ trọng thu gọn.\n"
+        ),
+        market="Crypto",
+        symbol="BTC-USD",
+        analysis_date="2026-09-10",
+        language="vi-VN",
+        run_id="compact-thesis-labels",
+    )
+
+    summary_pages = " ".join(
+        (page.extract_text() or "")
+        for page in PdfReader(BytesIO(pdf)).pages[:2]
+    )
+    assert "PHE BÒ" in summary_pages
+    assert "PHE GẤU" in summary_pages
+    assert "PHE TRUNG LẬP" in summary_pages
+    assert "PHE BÒ - TÍCH CỰC" not in summary_pages
+    assert "PHE GẤU - THẬN TRỌNG" not in summary_pages
+
+
 def test_trading_agents_pdf_uses_portfolio_manager_decision_as_its_first_page_summary() -> None:
     pdf = build_trading_agents_report_pdf(
         content=(
