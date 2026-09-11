@@ -142,12 +142,45 @@
   z-index: 1102;
   width: 36px;
   height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   padding: 0;
   border: 1px solid rgba(148, 163, 184, 0.3);
   border-radius: 8px;
-  color: rgba(255, 255, 255, 0.9);
-  background: #1f1f1f;
+  color: #174ca8;
+  background: #ffffff;
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.14);
   cursor: pointer;
+}
+
+/* Keep the mobile menu trigger as a centered, predictable touch target. */
+@media (max-width: 768px) {
+  .basic-layout-wrapper .ant-pro-top-nav-header-left {
+    flex: 0 0 auto !important;
+    width: auto !important;
+    min-width: 0 !important;
+  }
+
+  .basic-layout-wrapper .ant-pro-global-header-trigger {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    flex: 0 0 48px !important;
+    width: 48px !important;
+    min-width: 48px !important;
+    height: 56px !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    line-height: 1 !important;
+    border-radius: 10px !important;
+  }
+
+  .basic-layout-wrapper .ant-pro-global-header-trigger .anticon {
+    margin: 0 !important;
+    font-size: 18px !important;
+    line-height: 1 !important;
+  }
 }
 
 @media (min-width: 769px) and (max-width: 1366px) {

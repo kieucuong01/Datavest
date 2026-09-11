@@ -1428,6 +1428,67 @@ export default {
 }
 
 @media (max-width: 768px) {
+  /* Mobile route drawer: keep navigation light even when the app shell uses realdark. */
+  .ant-drawer.ant-pro-sider-menu.ant-drawer-open {
+    .ant-drawer-content,
+    .ant-drawer-wrapper-body,
+    .ant-drawer-body {
+      background: #f8fafc !important;
+      color: #17253d !important;
+    }
+
+    .ant-drawer-content-wrapper {
+      box-shadow: 14px 0 32px rgba(15, 23, 42, 0.14) !important;
+    }
+
+    .ant-drawer-body {
+      padding-bottom: 18px !important;
+      scrollbar-color: rgba(37, 99, 235, 0.22) transparent;
+
+      &::-webkit-scrollbar-thumb {
+        background: rgba(37, 99, 235, 0.22) !important;
+      }
+    }
+
+    .ant-menu,
+    .ant-menu-root,
+    .ant-menu-inline,
+    .ant-menu-dark,
+    .ant-menu.ant-menu-dark {
+      background: transparent !important;
+      color: #475569 !important;
+    }
+
+    .ant-menu-item,
+    .ant-menu-submenu-title {
+      width: calc(100% - 24px) !important;
+      margin: 3px 12px !important;
+      border-radius: 10px !important;
+      color: #475569 !important;
+      transition: color 0.18s ease, background-color 0.18s ease !important;
+    }
+
+    .ant-menu-item .anticon,
+    .ant-menu-submenu-title .anticon {
+      color: currentColor !important;
+    }
+
+    .ant-menu-item-selected {
+      color: #174ca8 !important;
+      background: rgba(37, 99, 235, 0.1) !important;
+    }
+
+    .ant-menu-item:hover,
+    .ant-menu-submenu-title:hover {
+      color: #174ca8 !important;
+      background: rgba(37, 99, 235, 0.07) !important;
+    }
+
+    .ant-drawer-mask {
+      background: rgba(15, 23, 42, 0.36) !important;
+    }
+  }
+
   .ant-drawer.ant-drawer-open {
     .ant-drawer-content-wrapper {
       overflow: visible;

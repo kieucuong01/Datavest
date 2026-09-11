@@ -5,6 +5,8 @@ import test from 'node:test'
 const source = fs.readFileSync(new URL('../../src/views/smart-insights/index.vue', import.meta.url), 'utf8')
 const opinionsSource = fs.readFileSync(new URL('../../src/views/smart-insights/components/AssetOpinionsSection.vue', import.meta.url), 'utf8')
 const routerSource = fs.readFileSync(new URL('../../src/config/router.config.js', import.meta.url), 'utf8')
+const layoutSource = fs.readFileSync(new URL('../../src/layouts/BasicLayout.vue', import.meta.url), 'utf8')
+const layoutStyles = fs.readFileSync(new URL('../../src/layouts/BasicLayout.less', import.meta.url), 'utf8')
 
 test('Smart Insights page removes the legacy header and portfolio changes card', () => {
   assert.doesNotMatch(source, /legacy-header/u)
@@ -80,10 +82,15 @@ test('Smart Insights exposes a compact data readiness bar with per-section retry
   assert.match(source, /coverage/u)
 })
 
-test('Daily Brief renders 3-5 actionable highlights linked to Asset Opinions', () => {
-  assert.match(source, /dailyBriefHighlights/u)
-  assert.match(source, /v-for="highlight in dailyBriefHighlights"/u)
-  assert.match(source, /openBriefHighlight\(highlight\)/u)
-  assert.match(source, /opinionRows\.find/u)
-  assert.doesNotMatch(source, /dailyBriefSummary \(\) \{ return this\.dailyBrief\.content\.split/u)
+test('Smart Insights removes the retired daily hero and decision brief surfaces', () => {
+  assert.doesNotMatch(source, /<section class="daily-hero"/u)
+  assert.doesNotMatch(source, /decision-brief-card|decision-brief-title/u)
+  assert.doesNotMatch(source, /data-readiness-title/u)
+  assert.match(source, /class="data-readiness"/u)
+})
+
+test('Mobile navigation centers the trigger and uses a light drawer surface', () => {
+  assert.match(layoutStyles, /@media \(max-width: 768px\)[\s\S]*?\.basic-layout-wrapper \.ant-pro-global-header-trigger[\s\S]*?display:\s*inline-flex\s*!important[\s\S]*?justify-content:\s*center\s*!important/u)
+  assert.match(layoutSource, /@media \(max-width: 768px\)[\s\S]*?\.ant-drawer\.ant-pro-sider-menu\.ant-drawer-open[\s\S]*?background:\s*#f8fafc\s*!important/u)
+  assert.match(layoutSource, /\.ant-drawer\.ant-pro-sider-menu\.ant-drawer-open[\s\S]*?\.ant-menu-dark[\s\S]*?background:\s*transparent\s*!important/u)
 })

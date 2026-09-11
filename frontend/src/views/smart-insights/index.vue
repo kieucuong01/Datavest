@@ -2,12 +2,11 @@
   <div class="legacy-page" :class="{ 'theme-dark': isDarkTheme }">
 
     <main class="legacy-main">
-      <section class="data-readiness" aria-labelledby="data-readiness-title" :aria-busy="readinessLoading ? 'true' : 'false'">
+      <section class="data-readiness" :aria-label="$t('smartInsights.dataReadiness')" :aria-busy="readinessLoading ? 'true' : 'false'">
         <div class="data-readiness-summary">
           <div class="data-readiness-heading">
             <span class="readiness-dot" :class="`readiness-${readinessSummary.status.toLowerCase()}`" aria-hidden="true" />
             <div>
-              <strong id="data-readiness-title">{{ $t('smartInsights.dataReadiness') }}</strong>
               <small>{{ readinessLabel(readinessSummary.status) }} · {{ readinessSummary.fetchedAt ? `${$t('smartInsights.lastUpdated')}: ${formatDateTime(readinessSummary.fetchedAt)}` : $t('smartInsights.waitingForData') }}</small>
             </div>
           </div>
@@ -32,58 +31,6 @@
       <section v-if="overviewLoading && !overview" class="initial-overview-loading" aria-busy="true" aria-live="polite">
         <a-skeleton active :paragraph="{ rows: 5 }" />
       </section>
-      <template v-else>
-        <section class="daily-hero">
-          <div class="hero-copy">
-            <div class="hero-kicker">
-              <span class="hero-badge"><a-icon type="bar-chart" /> {{ $t('smartInsights.legacyHeroBadge') }}</span>
-              <span class="hero-status">{{ overviewStatus }}</span>
-              <span class="hero-date">{{ analysisDateLabel }}</span>
-            </div>
-            <h1>{{ $t('smartInsights.legacyHeroTitle') }}</h1>
-            <div v-if="dailyBriefHighlights.length" class="daily-brief-highlights" :aria-label="$t('smartInsights.briefHighlights')">
-              <button
-                v-for="highlight in dailyBriefHighlights"
-                :key="highlight.assetKey"
-                type="button"
-                class="brief-highlight"
-                @click="openBriefHighlight(highlight)"
-              >
-                <span class="brief-highlight-head">
-                  <strong>{{ highlight.displaySymbol }}</strong>
-                  <span class="brief-highlight-decision" :class="analysisDecisionClass(highlight.decision)">{{ analysisTrendLabel(highlight.decision) }}</span>
-                  <span v-if="highlight.confidence != null" class="brief-highlight-confidence">{{ highlight.confidence }}%</span>
-                </span>
-                <span class="brief-highlight-summary">{{ highlight.summary }}</span>
-                <span class="brief-highlight-link">{{ $t('smartInsights.viewAnalysis') }} <a-icon type="arrow-right" /></span>
-              </button>
-            </div>
-            <p v-else><span class="hero-arrow">▲</span> {{ dailyBrief.content || $t('smartInsights.aiNoResult') }}</p>
-            <a-button v-if="dailyBrief.status === 'AVAILABLE'" ghost size="small" class="hero-read-more" @click="heroExpanded = !heroExpanded">
-              {{ heroExpanded ? $t('smartInsights.collapse') : $t('smartInsights.readMore') }}
-            </a-button>
-            <p v-if="heroExpanded && dailyBrief.status === 'AVAILABLE'" class="hero-thesis">{{ dailyBrief.content }}</p>
-          </div>
-          <button type="button" class="hero-audio" :disabled="!speechSupported || dailyBrief.status !== 'AVAILABLE'" @click="toggleHeroSpeech">
-            <span class="play-button"><a-icon :type="heroSpeechActive ? 'pause' : 'caret-right'" /></span>
-            <span><strong>{{ $t('smartInsights.listenAi') }}</strong><small>{{ heroSpeechActive ? $t('smartInsights.stopListening') : $t('smartInsights.dailyBriefTts') }}</small></span>
-          </button>
-        </section>
-
-        <section class="legacy-card decision-brief-card" aria-labelledby="decision-brief-title">
-          <div class="card-heading">
-            <div class="heading-with-icon"><span class="section-icon">✓</span><div><h2 id="decision-brief-title">{{ $t('smartInsights.decisionBrief') }}</h2><p>{{ $t('smartInsights.decisionBriefDesc') }}</p></div></div>
-            <a-tag :color="readinessColor(dailyBrief.status)">{{ statusLabel(dailyBrief.status) }}</a-tag>
-          </div>
-          <div class="brief-facts">
-            <div><small>{{ $t('smartInsights.analysisDate') }}</small><strong>{{ analysisDateLabel }}</strong></div>
-            <div><small>{{ $t('smartInsights.assets') }}</small><strong>{{ dailyBrief.assetCount || 0 }}</strong></div>
-            <div><small>{{ $t('smartInsights.latestAiAnalysis') }}</small><strong>{{ dailyBrief.generatedAt ? formatDateTime(dailyBrief.generatedAt) : $t('smartInsights.notAvailable') }}</strong></div>
-            <div><small>{{ $t('smartInsights.checksum') }}</small><code>{{ shortChecksum(dailyBrief.sourceChecksum) }}</code></div>
-          </div>
-        </section>
-      </template>
-
       <asset-opinions-section
         :rows="opinionRows"
         :loading="opinionsLoading || overviewLoading"

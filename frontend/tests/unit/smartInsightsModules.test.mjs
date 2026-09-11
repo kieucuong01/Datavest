@@ -59,7 +59,6 @@ test('Smart Insights renders the DataVest page shell and replaces removed legacy
   const pulse = readFileSync(path.join(repositoryRoot, 'src/views/smart-insights/components/MarketPulseSection.vue'), 'utf8')
   for (const className of [
     'legacy-page',
-    'daily-hero',
     'crypto-calendar',
     'legacy-footer'
   ]) {
@@ -68,7 +67,7 @@ test('Smart Insights renders the DataVest page shell and replaces removed legacy
   assert.match(opinions, /class="[^"]*asset-opinions/u)
   assert.match(pulse, /class="[^"]*market-pulse/u)
   assert.doesNotMatch(component, /legacy-header|legacy-ticker|portfolio-changes/u)
-  assert.match(component, /smartInsights\.legacyHeroTitle/u)
+  assert.doesNotMatch(component, /<section class="daily-hero"/u)
   assert.match(component, /smartInsights\.dataUnavailable/u)
 })
 
