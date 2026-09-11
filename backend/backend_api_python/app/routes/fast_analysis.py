@@ -16,6 +16,7 @@ from app.services.fast_analysis_tasks import (
 )
 from app.services.fast_analysis import get_fast_analysis_service
 from app.services.analysis_memory import get_analysis_memory
+from app.services.ai_assistant_insights import AiAssistantInsightsService
 from app.utils.language import detect_request_language
 
 logger = get_logger(__name__)
@@ -164,6 +165,9 @@ def get_history():
     try:
         market = request.args.get('market', '').strip()
         symbol = request.args.get('symbol', '').strip()
+        user_id = getattr(g, 'user_id', None)
+        if not user_id:
+            return jsonify({'code': 0, 'msg': 'Unauthorized', 'data': None}), 401
         days = int(request.args.get('days', 7))
         limit = min(int(request.args.get('limit', 10)), 50)
         
@@ -175,7 +179,10 @@ def get_history():
             }), 400
         
         memory = get_analysis_memory()
-        history = memory.get_recent(market, symbol, days, limit)
+        history = memory.get_recent(market, symbol, days, limit, user_id=user_id)
+        # Reuse the Smart Insights public projection so history never exposes
+        # raw_result, prompts, provider metadata, or other internal fields.
+        history = [AiAssistantInsightsService._public_report(item) for item in history]
         
         return jsonify({
             'code': 1,

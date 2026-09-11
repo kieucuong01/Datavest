@@ -85,7 +85,23 @@
         <a-button v-else @click="viewTodayRun"><a-icon type="eye" /> {{ $t('tradingAgents.viewTodayRun') }}</a-button>
       </div>
 
-      <template v-else-if="run">
+      <section v-if="run && isSupported && historyReports.length" class="report-history-section" aria-labelledby="deep-report-history-title">
+        <div class="report-history-section-heading">
+          <div>
+            <span class="report-eyebrow"><a-icon type="book" /> {{ $t('tradingAgents.historyTitle') }}</span>
+            <p id="deep-report-history-title">{{ $t('tradingAgents.historyDescription') }}</p>
+          </div>
+          <a-tag color="blue">{{ historyReports.length }}</a-tag>
+        </div>
+        <div class="report-history-list">
+          <article v-for="report in historyReports" :key="report.run_id" class="report-history-item">
+            <div><strong>{{ report.analysis_date }}</strong><span>{{ formatDateTime(report.finished_at || report.created_at) }}</span></div>
+            <a-button size="small" :loading="historyReportOpening === report.run_id" @click="openHistoryReport(report)"><a-icon type="export" /> {{ $t('tradingAgents.openHistoryReport') }}</a-button>
+          </article>
+        </div>
+      </section>
+
+      <template v-if="run">
         <div class="deep-analysis-status-row">
           <span class="run-state" :class="`run-state--${String(run.status || 'queued').toLowerCase()}`">
             <a-icon :type="statusIcon" /> {{ statusLabel }}
@@ -270,6 +286,12 @@ export default {
       openReportSubsections: {}
     }
   },
+  created () {
+    // The panel is created when the user switches from Quick to Deep mode.
+    // At that point `visible` is already true, so the watcher does not get an
+    // initial transition and history would otherwise remain empty.
+    if (this.visible) this.loadReportHistory()
+  },
   computed: {
     modalClass () {
       return ['trading-agents-modal', this.embedded ? 'trading-agents-modal--embedded' : '', this.dark ? 'trading-agents-modal--dark' : ''].filter(Boolean).join(' ')
@@ -409,8 +431,10 @@ export default {
   watch: {
     visible (isVisible) {
       if (isVisible) {
+        // Re-fetch on every open. The parent modal intentionally keeps this
+        // component mounted, so a previous run must not hide newer history.
+        this.loadReportHistory()
         if (this.run) this.restorePolling()
-        else this.loadReportHistory()
       } else {
         this.historyRequestId++
         this.stopPolling()

@@ -14,8 +14,8 @@ test('Smart Insights caches stable datasets and keys date-scoped data by asOf', 
   assert.match(pageSource, /loadWatchlist\(requestId, force\)/u)
   assert.match(pageSource, /loadDates\(requestId, force\)/u)
   assert.match(pageSource, /loadCalendar\(force, requestId\)/u)
-  assert.match(pageSource, /@change="handleDateChange"/u)
-  assert.match(pageSource, /handleDateChange\s*\(\) \{ return this\.loadAll\(false\)/u)
+  assert.doesNotMatch(pageSource, /class="analysis-controls"/u)
+  assert.doesNotMatch(pageSource, /@change="handleDateChange"/u)
   assert.match(pageSource, /await this\.loadAll\(true\)/u)
 })
 

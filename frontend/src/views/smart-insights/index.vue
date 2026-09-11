@@ -2,22 +2,6 @@
   <div class="legacy-page" :class="{ 'theme-dark': isDarkTheme }">
 
     <main class="legacy-main">
-      <section class="analysis-controls" :aria-label="$t('smartInsights.analysisControls')">
-        <div class="date-control">
-          <label>{{ $t('smartInsights.analysisDate') }}</label>
-          <a-select
-            v-model="asOf"
-            size="small"
-            :loading="datesLoading"
-            :disabled="datesLoading"
-            @change="handleDateChange">
-            <a-select-option v-for="item in dates" :key="item" :value="item">{{ formatDate(item) }}</a-select-option>
-          </a-select>
-        </div>
-        <a-button size="small" @click="showToday">{{ $t('smartInsights.today') }}</a-button>
-        <div class="control-spacer" />
-      </section>
-
       <section class="data-readiness" aria-labelledby="data-readiness-title" :aria-busy="readinessLoading ? 'true' : 'false'">
         <div class="data-readiness-summary">
           <div class="data-readiness-heading">
@@ -183,8 +167,40 @@
         </nav>
 
         <template v-if="analysisMode === 'quick'">
+          <section class="analysis-drawer-section quick-analysis-history" aria-labelledby="quick-analysis-history-title">
+            <div class="analysis-drawer-section-title">
+              <a-icon type="history" />
+              <h3 id="quick-analysis-history-title">{{ $t('smartInsights.quickHistoryTitle') }}</h3>
+              <span v-if="quickAnalysisHistory.length" class="quick-history-count">{{ quickAnalysisHistory.length }}</span>
+            </div>
+            <p class="analysis-evidence-desc">{{ $t('smartInsights.quickHistoryDescription') }}</p>
+            <div v-if="quickHistoryLoading" class="quick-history-state"><a-spin size="small" /> {{ $t('smartInsights.quickHistoryLoading') }}</div>
+            <div v-else-if="quickHistoryError" class="quick-history-state quick-history-state--error">
+              <span>{{ $t('smartInsights.quickHistoryLoadFailed') }}</span>
+              <a-button size="small" :loading="quickHistoryLoading" @click="loadQuickAnalysisHistory(selectedOpinionRow)">{{ $t('smartInsights.quickHistoryRetry') }}</a-button>
+            </div>
+            <div v-else-if="quickAnalysisHistory.length" class="quick-analysis-history-list">
+              <button
+                v-for="report in quickAnalysisHistory"
+                :key="report.id"
+                type="button"
+                class="quick-analysis-history-item"
+                :class="{ active: selectedQuickReportId !== null && String(selectedQuickReportId) === String(report.id) }"
+                @click="selectQuickAnalysisHistory(report)"
+              >
+                <span class="quick-history-item-head">
+                  <strong>{{ formatDate(report.createdAt) }}</strong>
+                  <a-tag :color="analysisDecisionClass(report.decision) === 'analysis-negative' ? 'red' : analysisDecisionClass(report.decision) === 'analysis-positive' ? 'green' : 'blue'">{{ analysisTrendLabel(report.decision) }}</a-tag>
+                </span>
+                <span class="quick-history-item-summary">{{ report.summary || $t('smartInsights.aiNoResult') }}</span>
+                <small>{{ formatDateTime(report.createdAt) }}<span v-if="report.confidence != null"> · {{ $t('smartInsights.aiConfidence') }} {{ report.confidence }}%</span></small>
+              </button>
+            </div>
+            <div v-else class="quick-history-state">{{ $t('smartInsights.quickHistoryEmpty') }}</div>
+          </section>
+
           <div v-if="selectedOpinionReport" class="asset-analysis-meta">
-            <span>{{ $t('smartInsights.analysisDate') }}: {{ analysisDateLabel }}</span>
+            <span>{{ $t('smartInsights.analysisDate') }}: {{ selectedOpinionReportDateLabel }}</span>
             <span>{{ $t('smartInsights.lastAiRun') }}: {{ formatDateTime(selectedOpinionReport.createdAt) }}</span>
             <span v-if="selectedOpinionDetails.timeframe">{{ $t('smartInsights.timeframe') }}: {{ selectedOpinionDetails.timeframe }}</span>
             <span v-if="selectedOpinionDetails.model">{{ $t('smartInsights.model') }}: {{ selectedOpinionDetails.model }}</span>
@@ -288,7 +304,7 @@
               <article v-for="(reason, index) in selectedOpinionReport.reasons" :key="index" class="analysis-evidence-item">
                 <div class="analysis-evidence-item-head">
                   <strong>{{ selectedOpinionRow.displaySymbol }}</strong>
-                  <span>{{ analysisDateLabel }}</span>
+                  <span>{{ selectedOpinionReportDateLabel }}</span>
                 </div>
                 <div class="analysis-evidence-item-meta">
                   <span>{{ $t('smartInsights.lastAiRun') }}: {{ formatDateTime(selectedOpinionReport.createdAt) }}</span>
@@ -362,11 +378,13 @@ import { mapState } from 'vuex'
 import { getWatchlist } from '@/api/market'
 import { getEconomicCalendar } from '@/api/global-market'
 import { getSmartInsightsCryptoPulse, getSmartInsightsDataHealth, getSmartInsightsDates, getSmartInsightsEvidence, getSmartInsightsOverview } from '@/api/smart-insights'
+import { getAnalysisHistory } from '@/api/fast-analysis'
 import { runSectionLoaders } from './loadingCoordinator'
 import { buildAssetAnalysisDetails, canShowTradingPlan } from './analysisReport'
 import { formatVietnamDate, formatVietnamDateTime } from '@/utils/vietnamTime'
 import { buildWatchlistOpinionRows } from './watchlistOpinions'
-import { isCurrentRequest as isCurrentRequestToken, summarizeReadiness, vietnamToday } from './dataReadiness'
+import { isCurrentRequest as isCurrentRequestToken, summarizeReadiness } from './dataReadiness'
+import { dedupeQuickAnalysisReports, normalizeQuickAnalysisReport } from './quickAnalysisHistory'
 import AssetOpinionsSection from './components/AssetOpinionsSection'
 import EconomicCalendarTable from './components/EconomicCalendarTable'
 import MarketPulseSection from './components/MarketPulseSection'
@@ -396,6 +414,11 @@ export default {
       watchlist: [],
       evidence: null,
       selectedOpinionRow: null,
+      quickAnalysisHistory: [],
+      quickHistoryLoading: false,
+      quickHistoryError: '',
+      quickHistoryRequestId: 0,
+      selectedQuickReportId: null,
       datesLoading: false,
       overviewLoading: false,
       opinionsLoading: false,
@@ -460,7 +483,17 @@ export default {
       const modeLabel = this.analysisMode === 'deep' ? this.$t('smartInsights.deepAnalysis') : this.$t('smartInsights.quickAnalysis')
       return symbol ? `${modeLabel} · ${symbol}` : modeLabel
     },
-    selectedOpinionReport () { return this.selectedOpinionRow && this.selectedOpinionRow.report },
+    selectedQuickReport () {
+      if (this.selectedQuickReportId === null || this.selectedQuickReportId === undefined) return null
+      return this.quickAnalysisHistory.find(report => String(report.id) === String(this.selectedQuickReportId)) || null
+    },
+    selectedOpinionReport () {
+      return this.selectedQuickReport || (this.selectedOpinionRow && this.selectedOpinionRow.report)
+    },
+    selectedOpinionReportDateLabel () {
+      const report = this.selectedOpinionReport
+      return this.formatDate((report && (report.analysisDate || report.analysis_date)) || (report && report.createdAt) || this.analysisDateLabel)
+    },
     selectedOpinionDetails () { return buildAssetAnalysisDetails(this.selectedOpinionReport) },
     selectedDetailRows () {
       const details = this.selectedOpinionDetails.detailedAnalysis
@@ -648,7 +681,6 @@ export default {
       })
       return runSectionLoaders(tasks)
     },
-    handleDateChange () { return this.loadAll(false) },
     cacheKey (asOf = this.asOf) {
       const lang = (this.$i18n && this.$i18n.locale) || 'en-US'
       return `${String(asOf || '')}|${lang}`
@@ -716,10 +748,6 @@ export default {
         this.errorMessage = this.friendlyError(failed.reason, 'smartInsights.unavailable')
       }
       this.scheduleCryptoTerminals()
-    },
-    async showToday () {
-      this.asOf = vietnamToday(new Date())
-      await this.loadAll()
     },
     setSectionLoading (section, active, requestId) {
       if (requestId !== undefined && !this.isCurrentRequest(requestId)) return
@@ -858,8 +886,42 @@ export default {
         if (this.isCurrentRequest(requestId) && this.retryingSection === section) this.retryingSection = ''
       }
     },
+    async loadQuickAnalysisHistory (row) {
+      if (!row || !row.market || !row.symbol) return
+      const requestId = ++this.quickHistoryRequestId
+      this.quickHistoryLoading = true
+      this.quickHistoryError = ''
+      this.quickAnalysisHistory = []
+      try {
+        const response = await getAnalysisHistory({
+          market: row.market,
+          symbol: row.symbol,
+          days: 3650,
+          limit: 50
+        })
+        if (requestId !== this.quickHistoryRequestId || !this.analysisModalVisible || this.selectedOpinionRow !== row) return
+        const data = response && response.data
+        const items = data && (data.items || data.list)
+        const history = Array.isArray(items) ? items.map(normalizeQuickAnalysisReport) : []
+        const current = row.report ? [normalizeQuickAnalysisReport(row.report)] : []
+        this.quickAnalysisHistory = dedupeQuickAnalysisReports([...history, ...current])
+        if (!row.report && this.quickAnalysisHistory.length) this.selectedQuickReportId = this.quickAnalysisHistory[0].id
+      } catch (error) {
+        if (requestId === this.quickHistoryRequestId && this.analysisModalVisible && this.selectedOpinionRow === row) this.quickHistoryError = this.$t('smartInsights.quickHistoryLoadFailed')
+      } finally {
+        if (requestId === this.quickHistoryRequestId) this.quickHistoryLoading = false
+      }
+    },
+    selectQuickAnalysisHistory (report) {
+      if (!report || report.id === undefined || report.id === null) return
+      this.selectedQuickReportId = report.id
+    },
     async openAssetAnalysis (row, mode = 'quick') {
+      if (!row) return
       this.selectedOpinionRow = row
+      this.selectedQuickReportId = null
+      this.quickAnalysisHistory = []
+      this.quickHistoryError = ''
       this.deepAnalysisTarget = {
         market: row && row.market,
         symbol: row && (row.displaySymbol || row.symbol)
@@ -867,6 +929,7 @@ export default {
       this.analysisMode = mode === 'deep' ? 'deep' : 'quick'
       this.deepAnalysisVisible = this.analysisMode === 'deep'
       this.analysisModalVisible = true
+      this.loadQuickAnalysisHistory(row)
     },
     openBriefHighlight (highlight) {
       const row = this.opinionRows.find(item => item.id === highlight.assetKey)
@@ -884,6 +947,9 @@ export default {
     closeAssetAnalysis () {
       this.analysisModalVisible = false
       this.deepAnalysisVisible = false
+      this.quickHistoryRequestId++
+      this.quickHistoryLoading = false
+      this.selectedQuickReportId = null
     },
     toggleHeroSpeech () {
       if (!this.dailyBrief.content || typeof window === 'undefined' || !window.speechSynthesis) return
@@ -1004,6 +1070,20 @@ export default {
 .asset-analysis-modal-body.theme-dark { --page-bg: #111827; --ink: #eef4ff; --muted: #9aa8bc; --line: #2a3547; --card: #182235; --soft-blue: rgba(24,144,255,.16); }
 .asset-analysis-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-bottom: 12px; border-bottom: 1px solid var(--line); }.asset-analysis-header > div { display: grid; gap: 3px; }.asset-analysis-header strong { color: var(--ink); font-size: 18px; }.asset-analysis-header span { color: var(--muted); font-size: 12px; }
 .asset-analysis-meta { display: flex; flex-wrap: wrap; gap: 12px; padding: 10px 0; color: var(--muted); font-size: 12px; }
+.quick-analysis-history { margin-top: 12px; }
+.quick-analysis-history .analysis-drawer-section-title { align-items: center; }
+.quick-history-count { display: inline-grid; place-items: center; min-width: 21px; height: 21px; margin-left: auto; padding: 0 6px; border-radius: 999px; color: var(--blue); background: var(--soft-blue); font-size: 11px; font-weight: 700; }
+.quick-analysis-history-list { display: grid; gap: 7px; max-height: 210px; padding-right: 2px; overflow-y: auto; }
+.quick-analysis-history-item { display: grid; gap: 5px; min-width: 0; padding: 9px 10px; border: 1px solid var(--line); border-radius: 8px; color: var(--ink); text-align: left; background: var(--page-bg); cursor: pointer; transition: border-color .18s ease, background .18s ease, box-shadow .18s ease; }
+.quick-analysis-history-item:hover, .quick-analysis-history-item:focus-visible { border-color: var(--blue); outline: 0; box-shadow: 0 3px 10px var(--blue-ring); }
+.quick-analysis-history-item.active { border-color: var(--blue); background: var(--soft-blue); box-shadow: 0 0 0 2px var(--blue-ring); }
+.quick-history-item-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.quick-history-item-head strong { color: var(--ink); font-size: 12px; }
+.quick-history-item-head .ant-tag { margin: 0; font-size: 10px; line-height: 18px; }
+.quick-history-item-summary { display: -webkit-box; overflow: hidden; color: var(--muted); font-size: 12px; line-height: 1.45; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+.quick-analysis-history-item small { color: var(--muted); font-size: 10px; }
+.quick-history-state { display: flex; align-items: center; justify-content: center; gap: 7px; min-height: 46px; color: var(--muted); font-size: 12px; text-align: center; }
+.quick-history-state--error { justify-content: space-between; gap: 10px; color: #c2413b; }
 .analysis-mode-switcher { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin: 14px 0 2px; padding: 4px; border: 1px solid var(--line); border-radius: 12px; background: var(--page-bg); }.analysis-mode-option { display: flex; align-items: center; gap: 9px; min-width: 0; padding: 10px 12px; border: 1px solid transparent; border-radius: 9px; color: var(--muted); text-align: left; background: transparent; cursor: pointer; transition: border-color .18s ease, background .18s ease, color .18s ease, transform .18s ease; }.analysis-mode-option:hover, .analysis-mode-option:focus-visible { color: var(--ink); background: var(--card); outline: 0; }.analysis-mode-option:active { transform: translateY(1px) scale(.99); }.analysis-mode-option.active { border-color: var(--blue-ring); color: var(--blue); background: var(--card); box-shadow: 0 3px 10px var(--blue-ring); }.analysis-mode-option > .anticon { flex: 0 0 auto; font-size: 16px; }.analysis-mode-option span { display: grid; min-width: 0; gap: 2px; }.analysis-mode-option strong { color: inherit; font-size: 13px; }.analysis-mode-option small { overflow: hidden; color: var(--muted); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }.analysis-deep-intro { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-top: 14px; padding: 12px 13px; border: 1px solid var(--line); border-radius: 10px; background: var(--soft-blue); }.analysis-deep-intro > div { display: grid; gap: 3px; min-width: 0; }.analysis-deep-intro strong { color: var(--ink); font-size: 14px; }.analysis-deep-intro span { color: var(--muted); font-size: 12px; line-height: 1.45; }.analysis-deep-intro .ant-tag { flex: 0 0 auto; margin: 0; }
 .analysis-drawer-section { margin-top: 16px; padding: 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--card); }.analysis-drawer-section-title { display: flex; align-items: center; gap: 7px; }.analysis-drawer-section-title .anticon { color: var(--blue); }.analysis-drawer-section-title h3 { margin: 0; color: var(--ink); font-size: 15px; }.analysis-result-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 12px; }.analysis-result-grid > div { display: grid; gap: 4px; padding: 9px 10px; border-radius: 8px; background: var(--soft-blue); }.analysis-result-grid small { color: var(--muted); font-size: 11px; }.analysis-result-grid strong { color: var(--ink); font-size: 16px; }.analysis-copy { margin-top: 13px; }.analysis-copy h4 { margin: 0 0 5px; color: var(--ink); font-size: 13px; }.analysis-copy p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.65; white-space: pre-wrap; }.analysis-report { margin-top: 13px; overflow: auto; color: var(--ink); font-size: 13px; line-height: 1.6; }.analysis-report :deep(.qd-report) { max-width: 100%; }
 .analysis-evidence-desc { margin: 5px 0 10px; color: var(--muted); font-size: 12px; }.analysis-evidence-list { display: grid; gap: 8px; }.analysis-evidence-item { padding: 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--page-bg); }.analysis-evidence-item-head, .analysis-evidence-item-meta { display: flex; justify-content: space-between; gap: 10px; }.analysis-evidence-item-head strong { color: var(--ink); font-size: 13px; }.analysis-evidence-item-head span, .analysis-evidence-item-meta { color: var(--muted); font-size: 11px; }.analysis-evidence-item-meta { margin-top: 4px; flex-wrap: wrap; }.analysis-evidence-item-copy { margin: 8px 0 0; color: var(--ink); font-size: 13px; line-height: 1.55; white-space: pre-wrap; overflow-wrap: anywhere; }.analysis-evidence-item a { display: block; overflow: hidden; margin-top: 7px; color: var(--blue); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }.analysis-evidence-item pre { max-height: 150px; margin: 8px 0 0; padding: 8px; overflow: auto; border-radius: 6px; color: var(--ink); background: var(--card); font-size: 11px; white-space: pre-wrap; word-break: break-word; }.analysis-empty { display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 7px; min-height: 90px; color: var(--muted); text-align: center; }.analysis-empty p { margin: 0; font-size: 13px; }.analysis-empty a { color: var(--blue); font-size: 13px; }.analysis-empty--compact { min-height: 48px; }

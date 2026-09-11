@@ -63,8 +63,9 @@ test('Asset Opinions uses two touch actions on phones and stacks them on narrow 
   assert.match(opinionsSource, /\.opinion-actions \.ant-btn\s*\{[\s\S]*?min-height:\s*44px/u)
 })
 
-test('Smart Insights pins Today to Vietnam calendar time and guards stale date responses', () => {
-  assert.match(source, /vietnamToday/u)
+test('Smart Insights formats dates in Vietnam time and guards stale date responses', () => {
+  assert.match(source, /formatVietnamDate/u)
+  assert.match(source, /formatVietnamDateTime/u)
   assert.match(source, /requestSequence/u)
   assert.match(source, /isCurrentRequest/u)
   assert.doesNotMatch(source, /new Date\(\)\.toISOString\(\)\.slice\(0, 10\)/u)

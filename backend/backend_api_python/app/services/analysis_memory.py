@@ -228,7 +228,7 @@ class AnalysisMemory:
             logger.error(f"Failed to store analysis memory: {e}", exc_info=True)
             return None
     
-    def get_recent(self, market: str, symbol: str, days: int = 7, limit: int = 5) -> List[Dict]:
+    def get_recent(self, market: str, symbol: str, days: int = 7, limit: int = 5, user_id: int = None) -> List[Dict]:
         """
         Get recent analysis history for a symbol.
         
@@ -241,22 +241,27 @@ class AnalysisMemory:
         Returns:
             List of historical analyses
         """
+        if not user_id:
+            # History is private user data.  Refuse an unscoped read instead of
+            # accidentally returning another user's analysis to a modal.
+            return []
         try:
             with get_db_connection() as db:
                 cur = db.cursor()
                 days_int = int(days)
                 cur.execute("""
                     SELECT 
-                        id, decision, confidence, price_at_analysis,
+                        id, market, symbol, decision, confidence, price_at_analysis,
                         summary, reasons, scores,
+                        raw_result,
                         created_at, validated_at, was_correct, actual_return_pct,
                         task_status, task_error, updated_at
                     FROM qd_analysis_memory
-                    WHERE market = %s AND symbol = %s
+                    WHERE user_id = %s AND market = %s AND symbol = %s
                     AND created_at > NOW() - (%s || ' days')::interval
                     ORDER BY created_at DESC
                     LIMIT %s
-                """, (market, symbol, days_int, limit))
+                """, (user_id, market, symbol, days_int, limit))
                 
                 rows = cur.fetchall() or []
                 cur.close()
@@ -265,12 +270,15 @@ class AnalysisMemory:
                 for row in rows:
                     results.append({
                         "id": row['id'],
+                        "market": row['market'],
+                        "symbol": row['symbol'],
                         "decision": row['decision'],
                         "confidence": row['confidence'],
                         "price": float(row['price_at_analysis']) if row['price_at_analysis'] else None,
                         "summary": row['summary'],
                         "reasons": _safe_json_parse(row['reasons'], []),
                         "scores": _safe_json_parse(row['scores'], {}),
+                        "full_result": _safe_json_parse(row.get('raw_result'), {}),
                         "status": row.get('task_status') or 'completed',
                         "error_message": row.get('task_error') or '',
                         "created_at": row['created_at'].isoformat() if row['created_at'] else None,
