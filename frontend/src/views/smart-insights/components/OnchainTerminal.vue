@@ -43,12 +43,11 @@ const DEFINITIONS = [
     key: 'valuation',
 number: '01',
 label: 'Định giá & lợi nhuận',
-description: 'MVRV, NUPL, RHODL, Supply in Profit và SOPR.',
+description: 'MVRV, NUPL, % Supply in Profit và SOPR.',
     metrics: [
       { metric: 'crypto.onchain.mvrv', label: 'MVRV' },
       { metric: 'crypto.onchain.nupl', label: 'NUPL' },
-      { metric: 'crypto.onchain.rhodl_ratio', label: 'RHODL Ratio' },
-      { metric: 'crypto.onchain.supply_in_profit_pct', label: 'Supply in Profit' },
+      { metric: 'crypto.onchain.supply_in_profit_pct', label: '% Supply in Profit' },
       { metric: 'crypto.onchain.sopr', label: 'SOPR' }
     ]
   },

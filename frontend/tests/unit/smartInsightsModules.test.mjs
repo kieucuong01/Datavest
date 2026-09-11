@@ -189,6 +189,18 @@ test('Smart Insights routes On-chain to the four-group source-backed terminal', 
   assert.doesNotMatch(terminal, /crypto\.cycle\.cbbi/u)
 })
 
+test('Smart Insights does not advertise retired RHODL and labels Supply in Profit as a percentage', () => {
+  const terminal = readFileSync(path.join(repositoryRoot, 'src/views/smart-insights/components/OnchainTerminal.vue'), 'utf8')
+
+  assert.doesNotMatch(terminal, /RHODL|rhodl_ratio/iu)
+  assert.match(terminal, /crypto\.onchain\.mvrv/u)
+  assert.match(terminal, /crypto\.onchain\.nupl/u)
+  assert.match(terminal, /crypto\.onchain\.supply_in_profit_pct/u)
+  assert.match(terminal, /label: '% Supply in Profit'/u)
+  assert.match(terminal, /crypto\.onchain\.sopr/u)
+  assert.doesNotMatch(terminal, /label: 'Supply in Profit'/u)
+})
+
 test('Smart Insights ETF charts support ECharts hover tooltips, flow modes, and range controls', () => {
   const chart = readFileSync(path.join(repositoryRoot, 'src/views/smart-insights/components/PulseTrendChart.vue'), 'utf8')
 
