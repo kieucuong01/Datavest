@@ -5,14 +5,24 @@
       <a-tag :color="hasRows ? 'green' : 'orange'"><i class="live-dot" />{{ hasRows ? text.live : text.partial }}</a-tag>
     </header>
 
-    <div v-if="hasRows" class="derivatives-layout">
-      <aside class="asset-rail" :aria-label="text.assets">
-        <h4>{{ text.assets }}</h4>
-        <button v-for="asset in assets" :key="asset" type="button" :class="{ active: selectedAsset === asset }" @click="selectedAsset = asset">
-          <span><i :class="`asset-dot ${asset.toLowerCase()}`" />{{ asset }}</span><strong>{{ latestFor('crypto.derivatives.perpetual.price_usd', asset) | money }}</strong>
-        </button>
-        <p>{{ text.sources }}: {{ sources.join(' · ') || '—' }}</p>
-      </aside>
+    <div v-if="hasRows" class="derivatives-workspace">
+      <div class="asset-selector-bar">
+        <nav class="asset-chips" :aria-label="text.assets" role="tablist">
+          <button
+            v-for="asset in assets"
+            :key="asset"
+            class="asset-chip"
+            type="button"
+            role="tab"
+            :aria-selected="selectedAsset === asset"
+            :class="{ active: selectedAsset === asset }"
+            @click="selectedAsset = asset"
+          >
+            <i :class="`asset-dot ${asset.toLowerCase()}`" aria-hidden="true" />{{ asset }}
+          </button>
+        </nav>
+        <span v-if="sources.length" class="terminal-sources">{{ text.sources }}: {{ sources.join(' · ') }}</span>
+      </div>
 
       <main class="derivatives-main">
         <div class="derivative-kpis">
@@ -66,7 +76,7 @@ export default {
      ratio (value) { return Number.isFinite(Number(value)) ? `${Number(value).toFixed(2)}×` : '—' }
   },
   props: { derivatives: { type: Object, default: () => ({}) } },
-  data () { return { selectedAsset: 'BTC', range: '90D', charts: {}, resizeObserver: null, onResize: null } },
+  data () { return { selectedAsset: 'BTC', range: '30D', charts: {}, resizeObserver: null, onResize: null } },
   computed: {
     isVi () { return !this.$i18n || String(this.$i18n.locale).startsWith('vi') },
     text () { return this.isVi ? { title: 'Phái sinh Terminal', desc: 'Theo dõi giá perpetual, open interest, funding và lực taker theo nguồn công khai.', live: 'DỮ LIỆU LIVE', partial: 'DỮ LIỆU MỘT PHẦN', assets: 'TÀI SẢN', sources: 'Nguồn', price: 'Giá perpetual', openInterest: 'Open interest', funding: 'Funding', taker: 'Taker buy/sell', annualized: 'Quy đổi năm', takerHint: 'Dương: bên mua chiếm ưu thế', positioning: 'Giá & Open Interest', positioningHint: 'Giá perpetual (đường) · OI USD (cột)', fundingHint: 'Funding quy đổi năm; không phải tín hiệu giao dịch', history: 'Lịch sử phái sinh', historyHint: 'Chỉ hiển thị điểm có dữ liệu nguồn', date: 'Ngày', empty: 'Chưa có lịch sử phái sinh đã xác thực', limited: 'Lịch sử nguồn giới hạn 30 ngày', nearBasis: 'Basis futures gần', farBasis: 'Basis futures xa', putCall: 'Put / Call OI', deribitSource: 'Deribit · snapshot hằng ngày', optionsHint: 'Cấu trúc vị thế options' } : { title: 'Derivatives Terminal', desc: 'Public-source perpetual price, open interest, funding and taker positioning.', live: 'LIVE DATA', partial: 'PARTIAL DATA', assets: 'ASSETS', sources: 'Sources', price: 'Perpetual price', openInterest: 'Open interest', funding: 'Funding', taker: 'Taker buy/sell', annualized: 'Annualized', takerHint: 'Positive: buy takers lead', positioning: 'Price & Open Interest', positioningHint: 'Perpetual price (line) · USD OI (bars)', fundingHint: 'Annualized funding; not a trading signal', history: 'Derivatives history', historyHint: 'Only source-backed points are displayed', date: 'Date', empty: 'No validated derivatives history', limited: 'Source history is limited to 30 days', nearBasis: 'Near futures basis', farBasis: 'Far futures basis', putCall: 'Put / Call OI', deribitSource: 'Deribit · daily snapshot', optionsHint: 'Options positioning structure' } },
@@ -111,4 +121,20 @@ export default {
 <style lang="less" scoped>
 .history-scroll { max-height: 372px; overflow: auto; overscroll-behavior: contain; scrollbar-gutter: stable; }
 .history-scroll thead th { position: sticky; top: 0; z-index: 1; background: #f7f9fd; }
+</style>
+<style lang="less" scoped>
+.derivatives-workspace { display: grid; gap: 12px; min-width: 0; }
+.asset-selector-bar { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; min-width: 0; }
+.asset-chips { display: inline-flex; align-items: center; gap: 5px; margin: 0; padding: 3px; border: 1px solid var(--line); border-radius: 9px; background: var(--card); }
+.asset-chip { display: inline-flex; align-items: center; gap: 7px; min-height: 36px; padding: 5px 12px; border: 1px solid transparent; border-radius: 7px; color: var(--muted); background: transparent; font-size: 12px; font-weight: 700; cursor: pointer; white-space: nowrap; }
+.asset-chip:hover { color: var(--ink); background: var(--page-bg); }
+.asset-chip.active { color: var(--ink); border-color: var(--line); background: var(--page-bg); box-shadow: 0 1px 3px rgba(20, 35, 60, .12); }
+.asset-chip:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+.terminal-sources { min-width: 0; overflow: hidden; color: var(--muted); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+@media (max-width: 680px) {
+  .asset-selector-bar { align-items: flex-start; flex-direction: column; }
+  .asset-chips { width: 100%; }
+  .asset-chip { flex: 1; justify-content: center; }
+  .terminal-sources { width: 100%; }
+}
 </style>

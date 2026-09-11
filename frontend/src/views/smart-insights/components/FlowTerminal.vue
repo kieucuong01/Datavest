@@ -87,7 +87,7 @@ const ASSET_ORDER = Object.keys(ASSET_META)
 export default {
   name: 'FlowTerminal',
   props: { flow: { type: Object, default: () => ({}) }, isCurrent: { type: Boolean, default: false } },
-  data () { return { selectedAsset: 'TOTAL', mode: 'flow', range: '90D', chart: null, resizeObserver: null, onWindowResize: null } },
+  data () { return { selectedAsset: 'TOTAL', mode: 'flow', range: '30D', chart: null, resizeObserver: null, onWindowResize: null } },
   computed: {
     locale () { return this.$i18n && this.$i18n.locale === 'vi-VN' ? 'vi-VN' : 'en-US' },
     rangeOptions () { return ['7D', '30D', '90D', 'ALL'] },

@@ -32,11 +32,6 @@
         <div ref="altChart" class="cycle-chart" role="img" :aria-label="$t('smartInsights.cycleAltHistory')" />
       </article>
 
-      <article class="cycle-card halving-context">
-        <div class="card-title"><div><h4>Halving → Peak context</h4><small>{{ isVietnamese ? 'Bối cảnh chu kỳ lịch sử, không phải tín hiệu mua/bán.' : 'Historical cycle context, not a buy/sell signal.' }}</small></div><a-tag>{{ isVietnamese ? 'Bối cảnh' : 'Context' }}</a-tag></div>
-        <div v-if="halvingHeight" class="halving-values"><div><small>{{ isVietnamese ? 'Block hiện tại' : 'Current block' }}</small><strong>{{ formatBlocks(halvingHeight) }}</strong></div><div><small>{{ isVietnamese ? 'Mốc halving kế tiếp' : 'Next halving block' }}</small><strong>{{ formatBlocks(nextHalvingBlock) }}</strong></div><div><small>{{ isVietnamese ? 'Còn lại' : 'Remaining blocks' }}</small><strong>{{ formatBlocks(blocksRemaining) }}</strong></div></div>
-        <p v-else class="halving-empty">{{ sourceMissing }} · {{ isVietnamese ? 'Chờ block height đã xác thực để thêm bối cảnh.' : 'Waiting for a verified block height before adding context.' }}</p>
-      </article>
     </div>
     <div v-else class="cycle-empty"><a-icon type="database" />{{ $t('smartInsights.noHistory') }}</div>
   </section>
@@ -65,11 +60,6 @@ export default {
     rawPoints () { return (Array.isArray(this.cycle.series) ? this.cycle.series : []).map(point => ({ metric: String(point && point.metric || ''), date: String(point && point.effectiveAt || '').slice(0, 10), value: Number(point && point.value) })).filter(point => point.date && Number.isFinite(point.value)).sort((left, right) => left.date.localeCompare(right.date)) },
     altSeries () { return this.rawPoints.filter(point => point.metric === 'crypto.cycle.altcoin_season.index') },
     altLatest () { return this.altSeries[this.altSeries.length - 1] || null },
-    isVietnamese () { return this.locale === 'vi-VN' },
-    sourceMissing () { return this.isVietnamese ? 'Nguồn chưa kết nối' : 'Source not connected' },
-    halvingHeight () { const rows = this.cycle && this.cycle.halving && this.cycle.halving.metrics; const latest = Array.isArray(rows) ? rows.filter(row => row && row.metric === 'crypto.chain.block_height').sort((left, right) => String(left.effectiveAt || '').localeCompare(String(right.effectiveAt || ''))).pop() : null; const value = Number(latest && latest.value); return Number.isFinite(value) && value >= 0 ? Math.floor(value) : null },
-    nextHalvingBlock () { return this.halvingHeight === null ? null : Math.ceil((this.halvingHeight + 1) / 210000) * 210000 },
-    blocksRemaining () { return this.halvingHeight === null || this.nextHalvingBlock === null ? null : this.nextHalvingBlock - this.halvingHeight },
     statRows () { return STAT_ROWS.map(([alt, btc, label]) => ({ label: this.$t(`smartInsights.${label}`), alt: this.formatDays(this.stat(alt)), btc: this.formatDays(this.stat(btc)) })) },
     altClassification () { const value = this.altLatest && this.altLatest.value; if (!Number.isFinite(value)) return this.$t('smartInsights.dataUnavailableShort'); if (value >= 75) return this.$t('smartInsights.cycleAltSeason'); if (value <= 25) return this.$t('smartInsights.cycleBitcoinSeason'); return this.$t('smartInsights.cycleNotAltSeason') }
   },
@@ -85,7 +75,6 @@ export default {
     rangeLabel (option) { return option === 'ALL' ? this.$t('smartInsights.flowRangeAll') : option },
     formatIndex (value) { return Number.isFinite(Number(value)) ? new Intl.NumberFormat(this.locale, { maximumFractionDigits: 0 }).format(Number(value)) : '—' },
     formatDays (value) { return Number.isFinite(Number(value)) ? new Intl.NumberFormat(this.locale, { maximumFractionDigits: 1 }).format(Number(value)) : '—' },
-    formatBlocks (value) { return Number.isFinite(Number(value)) ? new Intl.NumberFormat(this.locale, { maximumFractionDigits: 0 }).format(Number(value)) : '—' },
     formatDate (value) { return value ? formatVietnamDate(`${value}T00:00:00Z`, { locale: this.locale, fallback: value }) : '—' },
     formatShortDate (value) { return formatVietnamDate(`${value}T00:00:00Z`, { locale: this.locale, fallback: value, short: true }) },
     scheduleRender () { this.$nextTick(() => { this.renderSeasonScale(); this.renderAltChart() }) },
@@ -149,14 +138,6 @@ export default {
 .season-stats th:first-child { color: var(--muted); font-weight: 500; text-align: left; }
 .season-stats thead th { color: var(--ink); font-size: 11px; }
 .season-stats tbody tr:last-child > * { border-bottom: 0; }
-.halving-context { background: linear-gradient(130deg, #fff 0%, #fafcff 100%); }
-.halving-values { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); padding: 16px; }
-.halving-values div { display: grid; gap: 5px; padding: 0 14px; border-right: 1px solid var(--line); }
-.halving-values div:first-child { padding-left: 0; }
-.halving-values div:last-child { border-right: 0; }
-.halving-values small, .halving-empty { color: var(--muted); font-size: 12px; }
-.halving-values strong { color: var(--ink); font-size: 23px; font-variant-numeric: tabular-nums; }
-.halving-empty { min-height: 84px; padding: 27px 16px; }
 .cycle-empty { display: flex; align-items: center; justify-content: center; gap: 7px; min-height: 180px; color: var(--muted); font-size: 13px; }
 @media (max-width: 760px) {
   .altcoin-summary-row { grid-template-columns: 1fr; }
@@ -165,7 +146,5 @@ export default {
   .card-title { flex-direction: column; }
   .range-controls { width: 100%; }
   .cycle-chart { height: 250px; }
-  .halving-values { grid-template-columns: 1fr; gap: 12px; }
-  .halving-values div, .halving-values div:first-child { padding: 0; border-right: 0; }
 }
 </style>

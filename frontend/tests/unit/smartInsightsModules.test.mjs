@@ -118,7 +118,7 @@ test('Smart Insights history tables show about ten rows before scrolling', () =>
   }
 })
 
-test('Smart Insights keeps Cycle focused on Altseason and halving context', () => {
+test('Smart Insights keeps Cycle focused on Altseason without the retired halving context', () => {
   const pulse = readFileSync(path.join(repositoryRoot, 'src/views/smart-insights/components/MarketPulseSection.vue'), 'utf8')
   const cycleTerminalPath = path.join(repositoryRoot, 'src/views/smart-insights/components/CycleTerminal.vue')
 
@@ -129,13 +129,27 @@ test('Smart Insights keeps Cycle focused on Altseason and halving context', () =
   assert.match(cycleTerminal, /markArea/u)
   assert.match(cycleTerminal, /tooltip:\s*\{/u)
   assert.match(cycleTerminal, /rangeOptions/u)
-  assert.match(cycleTerminal, /Halving → Peak context/u)
-  assert.match(cycleTerminal, /not a buy\/sell signal/u)
+  assert.doesNotMatch(cycleTerminal, /Halving → Peak context|halving-context|halvingHeight|nextHalvingBlock|blocksRemaining/u)
   assert.match(cycleTerminal, /full-width-card/u)
   assert.match(cycleTerminal, /altcoin-summary-row/u)
   assert.match(cycleTerminal, /\.cycle-terminal\s*\{[^}]*width:\s*100%[^}]*max-width:\s*none/u)
   assert.match(cycleTerminal, /\.cycle-grid\s*\{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)/u)
   assert.doesNotMatch(cycleTerminal, /CBBI Confidence|cbbi-main-card|cbbi-components-section|cbbi-component-grid|price-cycle-models|renderCbbiChart|renderComponentCharts|renderModelCharts|2-Year MA|200WMA|Power Law \/ Rainbow/u)
+})
+
+test('Smart Insights uses compact 30D defaults for flows and chips for derivatives assets', () => {
+  const flowTerminal = readFileSync(path.join(repositoryRoot, 'src/views/smart-insights/components/FlowTerminal.vue'), 'utf8')
+  const whaleFlow = readFileSync(path.join(repositoryRoot, 'src/views/smart-insights/components/WhaleFlowMonitor.vue'), 'utf8')
+  const pulseChart = readFileSync(path.join(repositoryRoot, 'src/views/smart-insights/components/PulseTrendChart.vue'), 'utf8')
+  const derivativesTerminal = readFileSync(path.join(repositoryRoot, 'src/views/smart-insights/components/DerivativesTerminal.vue'), 'utf8')
+
+  assert.match(flowTerminal, /range: '30D'/u)
+  assert.match(whaleFlow, /<pulse-trend-chart[\s\S]*interactive[\s\S]*\/>/u)
+  assert.match(pulseChart, /range: '30D'/u)
+  assert.match(derivativesTerminal, /range: '30D'/u)
+  assert.match(derivativesTerminal, /class="asset-chips"/u)
+  assert.match(derivativesTerminal, /v-for="asset in assets"[\s\S]*class="asset-chip"/u)
+  assert.doesNotMatch(derivativesTerminal, /class="asset-rail"|text\.assets[^\n]*<\/h4>/u)
 })
 
 test('Smart Insights keeps crypto detail terminals without the removed summary and chart grid', () => {
