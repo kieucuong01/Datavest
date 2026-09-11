@@ -48,6 +48,21 @@ test('Asset Opinions identifies the AI Assistant decision and report timestamp',
   assert.match(opinionsSource, /formatDateTime\(row\.report\.createdAt\)/u)
 })
 
+test('Asset Opinions presents a clear decision hierarchy instead of a dense text row', () => {
+  assert.match(opinionsSource, /class="opinion-main"/u)
+  assert.match(opinionsSource, /class="opinion-column-label"/u)
+  assert.match(opinionsSource, /class="opinion-meta"/u)
+  assert.match(opinionsSource, /class="status-label"/u)
+  assert.match(opinionsSource, /class="status-indicator"/u)
+  assert.match(opinionsSource, /class="opinion-actions"[\s\S]*?quick-analysis-action[\s\S]*?deep-analysis-action/u)
+})
+
+test('Asset Opinions uses two touch actions on phones and stacks them on narrow screens', () => {
+  assert.match(opinionsSource, /@media \(max-width: 680px\)[\s\S]*?\.opinion-actions\s*\{[\s\S]*?display:\s*grid[\s\S]*?grid-template-columns:\s*repeat\(2/u)
+  assert.match(opinionsSource, /@media \(max-width: 380px\)[\s\S]*?\.opinion-actions\s*\{[\s\S]*?grid-template-columns:\s*1fr/u)
+  assert.match(opinionsSource, /\.opinion-actions \.ant-btn\s*\{[\s\S]*?min-height:\s*44px/u)
+})
+
 test('Smart Insights pins Today to Vietnam calendar time and guards stale date responses', () => {
   assert.match(source, /vietnamToday/u)
   assert.match(source, /requestSequence/u)

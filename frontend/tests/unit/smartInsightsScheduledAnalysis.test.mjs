@@ -35,5 +35,5 @@ test('Asset Opinions keeps the 80/20 summary and separates quick and deep row ac
   assert.match(opinions, /class="quick-analysis-action"[^>]*@click="\$emit\('open-analysis', row\)"/u)
   assert.match(opinions, /class="deep-analysis-action"[^>]*@click="\$emit\('open-deep-analysis', row\)"/u)
   assert.match(opinions, /\.opinion-row > \* \{ min-width: 0; \}/u)
-  assert.match(opinions, /grid-template-columns: minmax\(130px, 1\.05fr\) minmax\(0, 2\.35fr\)/u)
+  assert.match(opinions, /grid-template-columns: minmax\(150px, \.9fr\) minmax\(0, 2\.25fr\)/u)
 })
