@@ -21,8 +21,8 @@ logger = get_logger(__name__)
 # Lookback / lookahead window for the dashboard widget.
 _CALENDAR_LOOKBACK_DAYS = 3
 _CALENDAR_LOOKAHEAD_DAYS = 14
-_AKSHARE_LOOKBACK_DAYS = 1
-_AKSHARE_LOOKAHEAD_DAYS = 7
+_AKSHARE_LOOKBACK_DAYS = 7
+_AKSHARE_LOOKAHEAD_DAYS = 14
 _TRADING_ECONOMICS_LOOKBACK_DAYS = 3
 _TRADING_ECONOMICS_LOOKAHEAD_DAYS = 14
 
@@ -739,6 +739,15 @@ def _normalize_akshare_event(row: Dict[str, Any], idx: int) -> Optional[Dict[str
     country = _AKSHARE_COUNTRY_MAP.get(raw_country, raw_country.upper() or "INTL")
 
     raw_time = row.get(time_col)
+    # AkShare renders this provider's timestamps in Asia/Shanghai (UTC+8).
+    from zoneinfo import ZoneInfo
+    try:
+        parsed_time = raw_time if isinstance(raw_time, datetime) else datetime.fromisoformat(str(raw_time))
+        if parsed_time.tzinfo is None:
+            parsed_time = parsed_time.replace(tzinfo=ZoneInfo('Asia/Shanghai'))
+        raw_time = parsed_time.astimezone(ZoneInfo('Asia/Ho_Chi_Minh'))
+    except (ValueError, TypeError):
+        pass
     if isinstance(raw_time, datetime):
         date_str = raw_time.strftime("%Y-%m-%d")
         time_str = raw_time.strftime("%H:%M")
@@ -769,7 +778,7 @@ def _normalize_akshare_event(row: Dict[str, Any], idx: int) -> Optional[Dict[str
         "name_en": event_name,
         "importance": importance,
         "actual": actual,
-        "forecast": forecast or previous or "-",
+        "forecast": forecast,
         "previous": previous or "-",
         "impact_if_above": impact_if_above,
         "impact_if_below": impact_if_below,

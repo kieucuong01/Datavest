@@ -152,10 +152,14 @@ user_systemctl daemon-reload
 install -m 0644 "$shared/datavest-celery.service" "$HOME/.config/systemd/user/datavest-celery.service"
 install -m 0644 "$shared/datavest-crypto-insights-browser.service" "$HOME/.config/systemd/user/datavest-crypto-insights-browser.service"
 install -m 0644 "$shared/datavest-trading-agents.service" "$HOME/.config/systemd/user/datavest-trading-agents.service"
+install -m 0644 "$release/backend/calendar_worker/datavest-calendar.service" "$HOME/.config/systemd/user/datavest-calendar.service"
+install -m 0644 "$release/backend/calendar_worker/datavest-calendar.timer" "$HOME/.config/systemd/user/datavest-calendar.timer"
 user_systemctl daemon-reload
 user_systemctl cat datavest-celery | grep -F -- '-Q jobs,ai,maintenance,trading-agents' >/dev/null
 user_systemctl enable datavest-api datavest-celery datavest-beat datavest-scheduler datavest-crypto-insights-browser datavest-trading-agents >/dev/null
 user_systemctl restart datavest-api datavest-celery datavest-beat datavest-scheduler datavest-crypto-insights-browser datavest-trading-agents
+user_systemctl enable --now datavest-calendar.timer
+user_systemctl start --no-block datavest-calendar.service
 
 for _ in {1..36}; do
   if curl -fsS --max-time 5 http://127.0.0.1:5100/api/health/ready >/dev/null && \

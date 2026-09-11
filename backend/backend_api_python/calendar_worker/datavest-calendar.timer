@@ -1,0 +1,11 @@
+[Unit]
+Description=Refresh DataVest economic calendar every 30 minutes (Vietnam)
+
+[Timer]
+OnCalendar=*-*-* *:00,30:00 Asia/Ho_Chi_Minh
+Persistent=true
+RandomizedDelaySec=30
+Unit=datavest-calendar.service
+
+[Install]
+WantedBy=timers.target

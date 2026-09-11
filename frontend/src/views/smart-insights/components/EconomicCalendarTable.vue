@@ -4,7 +4,10 @@
       <div>
         <h2>{{ $t('smartInsights.calendarTitle') }}</h2>
         <p>{{ $t('smartInsights.calendarDesc') }}</p>
+        <p role="status">{{ meta.freshness === 'FRESH' ? (isVietnamese ? 'Đã cập nhật' : 'Updated') : (isVietnamese ? 'Dữ liệu cũ hoặc chưa đủ' : 'Stale or incomplete data') }} · {{ updatedAt }}</p>
+        <p v-if="meta.source">{{ meta.source === 'akshare_wallstreetcn' ? 'WallstreetCN / AkShare' : meta.source }}<span v-if="meta.fallback_from"> · {{ isVietnamese ? 'Nguồn dự phòng — độ phủ có thể khác Investing' : 'Fallback source — coverage may differ from Investing' }}</span></p>
       </div>
+      <a-button size="small" :loading="loading" @click="$emit('refresh')">{{ isVietnamese ? 'Làm mới' : 'Refresh' }}</a-button>
     </div>
 
     <div class="calendar-filter-panel" :aria-label="$t('smartInsights.calendarFilters')">
@@ -133,8 +136,8 @@
                 />
               </span>
             </td>
-            <td :class="['calendar-value', valueTone(event)]">{{ event.actual || '' }}</td>
-            <td class="calendar-value">{{ event.forecast || '' }}</td>
+            <td :class="['calendar-value', valueTone(event)]">{{ displayValue(event, 'actual') }}</td>
+            <td class="calendar-value">{{ displayValue(event, 'forecast') }}</td>
             <td class="calendar-value">{{ event.previous || '' }}</td>
           </tr>
         </tbody>
@@ -152,6 +155,7 @@
 <script>
 import { Icon } from '@iconify/vue2'
 import { DEFAULT_ECONOMIC_CALENDAR_FILTER, filterEconomicCalendarEventsByCriteria, groupEconomicCalendarEvents, normalizeEconomicCalendarEvents } from '../economicCalendar'
+import { calendarMissingValue } from '../calendarRefresh'
 
 const INITIAL_EVENT_LIMIT = 12
 
@@ -159,6 +163,7 @@ export default {
   name: 'EconomicCalendarTable',
   components: { Icon },
   props: {
+    meta: { type: Object, default: () => ({}) },
     events: { type: Array, default: () => [] },
     filter: { type: Object, default: () => ({ ...DEFAULT_ECONOMIC_CALENDAR_FILTER }) },
     loading: { type: Boolean, default: false },
@@ -168,6 +173,10 @@ export default {
     return { showAll: false }
   },
   computed: {
+    updatedAt () {
+      const date = new Date(this.meta.fetchedAt || this.meta.last_success_at || '')
+      return Number.isNaN(date.getTime()) ? '—' : date.toLocaleString(this.isVietnamese ? 'vi-VN' : 'en-GB', { timeZone: 'Asia/Ho_Chi_Minh' }) + ' (UTC+7)'
+    },
     activeFilter () { return { ...DEFAULT_ECONOMIC_CALENDAR_FILTER, ...(this.filter || {}) } },
     normalizedEvents () { return normalizeEconomicCalendarEvents(this.events, this.$i18n && this.$i18n.locale) },
     filteredEvents () { return filterEconomicCalendarEventsByCriteria(this.normalizedEvents, this.activeFilter) },
@@ -221,6 +230,12 @@ export default {
     filter: { deep: true, handler () { this.showAll = false } }
   },
   methods: {
+    displayValue (event, field) {
+      const value = event[field]
+      return value !== null && value !== undefined && String(value).trim() !== '' && !['-', '—', '–'].includes(String(value).trim())
+        ? value
+: calendarMissingValue(event, field, this.isVietnamese)
+    },
     updateFilter (patch) {
       this.showAll = false
       this.$emit('filter-change', { ...this.activeFilter, ...patch })

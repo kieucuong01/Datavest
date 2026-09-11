@@ -23,6 +23,7 @@ Endpoints:
 from __future__ import annotations
 
 from flask import jsonify, request
+from app.data_providers.investing_calendar_snapshot import calendar_freshness
 from app.openapi.blueprint import HumanBlueprint as Blueprint
 
 from app.utils.logger import get_logger
@@ -44,7 +45,6 @@ from app.utils.auth import login_required
 from app.data_providers import cached_or_compute, clear_cache, invalidate
 from app.data_providers.adanos_sentiment import fetch_adanos_market_sentiment
 from app.data_providers.news import fetch_financial_news, get_economic_calendar_payload
-from app.services.smart_insights.data_contract import vietnam_iso
 from app.utils.timeutil import vietnam_calendar_date
 from app.data_providers.heatmap import generate_heatmap_data
 from app.services.global_market_data import (
@@ -138,13 +138,13 @@ def economic_calendar():
             data = []
             meta = {"status": "error", "source": "free_calendar_sources", "message": "Calendar payload is unavailable."}
         requested_as_of = request.args.get("as_of") or None
-        resolved_as_of = vietnam_calendar_date()
+        resolved_as_of = vietnam_calendar_date(meta.get("last_success_at")) if meta.get("last_success_at") else None
         status = str(meta.get("status") or "ok").lower()
-        freshness = "UNAVAILABLE" if status in {"error", "unavailable"} or not data else "PARTIAL" if meta.get("fallback_from") else "FRESH"
+        freshness = calendar_freshness(status, len(data), bool(meta.get("fallback_from")))
         meta.update({
             "requestedAsOf": requested_as_of,
             "resolvedAsOf": resolved_as_of,
-            "fetchedAt": meta.get("last_success_at") or vietnam_iso(),
+            "fetchedAt": meta.get("last_success_at") or None,
             "freshness": freshness,
             "coverage": {"events": len(data), "sourceCount": 1 if meta.get("source") else 0},
         })

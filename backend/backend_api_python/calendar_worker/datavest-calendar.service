@@ -1,0 +1,28 @@
+[Unit]
+Description=DataVest economic calendar refresh and atomic import
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/datavest/current/backend
+EnvironmentFile=/opt/datavest/shared/.env
+Environment=PYTHONUNBUFFERED=1
+Environment=TZ=Asia/Ho_Chi_Minh
+Environment=HOME=/opt/datavest/shared/browser-home
+Environment=XDG_CACHE_HOME=/opt/datavest/shared/browser-home/cache
+Environment=XDG_CONFIG_HOME=/opt/datavest/shared/browser-home/config
+Environment=INVESTING_BROWSER_HEADLESS=true
+Environment=INVESTING_BROWSER_EXECUTABLE_PATH=/usr/bin/google-chrome-stable
+Environment=INVESTING_BROWSER_USER_DATA_DIR=/opt/datavest/shared/data/browser-profiles/investing
+Environment=INVESTING_CALENDAR_SNAPSHOT_PATH=/opt/datavest/shared/data/economic-calendar/investing-browser.json
+ExecStart=/opt/datavest/current/.venv/bin/python -m calendar_worker.refresh_snapshot
+TimeoutStartSec=240
+TimeoutStopSec=30
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/datavest/shared
+MemoryMax=700M
+TasksMax=256

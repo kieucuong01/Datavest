@@ -99,6 +99,8 @@
         :filter="calendarFilter"
         :loading="calendarLoading"
         :error="calendarError"
+        :meta="calendarMeta"
+        @refresh="retrySection('calendar')"
         @filter-change="calendarFilter = $event"
       />
 
@@ -377,6 +379,7 @@
 import { mapState } from 'vuex'
 import { getWatchlist } from '@/api/market'
 import { getEconomicCalendar } from '@/api/global-market'
+import { calendarCacheFresh } from './calendarRefresh'
 import { getSmartInsightsCryptoPulse, getSmartInsightsDataHealth, getSmartInsightsDates, getSmartInsightsEvidence, getSmartInsightsOverview } from '@/api/smart-insights'
 import { getAnalysisHistory } from '@/api/fast-analysis'
 import { runSectionLoaders } from './loadingCoordinator'
@@ -643,8 +646,12 @@ export default {
   },
   mounted () {
     this.loadAll()
+    this.calendarRefreshTimer = window.setInterval(() => {
+      if (!document.hidden && !this.calendarLoading && !calendarCacheFresh(this.smartInsightsCache.calendar)) this.retrySection('calendar')
+    }, 60000)
   },
   beforeDestroy () {
+    window.clearInterval(this.calendarRefreshTimer)
     this.requestSequence++
     this.closeEvidence()
     this.stopHeroSpeech()
@@ -809,7 +816,7 @@ export default {
       if (this.isCurrentRequest(requestId)) { this.calendarError = ''; this.calendarMeta = {} }
       const lang = (this.$i18n && this.$i18n.locale) || 'en-US'
       const calendarKey = `${this.cacheKey()}|14`
-      if (!force && this.smartInsightsCache.calendar && this.smartInsightsCache.calendar.key === calendarKey) {
+      if (!force && calendarCacheFresh(this.smartInsightsCache.calendar) && this.smartInsightsCache.calendar.key === calendarKey) {
         const cached = this.smartInsightsCache.calendar
         if (this.isCurrentRequest(requestId)) {
           this.calendarEvents = cached.events
@@ -825,7 +832,7 @@ export default {
         const meta = response.meta || {}
         const error = !events.length && meta.message ? meta.message : ''
         if (!this.isCurrentRequest(requestId)) return
-        this.smartInsightsCache.calendar = { key: calendarKey, events, meta, error }
+        this.smartInsightsCache.calendar = { key: calendarKey, events, meta, error, loadedAt: Date.now() }
         this.calendarEvents = events
         this.calendarMeta = meta
         this.calendarError = error

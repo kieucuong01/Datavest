@@ -28,6 +28,8 @@ def _decode_browser_value(value: Any) -> Any:
     """Browser Use v0.13 returns primitive/object evaluation results as text."""
     if not isinstance(value, str):
         return value
+    if value.strip().lower() in {"true", "false"}:
+        return value.strip().lower() == "true"
     try:
         return json.loads(value)
     except json.JSONDecodeError:
@@ -72,6 +74,7 @@ def create_browser_session():
     options = {
         "headless": _env_bool("INVESTING_BROWSER_HEADLESS"),
         "keep_alive": False,
+        "enable_default_extensions": False,
         "allowed_domains": ["vn.investing.com", "www.investing.com", "investing.com"],
         "user_data_dir": str(Path(os.getenv("INVESTING_BROWSER_USER_DATA_DIR", "data/browser-profiles/investing")).expanduser().resolve()),
         "profile_directory": os.getenv("INVESTING_BROWSER_PROFILE_DIRECTORY", "Default"),
@@ -140,13 +143,15 @@ async def extract_visible_calendar_rows(page: Any, source_url: str) -> List[Dict
 
 def deduplicate_rows(rows: Iterable[Dict[str, Any]]) -> List[Dict[str, Any]]:
     unique: List[Dict[str, Any]] = []
-    seen = set()
+    seen = {}
     for row in rows:
         key = tuple(str(row.get(field, "")).strip().lower() for field in ("date", "time", "country", "name"))
         if key in seen:
+            seen[key].update({field: value for field, value in row.items()
+                              if value is not None and str(value).strip() not in {"", "-", "—", "–"}})
             continue
-        seen.add(key)
-        unique.append(row)
+        seen[key] = dict(row)
+        unique.append(seen[key])
     return unique
 
 

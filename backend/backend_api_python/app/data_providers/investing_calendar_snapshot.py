@@ -18,6 +18,16 @@ DEFAULT_STALE_AFTER_SECONDS = 7200
 SOURCE_URL = "https://vn.investing.com/economic-calendar/"
 REQUIRED_CALENDAR_RANGES = ("Hôm qua", "Hôm nay", "Tuần này", "Tuần tới")
 
+
+def calendar_freshness(status: str, event_count: int, fallback: bool = False) -> str:
+    if not event_count:
+        return "UNAVAILABLE"
+    if status == "stale":
+        return "STALE"
+    if status != "ok":
+        return "UNAVAILABLE"
+    return "PARTIAL" if fallback else "FRESH"
+
 _COUNTRIES = {
     "united states": "US", "hoa kỳ": "US", "mỹ": "US", "us": "US",
     "vietnam": "VN", "việt nam": "VN", "vn": "VN",
@@ -129,10 +139,17 @@ def get_investing_calendar_snapshot_payload() -> Dict[str, Any]:
     complete = set(REQUIRED_CALENDAR_RANGES).issubset(ranges)
     stale_after = max(60, int(os.getenv("INVESTING_CALENDAR_STALE_AFTER_SECONDS", DEFAULT_STALE_AFTER_SECONDS)))
     age = _age_seconds(fetched_at)
+    source = payload.get("source") or "investing_browser"
+    events = normalize_investing_events(payload.get("events", [])) if complete else []
+    for event in events:
+        event["source"] = source
+        event["source_url"] = payload.get("source_url") or SOURCE_URL
     return {
-        "events": normalize_investing_events(payload.get("events", [])) if complete else [],
+        "events": events,
         "status": "incomplete_snapshot" if not complete else ("stale" if age is None or age > stale_after else "ok"),
-        "source": "investing_browser",
+        "source": source,
+        "fallback_from": payload.get("fallback_from") or "",
+        "fallback_reason": payload.get("fallback_reason") or "",
         "source_url": payload.get("source_url") or SOURCE_URL,
         "last_success_at": fetched_at or "",
         "ranges": list(ranges),
