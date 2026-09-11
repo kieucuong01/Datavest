@@ -25,14 +25,15 @@ test('Asset Opinions only reads date-pinned AI Assistant reports', () => {
   assert.doesNotMatch(opinions, /@click="openFirstEvidence\(row\)"/u)
 })
 
-test('Asset Opinions keeps the 80/20 summary and one useful row action', () => {
+test('Asset Opinions keeps the 80/20 summary and separates quick and deep row actions', () => {
   const opinions = readFileSync(opinionsPath, 'utf8')
 
   assert.match(opinions, /smartInsights\.refresh/u)
   assert.match(opinions, /row\.report/u)
   assert.doesNotMatch(opinions, /quantScore/u)
   assert.doesNotMatch(opinions, /hasValidatedEvidence/u)
-  assert.match(opinions, /<a-button size="small" type="primary" icon="search" @click="\$emit\('open-analysis', row\)">/u)
+  assert.match(opinions, /class="quick-analysis-action"[^>]*@click="\$emit\('open-analysis', row\)"/u)
+  assert.match(opinions, /class="deep-analysis-action"[^>]*@click="\$emit\('open-deep-analysis', row\)"/u)
   assert.match(opinions, /\.opinion-row > \* \{ min-width: 0; \}/u)
   assert.match(opinions, /grid-template-columns: minmax\(130px, 1\.05fr\) minmax\(0, 2\.35fr\)/u)
 })

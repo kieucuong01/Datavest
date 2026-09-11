@@ -128,13 +128,6 @@
         @open-evidence="openEvidence"
       />
 
-      <deep-analysis-panel
-        :visible="deepAnalysisVisible"
-        :target="deepAnalysisTarget"
-        :analysis-date="asOf || ''"
-        :dark="isDarkTheme"
-        @close="closeDeepAnalysis"
-      />
     </main>
 
     <footer class="legacy-footer">
@@ -145,12 +138,12 @@
     <a-modal
       :visible="analysisModalVisible"
       :title="analysisModalTitle"
-      :width="760"
+      :width="860"
       centered
       :footer="null"
       :destroy-on-close="false"
       :mask-closable="true"
-      :wrap-class-name="isDarkTheme ? 'asset-analysis-modal theme-dark' : 'asset-analysis-modal'"
+      :wrap-class-name="isDarkTheme ? 'asset-analysis-modal asset-analysis-modal--hub theme-dark' : 'asset-analysis-modal asset-analysis-modal--hub'"
       @cancel="closeAssetAnalysis"
     >
       <div v-if="selectedOpinionRow" class="asset-analysis-modal-body" :class="{ 'theme-dark': isDarkTheme }">
@@ -164,128 +157,173 @@
           </a-tag>
         </div>
 
-        <div v-if="selectedOpinionReport" class="asset-analysis-meta">
-          <span>{{ $t('smartInsights.analysisDate') }}: {{ analysisDateLabel }}</span>
-          <span>{{ $t('smartInsights.lastAiRun') }}: {{ formatDateTime(selectedOpinionReport.createdAt) }}</span>
-          <span v-if="selectedOpinionDetails.timeframe">{{ $t('smartInsights.timeframe') }}: {{ selectedOpinionDetails.timeframe }}</span>
-          <span v-if="selectedOpinionDetails.model">{{ $t('smartInsights.model') }}: {{ selectedOpinionDetails.model }}</span>
-        </div>
+        <nav class="analysis-mode-switcher" role="tablist" :aria-label="$t('smartInsights.analysisModes')">
+          <button
+            type="button"
+            role="tab"
+            class="analysis-mode-option"
+            :class="{ active: analysisMode === 'quick' }"
+            :aria-selected="analysisMode === 'quick'"
+            @click="analysisMode = 'quick'"
+          >
+            <a-icon type="thunderbolt" />
+            <span><strong>{{ $t('smartInsights.quickAnalysis') }}</strong><small>{{ $t('smartInsights.quickEngine') }}</small></span>
+          </button>
+          <button
+            type="button"
+            role="tab"
+            class="analysis-mode-option"
+            :class="{ active: analysisMode === 'deep' }"
+            :aria-selected="analysisMode === 'deep'"
+            @click="analysisMode = 'deep'"
+          >
+            <a-icon type="apartment" />
+            <span><strong>{{ $t('smartInsights.deepAnalysis') }}</strong><small>{{ $t('smartInsights.deepEngine') }}</small></span>
+          </button>
+        </nav>
 
-        <section v-if="selectedOpinionReport" class="analysis-drawer-section">
-          <div class="analysis-drawer-section-title"><a-icon type="thunderbolt" /><h3>{{ $t('smartInsights.analysisOverview') }}</h3></div>
-          <div class="analysis-result-grid">
-            <div><small>{{ $t('smartInsights.aiDecision') }}</small><strong :class="analysisDecisionClass(selectedOpinionReport.decision)">{{ analysisTrendLabel(selectedOpinionReport.decision) }}</strong></div>
-            <div><small>{{ $t('smartInsights.aiConfidence') }}</small><strong>{{ selectedOpinionReport.confidence != null ? `${selectedOpinionReport.confidence}%` : $t('smartInsights.notAvailable') }}</strong></div>
+        <template v-if="analysisMode === 'quick'">
+          <div v-if="selectedOpinionReport" class="asset-analysis-meta">
+            <span>{{ $t('smartInsights.analysisDate') }}: {{ analysisDateLabel }}</span>
+            <span>{{ $t('smartInsights.lastAiRun') }}: {{ formatDateTime(selectedOpinionReport.createdAt) }}</span>
+            <span v-if="selectedOpinionDetails.timeframe">{{ $t('smartInsights.timeframe') }}: {{ selectedOpinionDetails.timeframe }}</span>
+            <span v-if="selectedOpinionDetails.model">{{ $t('smartInsights.model') }}: {{ selectedOpinionDetails.model }}</span>
           </div>
-          <div v-if="selectedOpinionReport.summary" class="analysis-copy">
-            <h4>{{ $t('smartInsights.aiSummary') }}</h4>
-            <p>{{ selectedOpinionReport.summary }}</p>
-          </div>
-          <div v-if="selectedMarketMetrics.length" class="analysis-metric-grid">
-            <div v-for="metric in selectedMarketMetrics" :key="metric.key" class="analysis-metric-item">
-              <small>{{ metric.label }}</small>
-              <strong :class="metric.tone">{{ metric.value }}</strong>
+
+          <section v-if="selectedOpinionReport" class="analysis-drawer-section">
+            <div class="analysis-drawer-section-title"><a-icon type="thunderbolt" /><h3>{{ $t('smartInsights.analysisOverview') }}</h3></div>
+            <div class="analysis-result-grid">
+              <div><small>{{ $t('smartInsights.aiDecision') }}</small><strong :class="analysisDecisionClass(selectedOpinionReport.decision)">{{ analysisTrendLabel(selectedOpinionReport.decision) }}</strong></div>
+              <div><small>{{ $t('smartInsights.aiConfidence') }}</small><strong>{{ selectedOpinionReport.confidence != null ? `${selectedOpinionReport.confidence}%` : $t('smartInsights.notAvailable') }}</strong></div>
             </div>
-          </div>
-        </section>
-        <section v-else class="analysis-drawer-section analysis-empty">
-          <a-icon type="clock-circle" />
-          <p>{{ $t('smartInsights.aiNoResult') }}</p>
-          <router-link to="/ai-asset-analysis" @click.native="closeAssetAnalysis">{{ $t('smartInsights.manageWatchlist') }}</router-link>
-        </section>
-
-        <section v-if="selectedOpinionReport" class="analysis-drawer-section">
-          <div class="analysis-drawer-section-title"><a-icon type="database" /><h3>{{ $t('smartInsights.analysisInputs') }}</h3></div>
-          <p class="analysis-evidence-desc">{{ $t('smartInsights.analysisInputsDesc') }}</p>
-          <div v-if="selectedInputRows.length" class="analysis-factor-grid">
-            <div v-for="item in selectedInputRows" :key="item.key" class="analysis-factor-item">
-              <small>{{ item.label }}</small><strong>{{ item.value }}</strong>
+            <div v-if="selectedOpinionReport.summary" class="analysis-copy">
+              <h4>{{ $t('smartInsights.aiSummary') }}</h4>
+              <p>{{ selectedOpinionReport.summary }}</p>
             </div>
-          </div>
-          <div v-else class="analysis-empty analysis-empty--compact"><span>{{ $t('smartInsights.analysisInputsUnavailable') }}</span></div>
-        </section>
-
-        <section v-if="selectedTradingPlanRows.length" class="analysis-drawer-section">
-          <div class="analysis-drawer-section-title"><a-icon type="flag" /><h3>{{ $t('smartInsights.tradingPlan') }}</h3></div>
-          <p class="analysis-evidence-desc">{{ $t('smartInsights.tradingPlanDesc') }}</p>
-          <div class="analysis-factor-grid">
-            <div v-for="item in selectedTradingPlanRows" :key="item.key" class="analysis-factor-item">
-              <small>{{ item.label }}</small><strong>{{ item.value }}</strong>
-            </div>
-          </div>
-        </section>
-
-        <section v-if="selectedDetailRows.length" class="analysis-drawer-section">
-          <div class="analysis-drawer-section-title"><a-icon type="file-text" /><h3>{{ $t('smartInsights.analysisDetails') }}</h3></div>
-          <div class="analysis-detail-list">
-            <article v-for="item in selectedDetailRows" :key="item.key" class="analysis-detail-item">
-              <div class="analysis-detail-item-title"><a-icon :type="item.icon" /><strong>{{ item.title }}</strong></div>
-              <p>{{ item.text }}</p>
-            </article>
-          </div>
-        </section>
-
-        <section v-if="selectedCryptoFactorRows.length || selectedOpinionDetails.cryptoFactorBreakdown.length" class="analysis-drawer-section">
-          <div class="analysis-drawer-section-title"><a-icon type="fund" /><h3>{{ $t('smartInsights.cryptoFactors') }}</h3></div>
-          <p v-if="selectedOpinionDetails.cryptoFactorSummary" class="analysis-evidence-desc">{{ selectedOpinionDetails.cryptoFactorSummary }}</p>
-          <div v-if="selectedCryptoFactorRows.length" class="analysis-factor-grid">
-            <div v-for="factor in selectedCryptoFactorRows" :key="factor.key" class="analysis-factor-item">
-              <small>{{ factor.label }}</small><strong>{{ factor.value }}</strong>
-            </div>
-          </div>
-          <ul v-if="selectedOpinionDetails.cryptoFactorBreakdown.length" class="analysis-bullet-list">
-            <li v-for="(factor, index) in selectedOpinionDetails.cryptoFactorBreakdown" :key="`factor-${index}`">
-              <strong>{{ factor.factor || $t('smartInsights.factor') }}</strong><span>{{ factor.reason || factor.score }}</span>
-            </li>
-          </ul>
-        </section>
-
-        <section v-if="selectedIndicatorRows.length" class="analysis-drawer-section">
-          <div class="analysis-drawer-section-title"><a-icon type="stock" /><h3>{{ $t('smartInsights.indicators') }}</h3></div>
-          <div class="analysis-factor-grid">
-            <div v-for="indicator in selectedIndicatorRows" :key="indicator.key" class="analysis-factor-item">
-              <small>{{ indicator.label }}</small><strong>{{ indicator.value }}</strong><span v-if="indicator.hint">{{ indicator.hint }}</span>
-            </div>
-          </div>
-        </section>
-
-        <section v-if="selectedTrendRows.length || selectedOpinionDetails.trendOutlookSummary || selectedConsensusRows.length" class="analysis-drawer-section">
-          <div class="analysis-drawer-section-title"><a-icon type="cluster" /><h3>{{ $t('smartInsights.consensusAndOutlook') }}</h3></div>
-          <p v-if="selectedOpinionDetails.trendOutlookSummary" class="analysis-evidence-desc">{{ selectedOpinionDetails.trendOutlookSummary }}</p>
-          <div v-if="selectedConsensusRows.length" class="analysis-consensus-grid">
-            <div v-for="item in selectedConsensusRows" :key="item.key"><small>{{ item.label }}</small><strong :class="item.key === 'decision' ? analysisDecisionClass(item.value) : ''">{{ item.key === 'decision' ? analysisTrendLabel(item.value) : item.value }}</strong></div>
-          </div>
-          <div v-if="selectedTrendRows.length" class="analysis-trend-list">
-            <div v-for="trend in selectedTrendRows" :key="trend.key" class="analysis-trend-item">
-              <span>{{ trend.label }}</span><strong :class="analysisDecisionClass(trend.trend)">{{ analysisTrendLabel(trend.trend) }}</strong><small>{{ trend.score != null ? trend.score : '—' }} · {{ trend.strength || '—' }}</small>
-            </div>
-          </div>
-        </section>
-
-        <section class="analysis-drawer-section analysis-evidence">
-          <div class="analysis-drawer-section-title"><a-icon type="bulb" /><h3>{{ $t('smartInsights.analysisArguments') }}</h3></div>
-          <p class="analysis-evidence-desc">{{ $t('smartInsights.analysisArgumentsDesc') }}</p>
-          <div v-if="selectedOpinionReport && selectedOpinionReport.reasons && selectedOpinionReport.reasons.length" class="analysis-evidence-list">
-            <article v-for="(reason, index) in selectedOpinionReport.reasons" :key="index" class="analysis-evidence-item">
-              <div class="analysis-evidence-item-head">
-                <strong>{{ selectedOpinionRow.displaySymbol }}</strong>
-                <span>{{ analysisDateLabel }}</span>
+            <div v-if="selectedMarketMetrics.length" class="analysis-metric-grid">
+              <div v-for="metric in selectedMarketMetrics" :key="metric.key" class="analysis-metric-item">
+                <small>{{ metric.label }}</small>
+                <strong :class="metric.tone">{{ metric.value }}</strong>
               </div>
-              <div class="analysis-evidence-item-meta">
-                <span>{{ $t('smartInsights.lastAiRun') }}: {{ formatDateTime(selectedOpinionReport.createdAt) }}</span>
-                <span>{{ $t('smartInsights.aiConfidence') }}: {{ selectedOpinionReport.confidence != null ? `${selectedOpinionReport.confidence}%` : $t('smartInsights.notAvailable') }}</span>
+            </div>
+          </section>
+          <section v-else class="analysis-drawer-section analysis-empty">
+            <a-icon type="clock-circle" />
+            <p>{{ $t('smartInsights.aiNoResult') }}</p>
+            <router-link to="/ai-asset-analysis" @click.native="closeAssetAnalysis">{{ $t('smartInsights.manageWatchlist') }}</router-link>
+          </section>
+
+          <section v-if="selectedOpinionReport" class="analysis-drawer-section">
+            <div class="analysis-drawer-section-title"><a-icon type="database" /><h3>{{ $t('smartInsights.analysisInputs') }}</h3></div>
+            <p class="analysis-evidence-desc">{{ $t('smartInsights.analysisInputsDesc') }}</p>
+            <div v-if="selectedInputRows.length" class="analysis-factor-grid">
+              <div v-for="item in selectedInputRows" :key="item.key" class="analysis-factor-item">
+                <small>{{ item.label }}</small><strong>{{ item.value }}</strong>
               </div>
-              <p class="analysis-evidence-item-copy">{{ reason }}</p>
-            </article>
+            </div>
+            <div v-else class="analysis-empty analysis-empty--compact"><span>{{ $t('smartInsights.analysisInputsUnavailable') }}</span></div>
+          </section>
+
+          <section v-if="selectedTradingPlanRows.length" class="analysis-drawer-section">
+            <div class="analysis-drawer-section-title"><a-icon type="flag" /><h3>{{ $t('smartInsights.tradingPlan') }}</h3></div>
+            <p class="analysis-evidence-desc">{{ $t('smartInsights.tradingPlanDesc') }}</p>
+            <div class="analysis-factor-grid">
+              <div v-for="item in selectedTradingPlanRows" :key="item.key" class="analysis-factor-item">
+                <small>{{ item.label }}</small><strong>{{ item.value }}</strong>
+              </div>
+            </div>
+          </section>
+
+          <section v-if="selectedDetailRows.length" class="analysis-drawer-section">
+            <div class="analysis-drawer-section-title"><a-icon type="file-text" /><h3>{{ $t('smartInsights.analysisDetails') }}</h3></div>
+            <div class="analysis-detail-list">
+              <article v-for="item in selectedDetailRows" :key="item.key" class="analysis-detail-item">
+                <div class="analysis-detail-item-title"><a-icon :type="item.icon" /><strong>{{ item.title }}</strong></div>
+                <p>{{ item.text }}</p>
+              </article>
+            </div>
+          </section>
+
+          <section v-if="selectedCryptoFactorRows.length || selectedOpinionDetails.cryptoFactorBreakdown.length" class="analysis-drawer-section">
+            <div class="analysis-drawer-section-title"><a-icon type="fund" /><h3>{{ $t('smartInsights.cryptoFactors') }}</h3></div>
+            <p v-if="selectedOpinionDetails.cryptoFactorSummary" class="analysis-evidence-desc">{{ selectedOpinionDetails.cryptoFactorSummary }}</p>
+            <div v-if="selectedCryptoFactorRows.length" class="analysis-factor-grid">
+              <div v-for="factor in selectedCryptoFactorRows" :key="factor.key" class="analysis-factor-item">
+                <small>{{ factor.label }}</small><strong>{{ factor.value }}</strong>
+              </div>
+            </div>
+            <ul v-if="selectedOpinionDetails.cryptoFactorBreakdown.length" class="analysis-bullet-list">
+              <li v-for="(factor, index) in selectedOpinionDetails.cryptoFactorBreakdown" :key="`factor-${index}`">
+                <strong>{{ factor.factor || $t('smartInsights.factor') }}</strong><span>{{ factor.reason || factor.score }}</span>
+              </li>
+            </ul>
+          </section>
+
+          <section v-if="selectedIndicatorRows.length" class="analysis-drawer-section">
+            <div class="analysis-drawer-section-title"><a-icon type="stock" /><h3>{{ $t('smartInsights.indicators') }}</h3></div>
+            <div class="analysis-factor-grid">
+              <div v-for="indicator in selectedIndicatorRows" :key="indicator.key" class="analysis-factor-item">
+                <small>{{ indicator.label }}</small><strong>{{ indicator.value }}</strong><span v-if="indicator.hint">{{ indicator.hint }}</span>
+              </div>
+            </div>
+          </section>
+
+          <section v-if="selectedTrendRows.length || selectedOpinionDetails.trendOutlookSummary || selectedConsensusRows.length" class="analysis-drawer-section">
+            <div class="analysis-drawer-section-title"><a-icon type="cluster" /><h3>{{ $t('smartInsights.consensusAndOutlook') }}</h3></div>
+            <p v-if="selectedOpinionDetails.trendOutlookSummary" class="analysis-evidence-desc">{{ selectedOpinionDetails.trendOutlookSummary }}</p>
+            <div v-if="selectedConsensusRows.length" class="analysis-consensus-grid">
+              <div v-for="item in selectedConsensusRows" :key="item.key"><small>{{ item.label }}</small><strong :class="item.key === 'decision' ? analysisDecisionClass(item.value) : ''">{{ item.key === 'decision' ? analysisTrendLabel(item.value) : item.value }}</strong></div>
+            </div>
+            <div v-if="selectedTrendRows.length" class="analysis-trend-list">
+              <div v-for="trend in selectedTrendRows" :key="trend.key" class="analysis-trend-item">
+                <span>{{ trend.label }}</span><strong :class="analysisDecisionClass(trend.trend)">{{ analysisTrendLabel(trend.trend) }}</strong><small>{{ trend.score != null ? trend.score : '—' }} · {{ trend.strength || '—' }}</small>
+              </div>
+            </div>
+          </section>
+
+          <section class="analysis-drawer-section analysis-evidence">
+            <div class="analysis-drawer-section-title"><a-icon type="bulb" /><h3>{{ $t('smartInsights.analysisArguments') }}</h3></div>
+            <p class="analysis-evidence-desc">{{ $t('smartInsights.analysisArgumentsDesc') }}</p>
+            <div v-if="selectedOpinionReport && selectedOpinionReport.reasons && selectedOpinionReport.reasons.length" class="analysis-evidence-list">
+              <article v-for="(reason, index) in selectedOpinionReport.reasons" :key="index" class="analysis-evidence-item">
+                <div class="analysis-evidence-item-head">
+                  <strong>{{ selectedOpinionRow.displaySymbol }}</strong>
+                  <span>{{ analysisDateLabel }}</span>
+                </div>
+                <div class="analysis-evidence-item-meta">
+                  <span>{{ $t('smartInsights.lastAiRun') }}: {{ formatDateTime(selectedOpinionReport.createdAt) }}</span>
+                  <span>{{ $t('smartInsights.aiConfidence') }}: {{ selectedOpinionReport.confidence != null ? `${selectedOpinionReport.confidence}%` : $t('smartInsights.notAvailable') }}</span>
+                </div>
+                <p class="analysis-evidence-item-copy">{{ reason }}</p>
+              </article>
+            </div>
+            <div v-else class="analysis-empty analysis-empty--compact">
+              <span>{{ $t('smartInsights.aiReportUnavailable') }}</span>
+            </div>
+            <div v-if="selectedOpinionDetails.risks.length" class="analysis-risks">
+              <h4>{{ $t('smartInsights.risks') }}</h4>
+              <ul class="analysis-bullet-list"><li v-for="(risk, index) in selectedOpinionDetails.risks" :key="`risk-${index}`">{{ risk }}</li></ul>
+            </div>
+          </section>
+        </template>
+
+        <template v-else>
+          <div class="analysis-deep-intro">
+            <div>
+              <strong>{{ $t('smartInsights.deepAnalysis') }}</strong>
+              <span>{{ $t('smartInsights.deepAnalysisDesc') }}</span>
+            </div>
+            <a-tag color="blue">TradingAgents</a-tag>
           </div>
-          <div v-else class="analysis-empty analysis-empty--compact">
-            <span>{{ $t('smartInsights.aiReportUnavailable') }}</span>
-          </div>
-          <div v-if="selectedOpinionDetails.risks.length" class="analysis-risks">
-            <h4>{{ $t('smartInsights.risks') }}</h4>
-            <ul class="analysis-bullet-list"><li v-for="(risk, index) in selectedOpinionDetails.risks" :key="`risk-${index}`">{{ risk }}</li></ul>
-          </div>
-        </section>
+          <deep-analysis-panel
+            :visible="analysisModalVisible && analysisMode === 'deep'"
+            :embedded="true"
+            :target="deepAnalysisTarget || selectedOpinionRow"
+            :analysis-date="asOf || ''"
+            :dark="isDarkTheme"
+            @close="closeDeepAnalysis"
+          />
+        </template>
       </div>
     </a-modal>
 
@@ -366,6 +404,7 @@ export default {
       evidenceLoading: false,
       evidenceVisible: false,
       analysisModalVisible: false,
+      analysisMode: 'quick',
       deepAnalysisVisible: false,
       deepAnalysisTarget: null,
       healthVisible: false,
@@ -418,7 +457,8 @@ export default {
     },
     analysisModalTitle () {
       const symbol = this.selectedOpinionRow && this.selectedOpinionRow.displaySymbol
-      return symbol ? `${this.$t('smartInsights.viewAnalysis')} · ${symbol}` : this.$t('smartInsights.viewAnalysis')
+      const modeLabel = this.analysisMode === 'deep' ? this.$t('smartInsights.deepAnalysis') : this.$t('smartInsights.quickAnalysis')
+      return symbol ? `${modeLabel} · ${symbol}` : modeLabel
     },
     selectedOpinionReport () { return this.selectedOpinionRow && this.selectedOpinionRow.report },
     selectedOpinionDetails () { return buildAssetAnalysisDetails(this.selectedOpinionReport) },
@@ -818,8 +858,14 @@ export default {
         if (this.isCurrentRequest(requestId) && this.retryingSection === section) this.retryingSection = ''
       }
     },
-    async openAssetAnalysis (row) {
+    async openAssetAnalysis (row, mode = 'quick') {
       this.selectedOpinionRow = row
+      this.deepAnalysisTarget = {
+        market: row && row.market,
+        symbol: row && (row.displaySymbol || row.symbol)
+      }
+      this.analysisMode = mode === 'deep' ? 'deep' : 'quick'
+      this.deepAnalysisVisible = this.analysisMode === 'deep'
       this.analysisModalVisible = true
     },
     openBriefHighlight (highlight) {
@@ -830,17 +876,14 @@ export default {
       this.$router.push({ path: '/ai-asset-analysis', query: { market: row.market, symbol: row.displaySymbol, action: 'analyze' } })
     },
     openDeepAnalysis (row) {
-      this.deepAnalysisTarget = {
-        market: row && row.market,
-        symbol: row && (row.displaySymbol || row.symbol)
-      }
-      this.deepAnalysisVisible = true
+      this.openAssetAnalysis(row, 'deep')
     },
     closeDeepAnalysis () {
-      this.deepAnalysisVisible = false
+      this.closeAssetAnalysis()
     },
     closeAssetAnalysis () {
       this.analysisModalVisible = false
+      this.deepAnalysisVisible = false
     },
     toggleHeroSpeech () {
       if (!this.dailyBrief.content || typeof window === 'undefined' || !window.speechSynthesis) return
@@ -961,6 +1004,7 @@ export default {
 .asset-analysis-modal-body.theme-dark { --page-bg: #111827; --ink: #eef4ff; --muted: #9aa8bc; --line: #2a3547; --card: #182235; --soft-blue: rgba(24,144,255,.16); }
 .asset-analysis-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-bottom: 12px; border-bottom: 1px solid var(--line); }.asset-analysis-header > div { display: grid; gap: 3px; }.asset-analysis-header strong { color: var(--ink); font-size: 18px; }.asset-analysis-header span { color: var(--muted); font-size: 12px; }
 .asset-analysis-meta { display: flex; flex-wrap: wrap; gap: 12px; padding: 10px 0; color: var(--muted); font-size: 12px; }
+.analysis-mode-switcher { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin: 14px 0 2px; padding: 4px; border: 1px solid var(--line); border-radius: 12px; background: var(--page-bg); }.analysis-mode-option { display: flex; align-items: center; gap: 9px; min-width: 0; padding: 10px 12px; border: 1px solid transparent; border-radius: 9px; color: var(--muted); text-align: left; background: transparent; cursor: pointer; transition: border-color .18s ease, background .18s ease, color .18s ease, transform .18s ease; }.analysis-mode-option:hover, .analysis-mode-option:focus-visible { color: var(--ink); background: var(--card); outline: 0; }.analysis-mode-option:active { transform: translateY(1px) scale(.99); }.analysis-mode-option.active { border-color: var(--blue-ring); color: var(--blue); background: var(--card); box-shadow: 0 3px 10px var(--blue-ring); }.analysis-mode-option > .anticon { flex: 0 0 auto; font-size: 16px; }.analysis-mode-option span { display: grid; min-width: 0; gap: 2px; }.analysis-mode-option strong { color: inherit; font-size: 13px; }.analysis-mode-option small { overflow: hidden; color: var(--muted); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }.analysis-deep-intro { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-top: 14px; padding: 12px 13px; border: 1px solid var(--line); border-radius: 10px; background: var(--soft-blue); }.analysis-deep-intro > div { display: grid; gap: 3px; min-width: 0; }.analysis-deep-intro strong { color: var(--ink); font-size: 14px; }.analysis-deep-intro span { color: var(--muted); font-size: 12px; line-height: 1.45; }.analysis-deep-intro .ant-tag { flex: 0 0 auto; margin: 0; }
 .analysis-drawer-section { margin-top: 16px; padding: 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--card); }.analysis-drawer-section-title { display: flex; align-items: center; gap: 7px; }.analysis-drawer-section-title .anticon { color: var(--blue); }.analysis-drawer-section-title h3 { margin: 0; color: var(--ink); font-size: 15px; }.analysis-result-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 12px; }.analysis-result-grid > div { display: grid; gap: 4px; padding: 9px 10px; border-radius: 8px; background: var(--soft-blue); }.analysis-result-grid small { color: var(--muted); font-size: 11px; }.analysis-result-grid strong { color: var(--ink); font-size: 16px; }.analysis-copy { margin-top: 13px; }.analysis-copy h4 { margin: 0 0 5px; color: var(--ink); font-size: 13px; }.analysis-copy p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.65; white-space: pre-wrap; }.analysis-report { margin-top: 13px; overflow: auto; color: var(--ink); font-size: 13px; line-height: 1.6; }.analysis-report :deep(.qd-report) { max-width: 100%; }
 .analysis-evidence-desc { margin: 5px 0 10px; color: var(--muted); font-size: 12px; }.analysis-evidence-list { display: grid; gap: 8px; }.analysis-evidence-item { padding: 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--page-bg); }.analysis-evidence-item-head, .analysis-evidence-item-meta { display: flex; justify-content: space-between; gap: 10px; }.analysis-evidence-item-head strong { color: var(--ink); font-size: 13px; }.analysis-evidence-item-head span, .analysis-evidence-item-meta { color: var(--muted); font-size: 11px; }.analysis-evidence-item-meta { margin-top: 4px; flex-wrap: wrap; }.analysis-evidence-item-copy { margin: 8px 0 0; color: var(--ink); font-size: 13px; line-height: 1.55; white-space: pre-wrap; overflow-wrap: anywhere; }.analysis-evidence-item a { display: block; overflow: hidden; margin-top: 7px; color: var(--blue); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }.analysis-evidence-item pre { max-height: 150px; margin: 8px 0 0; padding: 8px; overflow: auto; border-radius: 6px; color: var(--ink); background: var(--card); font-size: 11px; white-space: pre-wrap; word-break: break-word; }.analysis-empty { display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 7px; min-height: 90px; color: var(--muted); text-align: center; }.analysis-empty p { margin: 0; font-size: 13px; }.analysis-empty a { color: var(--blue); font-size: 13px; }.analysis-empty--compact { min-height: 48px; }
 .legacy-page { --page-bg: #f7f9fc; --ink: #17253d; --muted: #7b8798; --line: #e4eaf3; --card: #fff; --blue: var(--primary-color, #174ca8); --blue-hover: var(--primary-color-hover, #40a9ff); --blue-active: var(--primary-color-active, #096dd9); --blue-ring: var(--primary-color-ring, rgba(24,144,255,.22)); --soft-blue: var(--primary-color-soft, rgba(24,144,255,.1)); --soft-blue-strong: var(--primary-color-soft-strong, rgba(24,144,255,.18)); position: relative; min-height: calc(100vh - 64px); overflow: hidden; color: var(--ink); background: var(--page-bg); font-size: 15px; }
@@ -977,7 +1021,7 @@ export default {
 .analysis-metric-grid, .analysis-factor-grid, .analysis-consensus-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin-top: 12px; }.analysis-metric-item, .analysis-factor-item, .analysis-consensus-grid > div { display: grid; gap: 4px; min-width: 0; padding: 9px 10px; border-radius: 8px; background: var(--soft-blue); }.analysis-metric-item small, .analysis-factor-item small, .analysis-consensus-grid small { color: var(--muted); font-size: 11px; }.analysis-metric-item strong, .analysis-factor-item strong, .analysis-consensus-grid strong { overflow-wrap: anywhere; color: var(--ink); font-size: 13px; }.analysis-positive { color: #1b9a6c !important; }.analysis-negative { color: #d55353 !important; }.analysis-neutral { color: var(--muted) !important; }.analysis-detail-list { display: grid; gap: 9px; margin-top: 12px; }.analysis-detail-item { padding: 11px 12px; border: 1px solid var(--line); border-radius: 9px; background: var(--page-bg); }.analysis-detail-item-title { display: flex; align-items: center; gap: 7px; color: var(--ink); font-size: 13px; }.analysis-detail-item-title .anticon { color: var(--blue); }.analysis-detail-item p { margin: 7px 0 0; color: var(--ink); font-size: 13px; line-height: 1.65; white-space: pre-wrap; overflow-wrap: anywhere; }.analysis-bullet-list { display: grid; gap: 7px; margin: 12px 0 0; padding-left: 18px; color: var(--ink); font-size: 12px; line-height: 1.55; }.analysis-bullet-list li { overflow-wrap: anywhere; }.analysis-bullet-list li strong { margin-right: 6px; }.analysis-trend-list { display: grid; gap: 6px; margin-top: 12px; }.analysis-trend-item { display: grid; grid-template-columns: minmax(90px, 1fr) auto auto; align-items: center; gap: 8px; padding: 8px 10px; border-bottom: 1px solid var(--line); color: var(--muted); font-size: 12px; }.analysis-trend-item:last-child { border-bottom: 0; }.analysis-trend-item strong { font-size: 12px; }.analysis-trend-item small { color: var(--muted); }.analysis-risks { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); }.analysis-risks h4 { margin: 0; color: var(--ink); font-size: 13px; }
 @media (max-width: 960px) { .legacy-main { width: 100%; }.analysis-controls { flex-wrap: wrap; align-items: stretch; }.control-spacer { display: none; }.date-control { flex: 1 1 100%; grid-template-columns: auto 118px; } }
 @media (max-width: 900px) and (min-width: 681px) { .analysis-metric-grid, .analysis-factor-grid, .analysis-consensus-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-@media (max-width: 680px) { .legacy-main { padding: 14px 12px 32px; }.date-control { grid-template-columns: auto 1fr; }.date-control .ant-select { width: 100%; }.daily-hero { align-items: flex-start; flex-direction: column; gap: 22px; padding: 25px 22px; }.daily-hero h1 { font-size: 32px; }.daily-brief-highlights { grid-template-columns: 1fr; width: 100%; }.hero-audio { width: 100%; }.card-heading { align-items: flex-start; flex-direction: column; }.calendar-filters { flex-wrap: wrap; }.brief-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }.analysis-result-grid, .analysis-metric-grid, .analysis-factor-grid, .analysis-consensus-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }.analysis-trend-item { grid-template-columns: 1fr auto; }.analysis-trend-item small { grid-column: 1 / -1; }.asset-analysis-meta { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }.footer-inner { width: calc(100% - 24px); grid-template-columns: 1fr; }.footer-inner > div:last-child { justify-self: start; }.footer-bottom { width: calc(100% - 24px); flex-direction: column; } }
+@media (max-width: 680px) { .legacy-main { padding: 14px 12px 32px; }.date-control { grid-template-columns: auto 1fr; }.date-control .ant-select { width: 100%; }.daily-hero { align-items: flex-start; flex-direction: column; gap: 22px; padding: 25px 22px; }.daily-hero h1 { font-size: 32px; }.daily-brief-highlights { grid-template-columns: 1fr; width: 100%; }.hero-audio { width: 100%; }.card-heading { align-items: flex-start; flex-direction: column; }.calendar-filters { flex-wrap: wrap; }.brief-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }.analysis-mode-switcher { grid-template-columns: 1fr; gap: 4px; }.analysis-mode-option { min-height: 48px; }.analysis-deep-intro { align-items: stretch; flex-direction: column; }.analysis-result-grid, .analysis-metric-grid, .analysis-factor-grid, .analysis-consensus-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }.analysis-trend-item { grid-template-columns: 1fr auto; }.analysis-trend-item small { grid-column: 1 / -1; }.asset-analysis-meta { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }.footer-inner { width: calc(100% - 24px); grid-template-columns: 1fr; }.footer-inner > div:last-child { justify-self: start; }.footer-bottom { width: calc(100% - 24px); flex-direction: column; } }
 @media (max-width: 680px) {
   .data-readiness-summary { align-items: flex-start; flex-wrap: wrap; }
   .data-readiness-heading { flex: 1 0 100%; }
@@ -1006,8 +1050,13 @@ export default {
 .asset-analysis-modal .ant-modal { max-width: calc(100vw - 24px); }
 .asset-analysis-modal .ant-modal-content { overflow: hidden; border-radius: 14px; box-shadow: 0 20px 60px rgba(12, 28, 52, .22); }
 .asset-analysis-modal .ant-modal-header { padding: 16px 20px; border-bottom-color: #e4eaf3; }
-.asset-analysis-modal .ant-modal-body { padding: 18px 20px 20px; }
+.asset-analysis-modal .ant-modal-body { padding: 16px 18px 18px; }
+.asset-analysis-modal--hub .trading-agents-modal--embedded.ant-modal-wrap { position: static !important; z-index: auto; height: auto; overflow: visible; }
+.asset-analysis-modal--hub .trading-agents-modal--embedded .ant-modal { top: 0; width: 100% !important; max-width: none; padding-bottom: 0; }
+.asset-analysis-modal--hub .trading-agents-modal--embedded .ant-modal-content { border: 0; border-radius: 0; box-shadow: none; background: transparent; }
+.asset-analysis-modal--hub .trading-agents-modal--embedded .ant-modal-body { padding: 0; }
+.asset-analysis-modal--hub .trading-agents-modal--embedded .deep-analysis-panel { padding-top: 10px; }
 .asset-analysis-modal.theme-dark .ant-modal-content, .asset-analysis-modal.theme-dark .ant-modal-header { color: #eef4ff; border-color: #2a3547; background: #182235; }
 .asset-analysis-modal.theme-dark .ant-modal-title, .asset-analysis-modal.theme-dark .ant-modal-close { color: #eef4ff; }
-@media (max-width: 680px) { .asset-analysis-modal .ant-modal { width: calc(100vw - 16px) !important; max-width: calc(100vw - 16px); margin: 8px auto; }.asset-analysis-modal .ant-modal-header { padding: 14px 16px; }.asset-analysis-modal .ant-modal-body { max-height: calc(100vh - 72px); padding: 12px 10px 14px; }.asset-analysis-modal-body { max-height: calc(100vh - 112px); padding-right: 0; }.analysis-drawer-section { margin-top: 10px; padding: 11px; }.analysis-drawer-section-title h3 { font-size: 14px; }.analysis-copy p, .analysis-detail-item p, .analysis-evidence-item-copy { font-size: 12px; line-height: 1.55; }.analysis-metric-item, .analysis-factor-item, .analysis-consensus-grid > div { padding: 8px; }.analysis-metric-item strong, .analysis-factor-item strong, .analysis-consensus-grid strong { font-size: 12px; } }
+@media (max-width: 680px) { .asset-analysis-modal .ant-modal { width: calc(100vw - 16px) !important; max-width: calc(100vw - 16px); margin: 8px auto; }.asset-analysis-modal .ant-modal-header { padding: 14px 16px; }.asset-analysis-modal .ant-modal-body { max-height: calc(100vh - 72px); padding: 12px 10px 14px; }.asset-analysis-modal-body { max-height: calc(100vh - 112px); padding-right: 0; }.asset-analysis-modal--hub .trading-agents-modal--embedded .ant-modal { margin: 0; }.analysis-drawer-section { margin-top: 10px; padding: 11px; }.analysis-drawer-section-title h3 { font-size: 14px; }.analysis-copy p, .analysis-detail-item p, .analysis-evidence-item-copy { font-size: 12px; line-height: 1.55; }.analysis-metric-item, .analysis-factor-item, .analysis-consensus-grid > div { padding: 8px; }.analysis-metric-item strong, .analysis-factor-item strong, .analysis-consensus-grid strong { font-size: 12px; } }
 </style>

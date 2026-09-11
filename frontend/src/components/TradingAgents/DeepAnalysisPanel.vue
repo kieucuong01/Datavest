@@ -1,17 +1,20 @@
 <template>
   <a-modal
     :visible="visible"
-    :title="title"
-    :width="960"
+    :title="embedded ? null : title"
+    :width="embedded ? '100%' : 960"
+    :get-container="embedded ? false : undefined"
+    :mask="!embedded"
+    :closable="!embedded"
+    :centered="!embedded"
     :footer="null"
-    centered
     :mask-closable="true"
-    :keyboard="true"
-    :wrap-class-name="dark ? 'trading-agents-modal trading-agents-modal--dark' : 'trading-agents-modal'"
+    :keyboard="!embedded"
+    :wrap-class-name="modalClass"
     @cancel="close"
   >
     <section class="deep-analysis-panel" :class="{ 'theme-dark': dark }" aria-live="polite">
-      <div class="deep-analysis-context">
+      <div v-if="!embedded" class="deep-analysis-context">
         <div>
           <span class="deep-analysis-kicker"><a-icon type="apartment" /> {{ $t('tradingAgents.nativeGraph') }}</span>
           <h3>{{ targetLabel }}</h3>
@@ -236,7 +239,8 @@ export default {
     visible: { type: Boolean, default: false },
     target: { type: Object, default: null },
     analysisDate: { type: String, default: '' },
-    dark: { type: Boolean, default: false }
+    dark: { type: Boolean, default: false },
+    embedded: { type: Boolean, default: false }
   },
   data () {
     return {
@@ -267,6 +271,9 @@ export default {
     }
   },
   computed: {
+    modalClass () {
+      return ['trading-agents-modal', this.embedded ? 'trading-agents-modal--embedded' : '', this.dark ? 'trading-agents-modal--dark' : ''].filter(Boolean).join(' ')
+    },
     vietnamToday () { return vietnamDay() },
     contextKey () { return `${this.normalizedTarget.market}:${this.normalizedTarget.symbol}:${this.analysisDate || this.vietnamToday}:${this.$i18n.locale}` },
     isVietnamese () { return this.$i18n && this.$i18n.locale === 'vi-VN' },

@@ -44,6 +44,7 @@
             <a-tag :class="decisionTone(row.report.decision)">{{ decisionLabel(row.report.decision) }}</a-tag>
             <small class="muted-line">{{ row.report.summary || $t('smartInsights.aiReportUnavailable') }}</small>
             <small class="confidence-line">{{ $t('smartInsights.aiConfidence') }} {{ percent(row.report.confidence) }}</small>
+            <small class="engine-line"><a-icon type="robot" /> {{ $t('smartInsights.quickEngine') }}</small>
           </template>
           <template v-else>
             <a-tag class="stance-neutral">{{ $t('smartInsights.dataUnavailableShort') }}</a-tag>
@@ -58,10 +59,10 @@
         </div>
         <div class="opinion-actions">
           <template v-if="row.report">
-            <a-button size="small" type="primary" icon="search" @click="$emit('open-analysis', row)">{{ $t('smartInsights.viewAnalysis') }}</a-button>
+            <a-button size="small" type="primary" icon="search" class="quick-analysis-action" @click="$emit('open-analysis', row)">{{ $t('smartInsights.quickAnalysis') }}</a-button>
           </template>
-          <a-button v-else size="small" icon="robot" @click="$emit('open-ai-assistant', row)">{{ $t('smartInsights.openAiAssistant') }}</a-button>
-          <a-button size="small" icon="apartment" class="deep-analysis-action" @click="$emit('open-deep-analysis', row)">{{ $t('tradingAgents.start') }}</a-button>
+          <a-button v-else size="small" icon="robot" class="quick-analysis-action" @click="$emit('open-ai-assistant', row)">{{ $t('smartInsights.openAiAssistant') }}</a-button>
+          <a-button size="small" icon="apartment" class="deep-analysis-action" @click="$emit('open-deep-analysis', row)">{{ $t('smartInsights.deepAnalysis') }}</a-button>
         </div>
       </div>
     </div>
@@ -165,7 +166,7 @@ export default {
 .tone-btc { color: #9d6200; background: #fff3d7; }.tone-eth { color: #545bc3; background: #eff0ff; }.tone-xau { color: #8f6b00; background: #fff8d9; }.tone-vnix { color: #fff; background: #fa4865; }.tone-vn3 { color: #25324a; background: #eef1f7; }
 .opinion-row .ant-tag { margin: 0 0 2px; font-size: 11px; }
 .stance-positive { color: #1b9a6c; border-color: #a9e7cb; background: #e9fbf3; }.stance-negative { color: #d55353; border-color: #f0bcbc; background: #fff0f0; }.stance-neutral { color: #697689; border-color: #d4dce8; background: #f5f7fa; }
-.confidence-line, .report-status { display: block; color: #7aa4de; font-size: 11px; }.report-status { color: var(--muted); overflow-wrap: anywhere; }.opinion-actions { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; min-width: 0; gap: 6px; }.opinion-actions .ant-btn { max-width: 100%; padding: 0 9px; overflow: hidden; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }.deep-analysis-action { border-color: var(--blue-ring); color: var(--blue); }
+.confidence-line, .engine-line, .report-status { display: block; color: #7aa4de; font-size: 11px; }.engine-line { margin-top: 3px; color: var(--muted); font-size: 10px; }.engine-line .anticon { color: var(--blue); }.report-status { color: var(--muted); overflow-wrap: anywhere; }.opinion-actions { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; min-width: 0; gap: 6px; }.opinion-actions .ant-btn { max-width: 100%; padding: 0 9px; overflow: hidden; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }.quick-analysis-action { border-color: var(--blue); }.deep-analysis-action { border-color: var(--blue-ring); color: var(--blue); }
 .legacy-empty { display: flex; align-items: center; justify-content: center; gap: 9px; min-height: 94px; padding: 16px; color: var(--muted); text-align: center; }.legacy-empty div { display: grid; gap: 4px; text-align: left; }.legacy-empty span, .legacy-empty strong { font-size: 13px; }
 .theme-dark & .card-heading { background: linear-gradient(var(--soft-blue), var(--card)); }.theme-dark & .opinion-table-head, .theme-dark & .opinion-row { border-color: var(--line); }.theme-dark & .opinion-table-head { background: var(--card); }
 @media (max-width: 960px) { .opinion-table-head, .opinion-row { grid-template-columns: minmax(118px, 1fr) minmax(0, 1.6fr) minmax(76px, .72fr) minmax(108px, auto); } }
