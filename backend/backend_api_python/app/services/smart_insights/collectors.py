@@ -176,6 +176,7 @@ def default_collector_registry(*, repository: SmartInsightsRepository | None = N
     from .defillama import DefiLlamaStablecoinsCollector
     from .defillama import DefiLlamaChainsCollector
     from .coinmetrics import CoinMetricsCollector, CoinMetricsPriceHistoryCollector
+    from .bitview import BitviewCollector
     from .legacy_browser import NodriverBrowserClient
     from .legacy_crawlers import CoinGlassMarginBrowserCollector, CoinGlassMaxPainBrowserCollector
     from .coinshares_browser import CoinSharesBrowserCollector
@@ -227,6 +228,7 @@ def default_collector_registry(*, repository: SmartInsightsRepository | None = N
         ),
         "defillama-chains": lambda: DefiLlamaChainsCollector().collect(datetime.now(timezone.utc)),
         "coinmetrics-community": collect_coinmetrics_core,
+        "bitview-onchain": lambda: BitviewCollector().collect(datetime.now(timezone.utc)),
         "coinglass-margin-borrow": lambda: CoinGlassMarginBrowserCollector(browser=browser).collect(datetime.now(timezone.utc)),
         "coinglass-liquidation-maxpain": lambda: CoinGlassMaxPainBrowserCollector(browser=browser).collect(datetime.now(timezone.utc)),
         "bitinfocharts-top-addresses": SnapshotObservationCollector("bitinfocharts-top-addresses"),

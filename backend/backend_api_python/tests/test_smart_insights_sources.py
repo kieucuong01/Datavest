@@ -29,6 +29,7 @@ def test_only_verified_sources_are_default_enabled_and_runtime_status_is_explici
 
     assert {source.code for source in SOURCES.values() if source.enabled_by_default}
     assert {source.code for source in SOURCES.values() if source.activation_mode == "RUNTIME"} == {
+        "bitview-onchain",
         "alternative-fng",
         "binance-usdm-derivatives",
         "bitinfocharts-top-addresses",

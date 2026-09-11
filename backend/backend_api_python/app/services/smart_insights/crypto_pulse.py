@@ -219,6 +219,7 @@ def _series(rows: Iterable[Mapping[str, Any]], *, limit: int = 90) -> list[dict[
         }
         dimensions = _dimensions(row)
         for dimension, output_key in (
+            ("dimension", "dimension"),
             ("address", "address"),
             ("rank", "rank"),
             ("label", "label"),
@@ -251,7 +252,7 @@ def _preferred_etf_rows(rows: Iterable[Mapping[str, Any]]) -> list[Mapping[str, 
     return list(selected.values())
 
 
-def _metric_cards(rows: Iterable[Mapping[str, Any]], *, limit: int = 12) -> list[dict[str, Any]]:
+def _metric_cards(rows: Iterable[Mapping[str, Any]], *, limit: int = 12, provenance: bool = False) -> list[dict[str, Any]]:
     cards: list[dict[str, Any]] = []
     for row in sorted(_latest(rows), key=lambda item: (_effective(item), _observed(item)), reverse=True):
         value = _number(row)
@@ -268,6 +269,12 @@ def _metric_cards(rows: Iterable[Mapping[str, Any]], *, limit: int = 12) -> list
                 "evidenceId": row.get("id"),
             }
         )
+        if provenance:
+            cards[-1].update({
+                "sourceUrl": row.get("sourceUrl"), "observedAt": _observed(row),
+                "checksum": row.get("checksum"), "methodologyVersion": row.get("methodologyVersion"),
+                "dimensions": _dimensions(row),
+            })
         if len(cards) >= limit:
             break
     return cards
@@ -301,8 +308,8 @@ def _onchain_tab(rows: Iterable[Mapping[str, Any]]) -> dict[str, Any]:
                 "key": key,
                 "status": _status(group_rows),
                 "sources": _sources(group_rows),
-                "metrics": _metric_cards(group_rows),
-                "series": _series(group_rows, limit=2_000),
+                "metrics": _metric_cards(group_rows, limit=64, provenance=True),
+                "series": _series(group_rows, limit=12_000),
             }
         )
     return {

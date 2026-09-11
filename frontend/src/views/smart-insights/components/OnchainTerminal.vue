@@ -5,14 +5,15 @@
         <h3 id="onchain-terminal-title">On-chain Terminal</h3>
         <p>{{ isVietnamese ? 'Bốn nhóm dữ liệu blockchain, chỉ hiển thị khi đã có nguồn xác thực.' : 'Four blockchain data groups; values appear only after a verified source import.' }}</p>
       </div>
-      <a-tag :color="onchain.status === 'AVAILABLE' ? 'green' : 'orange'">{{ statusLabel(onchain.status) }}</a-tag>
+      <a-radio-group v-model="selectedAsset" size="small" button-style="solid"><a-radio-button value="BTC">BTC</a-radio-button><a-radio-button value="ETH">ETH</a-radio-button></a-radio-group>
     </header>
 
     <article v-for="definition in definitions" :key="definition.key" class="onchain-group" :class="`group-${definition.key}`">
       <header class="group-header">
         <div class="group-heading"><span class="group-number">{{ definition.number }}</span><div><h4>{{ definition.label }}</h4><p>{{ definition.description }}</p></div></div>
-        <a-tag :color="groupFor(definition.key).status === 'AVAILABLE' ? 'green' : 'default'">{{ statusLabel(groupFor(definition.key).status) }}</a-tag>
+        <a-tag>{{ availableCount(definition) }}/{{ definition.metrics.length }} {{ isVietnamese ? 'chỉ số có dữ liệu' : 'metrics available' }}</a-tag>
       </header>
+      <p v-if="definition.key === 'holders'" class="methodology-note">{{ isVietnamese ? 'Bitview · Chỉ BTC · LTH ≥ 150 ngày; STH < 150 ngày. HODL Waves: tỷ trọng nguồn cung theo tuổi UTXO. Giá vốn là realized price, không phải giá mua của mọi nhà đầu tư.' : 'Bitview · BTC only · LTH ≥ 150 days; STH < 150 days. HODL Waves: supply share by UTXO age. Cost basis is realized price, not every investor’s purchase price.' }}</p>
 
       <div class="metric-grid">
         <article v-for="spec in definition.metrics" :key="spec.metric" class="metric-card" :class="{ unavailable: !latestFor(spec.metric) }">
@@ -20,12 +21,14 @@
           <strong v-if="latestFor(spec.metric)">{{ formatValue(latestFor(spec.metric).value, latestFor(spec.metric).unit) }}</strong>
           <strong v-else>—</strong>
           <small class="metric-status">{{ latestFor(spec.metric) ? formatDate(latestFor(spec.metric).effectiveAt) : unavailableText }}</small>
+          <small v-if="latestFor(spec.metric)" class="metric-status">{{ stale(latestFor(spec.metric)) ? (isVietnamese ? 'Dữ liệu cũ' : 'Stale data') : (isVietnamese ? 'Ngày đã kết thúc' : 'Closed day') }} · {{ latestFor(spec.metric).source }}</small>
+          <a v-if="latestFor(spec.metric) && latestFor(spec.metric).source === 'bitview-onchain'" :href="latestFor(spec.metric).sourceUrl" target="_blank" rel="noopener noreferrer">{{ isVietnamese ? 'Nguồn dữ liệu' : 'Data source' }}</a>
         </article>
       </div>
 
       <div v-if="chartEntries(definition.key).length" class="group-chart-grid">
         <article v-for="entry in chartEntries(definition.key)" :key="entry.key" class="chart-shell">
-          <header><span>{{ entry.label }}</span><small>{{ entry.symbol || 'ALL' }}</small></header>
+          <header><span>{{ entry.label }}</span><small>{{ entry.symbol || 'ALL' }} · {{ entry.source }}</small></header>
           <div :ref="`chart_${entry.key}`" class="onchain-chart" role="img" :aria-label="entry.label" />
         </article>
       </div>
@@ -37,6 +40,7 @@
 <script>
 import * as echarts from 'echarts'
 import { formatVietnamDate } from '@/utils/vietnamTime'
+import { latestMetric, chartEntries as buildChartEntries } from '../onchainData'
 
 const DEFINITIONS = [
   {
@@ -59,9 +63,9 @@ description: 'Nguồn cung LTH/STH, HODL Waves, realized price và cost basis.',
     metrics: [
       { metric: 'crypto.onchain.lth_supply', label: 'LTH Supply' },
       { metric: 'crypto.onchain.sth_supply', label: 'STH Supply' },
-      { metric: 'crypto.onchain.hodl_waves', label: 'HODL Waves' },
       { metric: 'crypto.onchain.realized_price', label: 'Realized Price' },
-      { metric: 'crypto.onchain.cost_basis', label: 'Cost Basis' }
+      { metric: 'crypto.onchain.cost_basis_lth', label: 'LTH Cost Basis' },
+      { metric: 'crypto.onchain.cost_basis_sth', label: 'STH Cost Basis' }
     ]
   },
   {
@@ -96,34 +100,30 @@ description: 'Địa chỉ hoạt động, giao dịch, phí, hash rate, issuanc
 export default {
   name: 'OnchainTerminal',
   props: { onchain: { type: Object, default: () => ({}) } },
-  data () { return { definitions: DEFINITIONS, chartInstances: {}, resizeObserver: null, onWindowResize: null } },
+  data () { return { definitions: DEFINITIONS, selectedAsset: 'BTC', chartInstances: {}, resizeObserver: null, onWindowResize: null } },
   computed: {
     isVietnamese () { return this.$i18n && this.$i18n.locale === 'vi-VN' },
     unavailableText () { return this.isVietnamese ? 'Nguồn chưa kết nối' : 'Source not connected' },
     groups () { return Array.isArray(this.onchain.groups) ? this.onchain.groups : [] }
   },
-  watch: { onchain: { deep: true, handler () { this.scheduleRender() } } },
+  watch: { selectedAsset () { this.resetCharts(); this.scheduleRender() }, onchain: { deep: true, handler () { this.resetCharts(); this.scheduleRender() } } },
   mounted () { this.onWindowResize = () => this.resizeCharts(); window.addEventListener('resize', this.onWindowResize); this.scheduleRender() },
   beforeDestroy () { window.removeEventListener('resize', this.onWindowResize); if (this.resizeObserver) this.resizeObserver.disconnect(); Object.values(this.chartInstances).forEach(chart => chart && chart.dispose()) },
   methods: {
     groupFor (key) { return this.groups.find(group => group && group.key === key) || { status: 'UNAVAILABLE', metrics: [], series: [] } },
-    latestFor (metric) { return (this.groupFor(this.definitionFor(metric).key).metrics || []).filter(item => item && item.metric === metric).sort((a, b) => String(a.effectiveAt || '').localeCompare(String(b.effectiveAt || ''))).pop() || null },
+    latestFor (metric) { return latestMetric(this.groupFor(this.definitionFor(metric).key).metrics || [], metric, this.selectedAsset) },
+    availableCount (definition) { return definition.metrics.filter(spec => this.latestFor(spec.metric)).length },
+    stale (row) { return Date.now() - Date.parse(row.effectiveAt) > 48 * 3600 * 1000 },
+    resetCharts () { Object.values(this.chartInstances).forEach(chart => chart && chart.dispose()); this.chartInstances = {}; if (this.resizeObserver) this.resizeObserver.disconnect() },
     definitionFor (metric) { return this.definitions.find(definition => definition.metrics.some(spec => spec.metric === metric)) || { key: '' } },
     chartEntries (groupKey) {
-      const group = this.groupFor(groupKey)
-      const grouped = new Map()
-      for (const point of (Array.isArray(group.series) ? group.series : [])) {
-        if (!point || !point.metric || !Number.isFinite(Number(point.value))) continue
-        const key = `${point.metric}:${point.symbol || 'ALL'}`
-        if (!grouped.has(key)) grouped.set(key, [])
-        grouped.get(key).push(point)
-      }
-      return Array.from(grouped.entries()).slice(0, 4).map(([key, points]) => ({ key, symbol: String(points[0].symbol || ''), label: this.metricName(points[0].metric), points: points.slice(-365) }))
+      return buildChartEntries(this.groupFor(groupKey).series || [], this.selectedAsset).map(entry => ({ ...entry, label: entry.dimension ? `HODL Waves · ${entry.dimension} (%)` : this.metricName(entry.metric) }))
     },
     metricName (metric) { for (const definition of this.definitions) { const found = definition.metrics.find(spec => spec.metric === metric); if (found) return found.label } return String(metric || '').split('.').pop().replace(/_/gu, ' ') },
     instrumentLabel (metric) { return metric.symbol ? String(metric.symbol).toUpperCase() : 'ALL' },
     statusLabel (status) { return String(status || 'UNAVAILABLE') === 'AVAILABLE' ? (this.isVietnamese ? 'Có dữ liệu' : 'Available') : this.unavailableText },
     formatValue (value, unit) {
+      if (value === null || value === undefined || value === '') return '—'
       const number = Number(value)
       if (!Number.isFinite(number)) return '—'
       const abs = Math.abs(number)

@@ -104,6 +104,16 @@ celery_app.conf.update(
             "task": "datavest.tasks.enqueue_smart_insights_refresh",
             "schedule": max(900, int(os.getenv("SMART_INSIGHTS_REFRESH_INTERVAL_SEC", "21600"))),
         },
+        "bitview-onchain-daily-import": {
+            "task": "datavest.tasks.enqueue_smart_insights_refresh_for_sources",
+            "schedule": crontab(hour=10, minute=0),
+            "args": (("bitview-onchain",),),
+        },
+        "bitview-onchain-daily-retry": {
+            "task": "datavest.tasks.enqueue_smart_insights_refresh_for_sources",
+            "schedule": crontab(hour=14, minute=0),
+            "args": (("bitview-onchain",),),
+        },
         "watchlist-market-evidence-refresh": {
             "task": "datavest.tasks.enqueue_smart_insights_refresh_for_sources",
             "schedule": crontab(minute=20, hour="*/6"),

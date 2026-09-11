@@ -46,6 +46,8 @@ def enqueue_smart_insights_refresh() -> dict:
         if configured
         else repository.list_enabled_source_codes()
     )
+    # Bitview has its own daily collection/import, not the broad six-hour job.
+    source_codes = tuple(code for code in source_codes if code != "bitview-onchain")
     if not source_codes:
         return {"skipped": True, "reason": "no_enabled_sources"}
     run_id = repository.create_refresh_request(

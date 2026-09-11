@@ -208,6 +208,9 @@ def _apply_init_sql(logger, *, strict: bool = False):
         if trading_agents_sql.exists():
             sql_parts.append(trading_agents_sql.read_text(encoding='utf-8'))
         sql_text = "\n\n".join(sql_parts)
+        bitview_sql = init_sql.parent / '20260911_bitview_onchain.sql'
+        if bitview_sql.exists():
+            sql_text += "\n\n" + bitview_sql.read_text(encoding='utf-8')
         with get_db_connection() as conn:
             cur = conn.cursor()
             try:

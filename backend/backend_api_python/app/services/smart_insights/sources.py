@@ -76,12 +76,14 @@ _CRYPTOETF_ASSETS = (
 )
 _CRYPTOETF_SOURCE_CODES = frozenset(f"cryptoetf-{asset}-etf" for asset, _ in _CRYPTOETF_ASSETS)
 _RUNTIME_ENABLED_SOURCE_CODES = frozenset({
+    "bitview-onchain",
     *_CRYPTOETF_SOURCE_CODES,
     "xoomar-btc-etf",
     "xoomar-eth-etf",
     "datavest-market-bars",
 })
 _RUNTIME_CODES = frozenset({
+    "bitview-onchain",
     "alternative-fng",
     "bitinfocharts-top-addresses",
     "blockchaincenter-altcoin-season",
@@ -163,6 +165,7 @@ _SOURCE_ROWS = (
     _source("coinglass-liquidation-maxpain", "CoinGlass Liquidation Max Pain", "crypto", "SCRAPING", ("https://www.coinglass.com/liquidation-maxpain",), "daily", "coinglass-maxpain-v1", 2880, "https://www.coinglass.com/liquidation-maxpain"),
     _source("coinglass-margin-borrow", "CoinGlass Binance USDT Margin Borrow Rates", "crypto", "SCRAPING", ("https://www.coinglass.com/pro/i/MarginFeeChart",), "daily", "coinglass-margin-v1", 2880, "https://www.coinglass.com/pro/i/MarginFeeChart"),
     _source("coinmetrics-community", "Coin Metrics Community API", "crypto", "API", ("https://community-api.coinmetrics.io/v4/timeseries/asset-metrics",), "daily", "coinmetrics-v1", 2880, "https://coinmetrics.io/terms-of-use/"),
+    _source("bitview-onchain", "Bitview / Bitcoin Research Kit", "crypto", "API", ("https://bitview.space/api/series",), "daily 10:00 Asia/Ho_Chi_Minh", "bitview-daily-v1", 2880, "https://github.com/bitcoinresearchkit/brk/blob/main/LICENSE"),
     _source("coinshares-weekly", "CoinShares Digital Asset Fund Flows", "crypto", "SCRAPING", ("https://coinshares.com/insights/research-data/",), "weekly", "coinshares-v1", 10080, "https://coinshares.com/insights/research-data/"),
     *(_source(f"cryptoetf-{asset}-etf", f"CryptoETF {name} ETF Flows", "crypto", "API", (f"https://api.cryptoetf.today/api/v1/flows/{asset}",), "daily", "cryptoetf-v1", 2880, "https://cryptoetf.today/en/api") for asset, name in _CRYPTOETF_ASSETS),
     _source("cryptocraft", "CryptoCraft Economic Calendar", "macro", "SCRAPING", ("https://www.cryptocraft.com/calendar?week=this", "https://www.cryptocraft.com/calendar?week=next"), "calendar", "cryptocraft-v1", 120, "https://www.cryptocraft.com/legal.php"),
