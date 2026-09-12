@@ -5,6 +5,8 @@ Wants=network-online.target
 
 [Service]
 Type=oneshot
+User=datavest-deploy
+Group=datavest-deploy
 WorkingDirectory=/opt/datavest/current/backend
 EnvironmentFile=/opt/datavest/shared/.env
 Environment=PYTHONUNBUFFERED=1
@@ -19,7 +21,9 @@ Environment=INVESTING_CALENDAR_SNAPSHOT_PATH=/opt/datavest/shared/data/economic-
 ExecStart=/opt/datavest/current/.venv/bin/python -m calendar_worker.refresh_snapshot
 TimeoutStartSec=240
 TimeoutStopSec=30
-NoNewPrivileges=true
+# Chrome's root-owned SUID helper needs privilege transition to create its
+# sandbox. This is a SYSTEM unit; the application itself runs as datavest-deploy.
+NoNewPrivileges=false
 PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=true

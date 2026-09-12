@@ -27,12 +27,23 @@ If both providers fail, the last good snapshot is retained, and becomes
 STALE after two hours. Fallback coverage is marked PARTIAL even when recent;
 it is not guaranteed to contain the same country/event universe as Investing.
 
-As datavest-deploy (user systemd environment configured):
+The calendar uses the system manager, running as `datavest-deploy`, not root.
+One-time installation/migration as root (also called by bootstrap):
 
 ```sh
-systemctl --user list-timers datavest-calendar.timer
-systemctl --user start datavest-calendar.service
-journalctl --user -u datavest-calendar.service -n 80 --no-pager
+bash /path/to/repo/deploy/vps/install-calendar.sh
+```
+
+This stops the old user timer before enabling the system timer. CI deployments
+verify that the system timer is active; they do not install user calendar units
+or need new sudo permissions. Its executable follows `/opt/datavest/current`.
+After editing unit files, re-run the installer as root with the new release's
+`backend/calendar_worker` directory. Inspect operations as root:
+
+```sh
+systemctl list-timers datavest-calendar.timer
+systemctl start datavest-calendar.service
+journalctl -u datavest-calendar.service -n 80 --no-pager
 ```
 
 The API caches for 60 seconds. Smart Insights expires its calendar cache
@@ -43,9 +54,12 @@ Verify a release by checking the timer, last service result, snapshot
 `fetched_at`, `source`, and real `actual` / `forecast` coverage separately.
 Future events, speeches and holidays may legitimately lack numeric fields.
 
-Known VPS blocker (2026-09-12): user systemd confinement prevents Chrome's
-SUID sandbox from starting; the alternative user-namespace sandbox is also
-restricted by the host's AppArmor policy. Do not add `--no-sandbox`, disable
+VPS diagnosis (2026-09-12): user systemd confinement prevented Chrome's
+SUID sandbox from starting. The system-manager probe with non-root User and
+NoNewPrivileges=false launched Chrome successfully, while retaining
+ProtectSystem=strict, ProtectHome and PrivateTmp. This narrowly permits the
+root-owned Chrome SUID helper; it does not run the application as root.
+The host AppArmor policy remains unchanged. Do not add `--no-sandbox`, disable
 AppArmor globally, or claim Investing is restored from successful fallback
 imports. A separate direct source probe returned HTTP 403. Both browser
 startup and legitimate provider access require independent verification.

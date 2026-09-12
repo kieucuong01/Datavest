@@ -82,4 +82,5 @@ runuser -u datavest-deploy -- env \
   DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$uid/bus" \
   systemctl --user daemon-reload
 
+bash "$script_dir/install-calendar.sh" "$script_dir/../../backend/backend_api_python/calendar_worker"
 echo 'bootstrap_status=success'
