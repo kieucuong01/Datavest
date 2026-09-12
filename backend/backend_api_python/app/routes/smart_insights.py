@@ -8,6 +8,7 @@ from app.observability.features import observe_feature_operation
 from app.openapi.blueprint import HumanBlueprint as Blueprint
 from app.services.ai_assistant_insights import get_ai_assistant_insights_service
 from app.services.smart_insights import get_smart_insights_service
+from app.services.smart_insights.public_access import get_public_smart_insights_service
 from app.services.smart_insights.response_compaction import (
     compact_overview_response,
     compact_pulse_response,
@@ -38,6 +39,82 @@ def _compact_requested() -> bool:
 
 def _locale() -> str:
     return str(request.args.get("lang") or request.headers.get("Accept-Language") or "vi-VN").split(",", 1)[0]
+
+
+@smart_insights_blp.route("/public/overview", methods=["GET"])
+@observe_feature_operation("smart_insights", "overview")
+def public_overview():
+    """Return the fixed BTC/VNINDEX/XAU shared research view."""
+    try:
+        data = get_public_smart_insights_service().get_overview(
+            as_of=request.args.get("as_of"), locale=_locale()
+        )
+        if _compact_requested():
+            data = compact_overview_response(data)
+        return _ok(data)
+    except ValueError as exc:
+        return _fail(str(exc), 400)
+    except Exception:
+        logger.exception("public smart insights overview failed")
+        return _fail("smart_insights_unavailable", 503)
+
+
+@smart_insights_blp.route("/public/dates", methods=["GET"])
+def public_dates():
+    try:
+        return _ok(get_public_smart_insights_service().list_dates())
+    except Exception:
+        logger.exception("public smart insights dates failed")
+        return _fail("smart_insights_unavailable", 503)
+
+
+@smart_insights_blp.route("/public/evidence/<string:evidence_id>", methods=["GET"])
+def public_evidence(evidence_id: str):
+    try:
+        data = get_public_smart_insights_service().get_evidence(evidence_id)
+        return _ok(data) if data is not None else _fail("evidence_not_found", 404)
+    except ValueError as exc:
+        return _fail(str(exc), 400)
+    except Exception:
+        logger.exception("public smart insights evidence failed")
+        return _fail("smart_insights_unavailable", 503)
+
+
+@smart_insights_blp.route("/public/data-health", methods=["GET"])
+@observe_feature_operation("smart_insights", "data_health")
+def public_data_health():
+    try:
+        return _ok(get_public_smart_insights_service().get_data_health())
+    except Exception:
+        logger.exception("public smart insights data health failed")
+        return _fail("smart_insights_unavailable", 503)
+
+
+@smart_insights_blp.route("/public/live-assets", methods=["GET"])
+@observe_feature_operation("smart_insights", "live_assets")
+def public_live_assets():
+    try:
+        return _ok(get_public_smart_insights_service().get_live_assets())
+    except Exception:
+        logger.exception("public smart insights live assets failed")
+        return _fail("smart_insights_live_assets_unavailable", 503)
+
+
+@smart_insights_blp.route("/public/crypto-market-pulse", methods=["GET"])
+@observe_feature_operation("smart_insights", "crypto_market_pulse")
+def public_crypto_market_pulse():
+    try:
+        data = get_public_smart_insights_service().get_crypto_market_pulse(
+            as_of=request.args.get("as_of"), compact=_compact_requested()
+        )
+        if _compact_requested():
+            data = compact_pulse_response(data)
+        return _ok(data)
+    except ValueError as exc:
+        return _fail(str(exc), 400)
+    except Exception:
+        logger.exception("public smart insights crypto market pulse failed")
+        return _fail("smart_insights_unavailable", 503)
 
 
 @smart_insights_blp.route("/overview", methods=["GET"])

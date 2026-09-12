@@ -1,6 +1,7 @@
 import { asyncRouterMap } from '@/config/router.config'
 import storage from 'store'
 import { USER_INFO, USER_ROLES } from '@/store/mutation-types'
+import { buildGuestRoutes } from './access'
 
 /**
  * Filter routes based on user permissions.
@@ -83,3 +84,5 @@ export const generatorDynamicRouter = token => {
     resolve(filteredRoutes)
   })
 }
+
+export const generatorGuestRouter = () => Promise.resolve(buildGuestRoutes(asyncRouterMap))

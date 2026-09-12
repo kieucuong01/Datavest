@@ -5,6 +5,7 @@ import { readFileSync } from 'node:fs'
 import { runSectionLoaders } from '../../src/views/smart-insights/loadingCoordinator.js'
 import { isCurrentRequest, summarizeReadiness, vietnamToday } from '../../src/views/smart-insights/dataReadiness.js'
 import { normalizePulseSeries } from '../../src/views/smart-insights/marketPulse.js'
+import { calendarCacheFresh } from '../../src/views/smart-insights/calendarRefresh.js'
 
 function page (api = {}) {
   const source = readFileSync(new URL('../../src/views/smart-insights/index.vue', import.meta.url), 'utf8')
@@ -12,7 +13,7 @@ function page (api = {}) {
     .replace(/import[^\n]+\n/g, '').replace('export default', 'globalThis.component =')
   const context = {
     mapState: () => ({}), AssetOpinionsSection: {}, EconomicCalendarTable: {}, MarketPulseSection: {}, DeepAnalysisPanel: {},
-    runSectionLoaders, isCurrentRequestToken: isCurrentRequest, summarizeReadiness, vietnamToday,
+    runSectionLoaders, isCurrentRequestToken: isCurrentRequest, summarizeReadiness, vietnamToday, calendarCacheFresh,
     getSmartInsightsOverview: async () => ({ data: { status: 'AVAILABLE' } }),
     getSmartInsightsCryptoPulse: async () => ({ data: { status: 'AVAILABLE' } }),
     getEconomicCalendar: async () => ({ code: 1, data: [], meta: {} }),
@@ -63,24 +64,25 @@ test('pulse can render while calendar is still pending', async () => {
   assert.equal(readyBeforeCalendar, true)
 })
 
-test('first visit loads watchlist during date discovery and then uses the newest date', async () => {
+test('first visit derives shared assets from public overview after discovering the newest date', async () => {
   const dates = deferred()
-  let watchlistCalls = 0
   const overviewDates = []
   const { instance: p } = page({
     getSmartInsightsDates: () => dates.promise,
-    getWatchlist: async () => { watchlistCalls++; return { data: [] } },
-    getSmartInsightsOverview: async args => { overviewDates.push(args.as_of); return { data: {} } }
+    getSmartInsightsOverview: async args => {
+      overviewDates.push(args.as_of)
+      return { data: { assets: [{ market: 'Crypto', symbol: 'BTC/USDT', displaySymbol: 'BTC' }] } }
+    }
   })
   p.asOf = undefined
   p.smartInsightsCache.dates = null
   const loading = p.loadAll()
   await tick()
-  assert.equal(watchlistCalls, 1)
   assert.equal(overviewDates.length, 0)
   dates.resolve({ data: { dates: ['2026-09-08', '2026-09-07'] } })
   await loading
   assert.deepEqual(overviewDates, ['2026-09-08'])
+  assert.deepEqual(p.watchlist.map(asset => asset.displaySymbol), ['BTC'])
 })
 
 test('retry pulse touches only pulse and does not invalidate concurrent overview', async () => {
@@ -166,7 +168,7 @@ test('evidence switching and closing ignore obsolete responses', async () => {
 
 test('navigation cancels speech and invalidates pending requests', () => {
   let cancelled = 0
-  const { instance: p, definition } = page({ window: { speechSynthesis: { cancel: () => cancelled++ } } })
+  const { instance: p, definition } = page({ window: { speechSynthesis: { cancel: () => cancelled++ }, clearInterval: () => {} } })
   p.heroSpeechActive = true
   const old = p.requestSequence
   definition.beforeDestroy.call(p)

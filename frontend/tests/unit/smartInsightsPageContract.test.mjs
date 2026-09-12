@@ -18,10 +18,11 @@ test('Smart Insights viewport matches the Mock Portfolio workspace treatment', (
   assert.doesNotMatch(source, /@media[^{]*\{[^}]*\.legacy-main\s*\{\s*width:\s*calc\(100%\s*-\s*24px\)/isu)
 })
 
-test('Asset Opinions is sourced from the AI Assistant watchlist', () => {
-  assert.match(source, /getWatchlist/u)
+test('Asset Opinions is sourced from the shared public asset scope', () => {
+  assert.doesNotMatch(source, /getWatchlist/u)
+  assert.match(source, /response\.data\.assets/u)
   assert.match(source, /buildWatchlistOpinionRows/u)
-  assert.match(opinionsSource, /\/ai-asset-analysis/u)
+  assert.match(opinionsSource, /guest/u)
 })
 
 test('Smart Insights page has no BTC Forecast or Kronos surface', () => {

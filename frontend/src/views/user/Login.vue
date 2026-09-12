@@ -662,6 +662,7 @@ import Turnstile from '@/components/Turnstile/index.vue'
 import storage from 'store'
 import { ACCESS_TOKEN, USER_INFO, USER_ROLES } from '@/store/mutation-types'
 import { promptChangeInitialPassword } from '@/utils/initialPasswordReminder'
+import { resolvePostLoginPath } from '@/utils/guestAccess'
 
 export default {
   name: 'Login',
@@ -900,7 +901,7 @@ export default {
         storage.set(ACCESS_TOKEN, oauthToken, new Date().getTime() + 7 * 24 * 60 * 60 * 1000)
         window.history.replaceState({}, document.title, window.location.pathname + window.location.hash.split('?')[0])
         this.$store.dispatch('GetInfo').then(() => {
-          this.$router.push({ path: '/' })
+          this.$router.push({ path: this.postLoginPath() })
           this.$notification.success({
             message: 'Welcome',
             description: `${timeFix()}, welcome back.`
@@ -998,7 +999,7 @@ export default {
     },
 
     afterLoginSuccess () {
-      this.$router.push({ path: '/' })
+      this.$router.push({ path: this.postLoginPath() })
       this.$notification.success({
         message: 'Welcome',
         description: `${timeFix()}, welcome back.`
@@ -1037,6 +1038,10 @@ export default {
         storage.set(USER_ROLES, roles, expiresAt)
         this.$store.commit('SET_ROLES', roles)
       }
+    },
+
+    postLoginPath () {
+      return resolvePostLoginPath(this.$route && this.$route.query && this.$route.query.redirect)
     },
 
     // ==================== Email Code Login ====================
@@ -1165,7 +1170,7 @@ export default {
             this.$store.dispatch('ResetRoutes')
 
             const isNew = res.data.is_new_user
-            this.$router.push({ path: '/' }).then(() => {
+            this.$router.push({ path: this.postLoginPath() }).then(() => {
               this.$notification.success({
                 message: isNew ? (this.$t('user.login.welcomeNew') || 'Welcome!') : 'Welcome',
                 description: isNew
@@ -1348,7 +1353,7 @@ export default {
 
               this.$store.dispatch('ResetRoutes')
 
-              this.$router.push({ path: '/' }).then(() => {
+              this.$router.push({ path: this.postLoginPath() }).then(() => {
                 this.$notification.success({
                   message: 'Welcome',
                   description: `${timeFix()}, welcome to QuantDinger!`

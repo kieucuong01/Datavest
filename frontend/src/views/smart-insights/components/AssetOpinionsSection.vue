@@ -5,13 +5,13 @@
         <span class="section-icon" aria-hidden="true"><a-icon type="bulb" /></span>
         <div>
           <h2 id="asset-opinions-title">{{ $t('smartInsights.opinions') }}</h2>
-          <p>{{ $t('smartInsights.watchlistOpinionsDesc') }}</p>
+          <p>{{ guest ? $t('smartInsights.commonAssetOpinionsDesc') : $t('smartInsights.watchlistOpinionsDesc') }}</p>
         </div>
       </div>
       <div class="heading-actions">
         <a-tag class="asset-count"><strong>{{ rows.length }}</strong> {{ $t('smartInsights.assets') }}</a-tag>
         <a-button size="small" icon="reload" :loading="loading" @click="$emit('refresh')">{{ $t('smartInsights.refresh') }}</a-button>
-        <router-link class="watchlist-link" to="/ai-asset-analysis">{{ $t('smartInsights.manageWatchlist') }}</router-link>
+        <router-link v-if="!guest" class="watchlist-link" to="/ai-asset-analysis">{{ $t('smartInsights.manageWatchlist') }}</router-link>
       </div>
     </div>
 
@@ -79,16 +79,16 @@
             <a-button size="small" type="primary" icon="search" class="quick-analysis-action" @click="$emit('open-analysis', row)">{{ $t('smartInsights.quickAnalysis') }}</a-button>
           </template>
           <a-button v-else size="small" icon="robot" class="quick-analysis-action" @click="$emit('open-ai-assistant', row)">{{ $t('smartInsights.openAiAssistant') }}</a-button>
-          <a-button size="small" icon="apartment" class="deep-analysis-action" @click="$emit('open-deep-analysis', row)">{{ $t('smartInsights.deepAnalysis') }}</a-button>
+          <a-button size="small" :icon="guest ? 'lock' : 'apartment'" class="deep-analysis-action" @click="$emit('open-deep-analysis', row)">{{ guest ? $t('guest.login') : $t('smartInsights.deepAnalysis') }}</a-button>
         </div>
       </article>
     </div>
     <div v-else class="legacy-empty table-empty">
       <a-icon type="star" />
       <div>
-        <strong>{{ $t('smartInsights.watchlistOpinionsEmpty') }}</strong>
-        <span>{{ $t('smartInsights.watchlistOpinionsEmptyDesc') }}</span>
-        <router-link to="/ai-asset-analysis">{{ $t('smartInsights.manageWatchlist') }}</router-link>
+        <strong>{{ $t(guest ? 'smartInsights.commonAssetOpinionsEmpty' : 'smartInsights.watchlistOpinionsEmpty') }}</strong>
+        <span>{{ $t(guest ? 'smartInsights.commonAssetOpinionsEmptyDesc' : 'smartInsights.watchlistOpinionsEmptyDesc') }}</span>
+        <router-link v-if="!guest" to="/ai-asset-analysis">{{ $t('smartInsights.manageWatchlist') }}</router-link>
       </div>
     </div>
   </section>
@@ -105,7 +105,8 @@ export default {
   props: {
     rows: { type: Array, default: () => [] },
     mode: { type: String, default: 'live' },
-    loading: { type: Boolean, default: false }
+    loading: { type: Boolean, default: false },
+    guest: { type: Boolean, default: false }
   },
   methods: {
     percent (value) {

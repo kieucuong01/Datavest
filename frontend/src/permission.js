@@ -16,6 +16,8 @@ import {
   i18nRender
 } from '@/locales'
 import { promptChangeInitialPassword } from '@/utils/initialPasswordReminder'
+import { isPublicPath } from '@/router/access'
+import { normalizeAccessToken, resolvePostLoginPath } from '@/utils/guestAccess'
 
 NProgress.configure({
   showSpinner: false
@@ -23,22 +25,23 @@ NProgress.configure({
 
 const allowList = ['login'] // no redirect allowList
 const loginRoutePath = '/user/login'
-const defaultRoutePath = '/ai-asset-analysis'
+function installGeneratedRoutes (action, payload) {
+  return store.dispatch(action, payload).then(() => {
+    resetRouter()
+    store.getters.addRouters.forEach(route => router.addRoute(route))
+  })
+}
 
 router.beforeEach((to, from, next) => {
   NProgress.start() // start progress bar
   to.meta && typeof to.meta.title !== 'undefined' && setDocumentTitle(`${i18nRender(to.meta.title)} - ${domTitle}`)
 
   // Check whether we have a token (local-only auth).
-  let token = storage.get(ACCESS_TOKEN)
-  if (token && typeof token !== 'string') {
-    token = token.token || token.value || (typeof token === 'object' ? null : token)
-  }
-  token = typeof token === 'string' ? token : null
+  const token = normalizeAccessToken(storage.get(ACCESS_TOKEN))
 
   if (token) {
     if (to.path === loginRoutePath) {
-      next({ path: defaultRoutePath })
+      next({ path: resolvePostLoginPath(to.query.redirect) })
       NProgress.done()
     } else {
       if (store.getters.roles.length === 0) {
@@ -46,17 +49,8 @@ router.beforeEach((to, from, next) => {
           .then(res => {
             // const roles = res && res.role
             promptChangeInitialPassword()
-            store.dispatch('GenerateRoutes', { token }).then(() => {
-              resetRouter() // 重置路由
-              store.getters.addRouters.forEach(r => {
-                router.addRoute(r)
-              })
-              const redirect = decodeURIComponent(from.query.redirect || to.path)
-              if (to.path === redirect) {
-                next({ ...to, replace: true })
-              } else {
-                next({ path: redirect })
-              }
+            installGeneratedRoutes('GenerateRoutes', { token }).then(() => {
+              next({ ...to, replace: true })
             })
           })
           .catch((err) => {
@@ -64,7 +58,11 @@ router.beforeEach((to, from, next) => {
             const status = err && err.response && err.response.status
             if (status === 401) {
               store.dispatch('Logout').finally(() => {
-                next({ path: loginRoutePath, query: { redirect: to.fullPath } })
+                if (isPublicPath(to.fullPath || to.path)) {
+                  installGeneratedRoutes('GenerateGuestRoutes').then(() => next({ ...to, replace: true }))
+                } else {
+                  next({ path: loginRoutePath, query: { redirect: to.fullPath } })
+                }
                 NProgress.done()
               })
               return
@@ -73,22 +71,16 @@ router.beforeEach((to, from, next) => {
             // Do NOT hard-logout on transient failures (backend down, proxy issue, etc).
             // Instead, degrade gracefully with a default role and continue.
             store.commit('SET_ROLES', [{ id: 'default', permissionList: [] }])
-            store.dispatch('GenerateRoutes', { token }).then(() => {
-              resetRouter()
-              store.getters.addRouters.forEach(r => router.addRoute(r))
+            installGeneratedRoutes('GenerateRoutes', { token }).then(() => {
               next({ ...to, replace: true })
             }).catch(() => {
               next()
             })
           })
       } else {
-        const addRouters = store.getters.addRouters
-        if (!addRouters || addRouters.length === 0) {
-          store.dispatch('GenerateRoutes', { token }).then(() => {
-            resetRouter() // 重置路由 防止退出重新登录或者 token 过期后页面未刷新，导致的路由重复添加
-            store.getters.addRouters.forEach(r => {
-              router.addRoute(r)
-            })
+        const routeMode = store.state.permission.routeMode
+        if (routeMode !== 'authenticated') {
+          installGeneratedRoutes('GenerateRoutes', { token }).then(() => {
             next({ ...to, replace: true })
           }).catch(() => {
             next()
@@ -101,6 +93,16 @@ router.beforeEach((to, from, next) => {
   } else {
     if (allowList.includes(to.name)) {
       next()
+    } else if (isPublicPath(to.fullPath || to.path)) {
+      if (store.state.permission.routeMode === 'guest') {
+        next()
+      } else {
+        installGeneratedRoutes('GenerateGuestRoutes').then(() => {
+          next({ ...to, replace: true })
+        }).catch(() => {
+          next({ path: '/404' })
+        })
+      }
     } else {
       next({ path: loginRoutePath, query: { redirect: to.fullPath } })
       NProgress.done() // if current page is login will not trigger afterEach hook, so manually handle it

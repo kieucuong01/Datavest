@@ -6,8 +6,9 @@ const page = fs.readFileSync(new URL('../../src/views/smart-insights/index.vue',
 const liveSources = fs.readFileSync(new URL('../../src/views/smart-insights/components/LiveDataSources.vue', import.meta.url), 'utf8')
 const marketPulse = fs.readFileSync(new URL('../../src/views/smart-insights/components/MarketPulseSection.vue', import.meta.url), 'utf8')
 
-test('Smart Insights MVP is watchlist-first and keeps the data readiness surface', () => {
-  assert.match(page, /getWatchlist/u)
+test('Smart Insights uses shared public assets and keeps the data readiness surface', () => {
+  assert.doesNotMatch(page, /getWatchlist/u)
+  assert.match(page, /response\.data\.assets/u)
   assert.match(page, /buildWatchlistOpinionRows/u)
   assert.doesNotMatch(page, /<section class="daily-hero"/u)
   assert.match(page, /data-readiness/u)

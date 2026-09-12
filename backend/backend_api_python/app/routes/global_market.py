@@ -114,8 +114,22 @@ def market_news():
 @login_required
 def economic_calendar():
     """Get economic calendar events with impact indicators."""
+    return _economic_calendar_response(allow_force=True)
+
+
+@global_market_blp.route("/public/calendar", methods=["GET"])
+def public_economic_calendar():
+    """Return cached calendar data without allowing anonymous refresh work."""
+    return _economic_calendar_response(allow_force=False)
+
+
+def _economic_calendar_response(*, allow_force: bool):
     try:
         force = request.args.get("force", "").lower() in ("true", "1")
+        if force and not allow_force:
+            return jsonify(
+                {"code": 0, "msg": "force_refresh_requires_auth", "data": []}
+            ), 400
         source = request.args.get("source", "")
         if source not in {"", "investing_browser", "akshare_wallstreetcn"}:
             return jsonify({"code": 0, "msg": "Unsupported calendar source", "data": []}), 400
@@ -155,7 +169,9 @@ def economic_calendar():
         return jsonify({"code": 1, "msg": "success", "data": data, "meta": meta})
     except Exception as e:
         logger.error("economic_calendar failed: %s", e, exc_info=True)
-        return jsonify({"code": 0, "msg": str(e), "data": None}), 500
+        return jsonify(
+            {"code": 0, "msg": "economic_calendar_unavailable", "data": None}
+        ), 500
 
 
 @global_market_blp.route("/sentiment", methods=["GET"])

@@ -1,7 +1,10 @@
 <template>
   <div :class="wrpCls">
-    <avatar-dropdown :menu="true" :current-user="currentUser" :class="prefixCls" />
-    <notice-icon :class="prefixCls" />
+    <avatar-dropdown v-if="authenticated" :menu="true" :current-user="currentUser" :class="prefixCls" />
+    <notice-icon v-if="authenticated" :class="prefixCls" />
+    <a-button v-else type="primary" class="guest-login-button" icon="login" @click="openLogin">
+      {{ $t('guest.login') }}
+    </a-button>
     <select-lang :class="prefixCls" />
     <a-tooltip :title="$t('app.setting.tooltip')">
       <span :class="prefixCls" @click="handleSettingClick">
@@ -16,6 +19,9 @@ import AvatarDropdown from './AvatarDropdown'
 import SelectLang from '@/components/SelectLang'
 import NoticeIcon from '@/components/NoticeIcon'
 import { mapGetters } from 'vuex'
+import storage from 'store'
+import { ACCESS_TOKEN } from '@/store/mutation-types'
+import { hasAccessToken, loginTarget } from '@/utils/guestAccess'
 
 export default {
   name: 'RightContent',
@@ -48,12 +54,18 @@ export default {
     }
   },
   methods: {
+    openLogin () {
+      this.$router.push(loginTarget(this.$route.fullPath))
+    },
     handleSettingClick () {
       this.$root.$emit('show-setting-drawer')
     }
   },
   computed: {
-    ...mapGetters(['nickname', 'avatar']),
+    ...mapGetters(['nickname', 'avatar', 'token']),
+    authenticated () {
+      return hasAccessToken(this.token || storage.get(ACCESS_TOKEN))
+    },
     currentUser () {
       return {
         name: this.nickname,
@@ -96,8 +108,22 @@ export default {
   }
 }
 
+.guest-login-button {
+  min-height: 38px;
+  margin: 0 8px;
+  border-radius: 8px;
+  font-weight: 600;
+}
+
 @media (max-width: 768px) {
   .ant-pro-global-header-index-right {
+    .guest-login-button {
+      min-width: 44px;
+      min-height: 44px;
+      margin: 0 4px;
+      padding: 0 12px;
+    }
+
     .ant-pro-global-header-index-action {
       padding: 0 8px;
     }

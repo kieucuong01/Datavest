@@ -713,7 +713,9 @@ export default {
                 meta: {
                   ...(route.meta || {}),
                   title: group.singleAsItem ? group.title : (route.meta && route.meta.title) || group.title,
-                  icon: group.singleAsItem ? group.icon : (route.meta && route.meta.icon) || group.icon
+                  icon: group.singleAsItem
+                    ? ((route.meta && route.meta.guestLocked && route.meta.icon) || group.icon)
+                    : (route.meta && route.meta.icon) || group.icon
                 }
               }
             })

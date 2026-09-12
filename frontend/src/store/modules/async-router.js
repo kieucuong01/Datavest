@@ -1,20 +1,28 @@
 import { constantRouterMap } from '@/config/router.config'
-import { generatorDynamicRouter } from '@/router/generator-routers'
+import { generatorDynamicRouter, generatorGuestRouter } from '@/router/generator-routers'
 
 const permission = {
   state: {
     routers: constantRouterMap,
-    addRouters: []
+    addRouters: [],
+    routeMode: 'none'
   },
   mutations: {
     SET_ROUTERS: (state, routers) => {
       state.addRouters = routers
       state.routers = constantRouterMap.concat(routers)
+      state.routeMode = 'authenticated'
+    },
+    SET_GUEST_ROUTERS: (state, routers) => {
+      state.addRouters = routers
+      state.routers = constantRouterMap.concat(routers)
+      state.routeMode = 'guest'
     },
     // Reset routers to force regeneration (used on login/logout)
     RESET_ROUTERS: (state) => {
       state.addRouters = []
       state.routers = constantRouterMap
+      state.routeMode = 'none'
     }
   },
   actions: {
@@ -27,6 +35,11 @@ const permission = {
         }).catch(e => {
           reject(e)
         })
+      })
+    },
+    GenerateGuestRoutes ({ commit }) {
+      return generatorGuestRouter().then(routers => {
+        commit('SET_GUEST_ROUTERS', routers)
       })
     },
     // Reset routes action

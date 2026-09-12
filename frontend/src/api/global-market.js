@@ -2,6 +2,7 @@
  * Global Market Dashboard API
  */
 import request from '@/utils/request'
+import { PUBLIC_MARKET_ENDPOINTS } from './publicMarketEndpoints'
 
 const BASE_URL = '/api/global-market'
 
@@ -44,10 +45,12 @@ export function getMarketNews (lang = 'all') {
  * Get economic calendar with impact indicators
  */
 export function getEconomicCalendar (params = {}) {
+  const publicParams = { ...params }
+  delete publicParams.force
   return request({
-    url: `${BASE_URL}/calendar`,
+    url: PUBLIC_MARKET_ENDPOINTS.economicCalendar,
     method: 'get',
-    params
+    params: publicParams
   })
 }
 

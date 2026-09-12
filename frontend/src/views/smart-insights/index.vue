@@ -2,6 +2,14 @@
   <div class="legacy-page" :class="{ 'theme-dark': isDarkTheme }">
 
     <main class="legacy-main">
+      <a-alert
+        v-if="isGuest"
+        class="guest-mode-alert"
+        type="info"
+        show-icon
+        :message="$t('guest.mode')"
+        :description="$t('guest.commonData')"
+      />
       <section class="data-readiness" :aria-label="$t('smartInsights.dataReadiness')" :aria-busy="readinessLoading ? 'true' : 'false'">
         <div class="data-readiness-summary">
           <div class="data-readiness-heading">
@@ -34,6 +42,7 @@
       <asset-opinions-section
         :rows="opinionRows"
         :loading="opinionsLoading || overviewLoading"
+        :guest="isGuest"
         @refresh="retrySection('opinions')"
         @open-analysis="openAssetAnalysis"
         @open-ai-assistant="openAiAssistant"
@@ -103,6 +112,7 @@
             <span><strong>{{ $t('smartInsights.quickAnalysis') }}</strong><small>{{ $t('smartInsights.quickEngine') }}</small></span>
           </button>
           <button
+            v-if="!isGuest"
             type="button"
             role="tab"
             class="analysis-mode-option"
@@ -116,7 +126,7 @@
         </nav>
 
         <template v-if="analysisMode === 'quick'">
-          <section class="analysis-drawer-section quick-analysis-history" aria-labelledby="quick-analysis-history-title">
+          <section v-if="!isGuest" class="analysis-drawer-section quick-analysis-history" aria-labelledby="quick-analysis-history-title">
             <div class="analysis-drawer-section-title">
               <a-icon type="history" />
               <h3 id="quick-analysis-history-title">{{ $t('smartInsights.quickHistoryTitle') }}</h3>
@@ -281,6 +291,7 @@
             <a-tag color="blue">TradingAgents</a-tag>
           </div>
           <deep-analysis-panel
+            v-if="!isGuest"
             :visible="analysisModalVisible && analysisMode === 'deep'"
             :embedded="true"
             :target="deepAnalysisTarget || selectedOpinionRow"
@@ -324,7 +335,9 @@
 
 <script>
 import { mapState } from 'vuex'
-import { getWatchlist } from '@/api/market'
+import storage from 'store'
+import { ACCESS_TOKEN } from '@/store/mutation-types'
+import { hasAccessToken, loginTarget } from '@/utils/guestAccess'
 import { getEconomicCalendar } from '@/api/global-market'
 import { calendarCacheFresh } from './calendarRefresh'
 import { getSmartInsightsCryptoPulse, getSmartInsightsDataHealth, getSmartInsightsDates, getSmartInsightsEvidence, getSmartInsightsOverview } from '@/api/smart-insights'
@@ -388,7 +401,6 @@ export default {
       speechSupported: typeof window !== 'undefined' && Boolean(window.speechSynthesis && window.SpeechSynthesisUtterance),
       smartInsightsCache: {
         dates: null,
-        watchlist: null,
         health: null,
         calendar: null,
         overview: new Map(),
@@ -405,6 +417,7 @@ export default {
   },
   computed: {
     ...mapState({ navTheme: state => state.app.theme }),
+    isGuest () { return !hasAccessToken(storage.get(ACCESS_TOKEN)) },
     isDarkTheme () { return this.navTheme === 'dark' || this.navTheme === 'realdark' },
     hasOverview () { return Boolean(this.overview && this.overview.status !== 'UNAVAILABLE') },
     dailyBrief () { return (this.overview && this.overview.dailyBrief) || { status: 'UNAVAILABLE', content: '', assetCount: 0 } },
@@ -667,7 +680,6 @@ export default {
       ;['dates', 'overview', 'opinions', 'pulse', 'calendar', 'health'].forEach(section => this.setSectionLoading(section, false, requestId))
       this.errorMessage = ''
       const independentLoaders = {}
-      if (force || !Array.isArray(this.smartInsightsCache.watchlist)) independentLoaders.opinions = requestId => this.loadWatchlist(requestId, force)
       if (force || !Array.isArray(this.smartInsightsCache.health)) independentLoaders.health = requestId => this.loadHealth(requestId, force)
       const independentResults = this.runSections(independentLoaders, requestId)
       const needsDates = force || !Array.isArray(this.smartInsightsCache.dates)
@@ -711,7 +723,10 @@ export default {
     async loadOverview (requestId, force = false) {
       const cacheKey = this.cacheKey()
       if (!force && this.smartInsightsCache.overview.has(cacheKey)) {
-        if (this.isCurrentRequest(requestId)) this.overview = this.smartInsightsCache.overview.get(cacheKey)
+        if (this.isCurrentRequest(requestId)) {
+          this.overview = this.smartInsightsCache.overview.get(cacheKey)
+          this.watchlist = Array.isArray(this.overview.assets) ? this.overview.assets : []
+        }
         return
       }
       const response = await getSmartInsightsOverview({
@@ -721,6 +736,7 @@ export default {
       if (!this.isCurrentRequest(requestId)) return
       this.smartInsightsCache.overview.set(cacheKey, response.data)
       this.overview = response.data
+      this.watchlist = Array.isArray(response.data && response.data.assets) ? response.data.assets : []
     },
     async loadDates (requestId, force = false) {
       if (!force && Array.isArray(this.smartInsightsCache.dates)) {
@@ -790,25 +806,6 @@ export default {
         throw error
       }
     },
-    async loadWatchlist (requestId, force = false) {
-      if (!force && Array.isArray(this.smartInsightsCache.watchlist)) {
-        if (this.isCurrentRequest(requestId)) this.watchlist = this.smartInsightsCache.watchlist
-        return
-      }
-      try {
-        const response = await getWatchlist()
-        const data = response && response.data
-        const watchlist = Array.isArray(data) ? data : ((data && Array.isArray(data.watchlist)) ? data.watchlist : [])
-        if (!this.isCurrentRequest(requestId)) return
-        this.smartInsightsCache.watchlist = watchlist
-        this.watchlist = watchlist
-      } catch (error) {
-        if (!this.isCurrentRequest(requestId)) return
-        this.watchlist = []
-        this.errorMessage = this.friendlyError(error, 'smartInsights.watchlistUnavailable')
-        throw error
-      }
-    },
     async retryAll () {
       this.retryingSection = 'all'
       try { await this.loadAll(true) } finally { if (this.retryingSection === 'all') this.retryingSection = '' }
@@ -817,8 +814,7 @@ export default {
       const loaderKey = section === 'sources' ? 'health' : section
       const loaders = loaderKey === 'opinions'
         ? {
-            opinions: requestId => this.loadWatchlist(requestId, true),
-            overview: requestId => this.loadOverview(requestId, true)
+            opinions: requestId => this.loadOverview(requestId, true)
           }
         : {
             overview: requestId => this.loadOverview(requestId, true),
@@ -832,7 +828,7 @@ export default {
       this.retryingSection = section
       try {
         const activeLoaders = {}
-        const keys = loaderKey === 'opinions' ? ['opinions', 'overview'] : [loaderKey]
+        const keys = [loaderKey]
         keys.forEach(key => { activeLoaders[key] = loaders[key] })
         const results = await this.runSections(activeLoaders, requestId)
         if (this.isCurrentRequest(requestId) && results.some(result => result.status === 'rejected')) this.errorMessage = this.friendlyError(results.find(result => result.status === 'rejected').reason, 'smartInsights.unavailable')
@@ -872,6 +868,10 @@ export default {
     },
     async openAssetAnalysis (row, mode = 'quick') {
       if (!row) return
+      if (this.isGuest && mode === 'deep') {
+        this.$router.push(loginTarget('/ai-asset-analysis'))
+        return
+      }
       this.selectedOpinionRow = row
       this.selectedQuickReportId = null
       this.quickAnalysisHistory = []
@@ -883,13 +883,18 @@ export default {
       this.analysisMode = mode === 'deep' ? 'deep' : 'quick'
       this.deepAnalysisVisible = this.analysisMode === 'deep'
       this.analysisModalVisible = true
-      this.loadQuickAnalysisHistory(row)
+      if (!this.isGuest) this.loadQuickAnalysisHistory(row)
     },
     openBriefHighlight (highlight) {
       const row = this.opinionRows.find(item => item.id === highlight.assetKey)
       if (row) this.openAssetAnalysis(row)
     },
     openAiAssistant (row) {
+      if (this.isGuest) {
+        const redirect = `/ai-asset-analysis?market=${encodeURIComponent(row.market)}&symbol=${encodeURIComponent(row.displaySymbol)}&action=analyze`
+        this.$router.push(loginTarget(redirect))
+        return
+      }
       this.$router.push({ path: '/ai-asset-analysis', query: { market: row.market, symbol: row.displaySymbol, action: 'analyze' } })
     },
     openDeepAnalysis (row) {
@@ -1078,6 +1083,7 @@ export default {
 .theme-dark ::v-deep .metric-copy small { color: var(--ink); }
 .theme-dark ::v-deep .flow-table-card th,
 .theme-dark ::v-deep .asset-rail button.active { background: var(--soft-blue); }
+.guest-mode-alert { margin-bottom: 16px; border-radius: 10px; }
 </style>
 
 <style lang="less">
