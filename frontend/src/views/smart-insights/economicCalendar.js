@@ -6,7 +6,7 @@ const CJK_PATTERN = /[\u3400-\u9fff]/u
 export const DEFAULT_ECONOMIC_CALENDAR_FILTER = Object.freeze({
   timePreset: 'thisWeek',
   countries: Object.freeze(['US', 'VN']),
-  impacts: Object.freeze([]),
+  impacts: Object.freeze(['high']),
   customStart: '',
   customEnd: ''
 })

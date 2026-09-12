@@ -12,7 +12,7 @@ test('Smart Insights renders the API-backed economic calendar table with a real 
   assert.match(pageSource, /<economic-calendar-table/u)
   assert.match(pageSource, /calendarFilter:\s*\{[\s\S]*timePreset:\s*'thisWeek'/u)
   assert.match(pageSource, /countries:\s*\['US',\s*'VN'\]/u)
-  assert.match(pageSource, /impacts:\s*\[\]/u)
+  assert.match(pageSource, /impacts:\s*\['high'\]/u)
   assert.match(calendarComponentSource, /calendarShowMore/u)
   assert.match(calendarComponentSource, /mode="multiple"/u)
   assert.match(calendarComponentSource, /selectedSource: 'fallback'/u)
@@ -199,6 +199,22 @@ test('economic calendar filters by impact without mutating the normalized list',
   ])
 })
 
+test('economic calendar applies the high-importance default filter', () => {
+  assert.ok(calendarModule)
+  assert.deepEqual(calendarModule.DEFAULT_ECONOMIC_CALENDAR_FILTER.impacts, ['high'])
+
+  const events = [
+    { id: 'high', date: '2026-08-26', country: 'US', impact: 'high' },
+    { id: 'medium', date: '2026-08-26', country: 'US', impact: 'medium' }
+  ]
+
+  assert.deepEqual(
+    calendarModule.filterEconomicCalendarEventsByCriteria(events, undefined, new Date('2026-08-26T12:00:00'))
+      .map(event => event.id),
+    ['high']
+  )
+})
+
 test('economic calendar groups sorted events into date sections', () => {
   assert.ok(calendarModule)
   assert.equal(typeof calendarModule.groupEconomicCalendarEvents, 'function')
@@ -226,7 +242,7 @@ test('economic calendar filters by date preset, multiple countries, and multiple
   const referenceDate = new Date('2026-08-26T12:00:00')
 
   assert.deepEqual(calendarModule.getEconomicCalendarDateRange(undefined, referenceDate), { start: '2026-08-24', end: '2026-08-30' })
-  assert.deepEqual(calendarModule.filterEconomicCalendarEventsByCriteria(events, undefined, referenceDate).map(event => event.id), ['yesterday-us', 'today-us', 'today-vn', 'this-week-vn'])
+  assert.deepEqual(calendarModule.filterEconomicCalendarEventsByCriteria(events, undefined, referenceDate).map(event => event.id), ['yesterday-us', 'today-vn'])
   assert.deepEqual(calendarModule.filterEconomicCalendarEventsByCriteria(events, { timePreset: 'yesterday', countries: ['US', 'VN'], impacts: [] }, referenceDate).map(event => event.id), ['yesterday-us'])
   assert.deepEqual(calendarModule.filterEconomicCalendarEventsByCriteria(events, { timePreset: 'today', countries: ['US', 'VN'], impacts: ['high', 'medium'] }, referenceDate).map(event => event.id), ['today-vn'])
   assert.deepEqual(calendarModule.filterEconomicCalendarEventsByCriteria(events, { timePreset: 'thisWeek', countries: ['VN'], impacts: [] }, referenceDate).map(event => event.id), ['today-vn', 'this-week-vn'])

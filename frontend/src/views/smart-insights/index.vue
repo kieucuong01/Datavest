@@ -2,15 +2,7 @@
   <div class="legacy-page" :class="{ 'theme-dark': isDarkTheme }">
 
     <main class="legacy-main">
-      <a-alert
-        v-if="isGuest"
-        class="guest-mode-alert"
-        type="info"
-        show-icon
-        :message="$t('guest.mode')"
-        :description="$t('guest.commonData')"
-      />
-      <section class="data-readiness" :aria-label="$t('smartInsights.dataReadiness')" :aria-busy="readinessLoading ? 'true' : 'false'">
+      <section v-if="!isGuest" class="data-readiness" :aria-label="$t('smartInsights.dataReadiness')" :aria-busy="readinessLoading ? 'true' : 'false'">
         <div class="data-readiness-summary">
           <div class="data-readiness-heading">
             <span class="readiness-dot" :class="`readiness-${readinessSummary.status.toLowerCase()}`" aria-hidden="true" />
@@ -367,7 +359,7 @@ export default {
       calendarFilter: {
         timePreset: 'thisWeek',
         countries: ['US', 'VN'],
-        impacts: [],
+        impacts: ['high'],
         customStart: '',
         customEnd: ''
       },
@@ -1083,7 +1075,6 @@ export default {
 .theme-dark ::v-deep .metric-copy small { color: var(--ink); }
 .theme-dark ::v-deep .flow-table-card th,
 .theme-dark ::v-deep .asset-rail button.active { background: var(--soft-blue); }
-.guest-mode-alert { margin-bottom: 16px; border-radius: 10px; }
 </style>
 
 <style lang="less">

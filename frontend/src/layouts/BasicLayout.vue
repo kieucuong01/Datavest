@@ -15,10 +15,17 @@
     >
 
       <template #menuHeaderRender>
-        <div class="sidebar-logo-wrapper" :class="{ 'sidebar-logo-wrapper--collapsed': collapsed }">
-          <img v-if="collapsed" :src="collapsedLogo" class="sidebar-logo sidebar-logo--collapsed" :alt="brandConfig.app_name" />
-          <img v-else :src="currentLogo" class="sidebar-logo" :alt="brandConfig.app_name" />
-        </div>
+        <a
+          href="#/smart-insights"
+          class="sidebar-logo-link"
+          :aria-label="$t('menu.group.smartInsights')"
+          @click.prevent="goSmartInsights"
+        >
+          <div class="sidebar-logo-wrapper" :class="{ 'sidebar-logo-wrapper--collapsed': collapsed }">
+            <img v-if="collapsed" :src="collapsedLogo" class="sidebar-logo sidebar-logo--collapsed" :alt="brandConfig.app_name" />
+            <img v-else :src="currentLogo" class="sidebar-logo" :alt="brandConfig.app_name" />
+          </div>
+        </a>
       </template>
       <template #headerContentRender>
         <div>
@@ -750,6 +757,10 @@ export default {
       if (!key || key === this.$route.path) return
       this.$router.push({ path: key }).catch(() => {})
     },
+    goSmartInsights () {
+      if (!this.$route || this.$route.path === SMART_INSIGHTS_PATH) return
+      this.$router.push({ path: SMART_INSIGHTS_PATH }).catch(() => {})
+    },
     resolveMenuTitle (route) {
       const title = (route && route.meta && route.meta.title) || (route && route.title) || (route && route.name) || ''
       if (!title) return ''
@@ -1039,6 +1050,19 @@ export default {
     justify-content: center;
     padding: 0 8px;
   }
+}
+
+.sidebar-logo-link {
+  display: block;
+  width: 100%;
+  height: 100%;
+  color: inherit;
+  text-decoration: none;
+}
+
+.sidebar-logo-link:focus-visible {
+  outline: 2px solid var(--primary-color, #1890ff);
+  outline-offset: -2px;
 }
 
 ::v-deep .ant-pro-sider-menu-logo {

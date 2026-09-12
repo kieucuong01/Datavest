@@ -90,6 +90,16 @@ test('Smart Insights removes the retired daily hero and decision brief surfaces'
   assert.match(source, /class="data-readiness"/u)
 })
 
+test('Guest Smart Insights hides readiness and the retired guest alert', () => {
+  assert.doesNotMatch(source, /class="guest-mode-alert"/u)
+  assert.match(source, /<section v-if="!isGuest" class="data-readiness"/u)
+})
+
+test('Header logo links back to Smart Insights', () => {
+  assert.match(layoutSource, /href="#\/smart-insights"/u)
+  assert.match(layoutSource, /goSmartInsights/u)
+})
+
 test('Mobile navigation centers the trigger and uses a light drawer surface', () => {
   assert.match(layoutStyles, /@media \(max-width: 768px\)[\s\S]*?\.basic-layout-wrapper \.ant-pro-global-header-trigger[\s\S]*?display:\s*inline-flex\s*!important[\s\S]*?justify-content:\s*center\s*!important/u)
   assert.match(layoutSource, /@media \(max-width: 768px\)[\s\S]*?\.ant-drawer\.ant-pro-sider-menu\.ant-drawer-open[\s\S]*?background:\s*#f8fafc\s*!important/u)
