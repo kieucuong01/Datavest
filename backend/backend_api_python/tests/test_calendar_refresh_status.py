@@ -11,6 +11,18 @@ def test_browser_boolean_strings_are_not_truthy(value, expected):
     assert asyncio.run(select_calendar_range(Page(), 'Hôm nay')) is expected
 
 
+def test_browser_range_selector_accepts_investing_english_labels():
+    import asyncio
+    from calendar_worker.investing_calendar_browser import select_calendar_range
+
+    class Page:
+        async def evaluate(self, script):
+            assert 'Yesterday' in script
+            return 'true'
+
+    assert asyncio.run(select_calendar_range(Page(), 'Hôm qua')) is True
+
+
 @pytest.mark.parametrize('status,count,want', [('ok',2,'FRESH'),('stale',2,'STALE'),('missing_snapshot',0,'UNAVAILABLE'),('incomplete_snapshot',2,'UNAVAILABLE'),('invalid_snapshot',0,'UNAVAILABLE')])
 def test_calendar_freshness_does_not_promote_stale_snapshot(status,count,want):
     from app.data_providers.investing_calendar_snapshot import calendar_freshness

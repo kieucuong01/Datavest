@@ -18,6 +18,13 @@ from typing import Any, Dict, Iterable, List
 
 DEFAULT_SOURCE_URL = "https://vn.investing.com/economic-calendar/"
 REQUIRED_CALENDAR_RANGES = ("Hôm qua", "Hôm nay", "Tuần này", "Tuần tới")
+RANGE_LABEL_ALIASES = {
+    "Hôm qua": ("Hôm qua", "Yesterday"),
+    "Hôm nay": ("Hôm nay", "Today"),
+    "Tuần này": ("Tuần này", "This Week"),
+    "Tuần tới": ("Tuần tới", "Next Week"),
+}
+DEFAULT_SOURCE_URLS = (DEFAULT_SOURCE_URL, "https://www.investing.com/economic-calendar/")
 
 
 def _env_bool(name: str, default: bool = False) -> bool:
@@ -85,14 +92,20 @@ def create_browser_session():
 
 
 async def select_calendar_range(page: Any, label: str) -> bool:
-    """Click one exact, user-visible range button in the rendered calendar."""
-    quoted_label = json.dumps(label, ensure_ascii=False)
+    """Click one exact, user-visible range button in the rendered calendar.
+
+    Investing can render the public calendar in Vietnamese or English based on
+    host, locale and browser preferences. The internal range names remain
+    Vietnamese so the API contract stays stable.
+    """
+    quoted_labels = json.dumps(RANGE_LABEL_ALIASES.get(label, (label,)), ensure_ascii=False)
     result = await page.evaluate(f"""
       () => {{
-        const label = {quoted_label};
+        const labels = {quoted_labels};
         const normalize = (value) => (value || '').trim().replace(/\\s+/gu, ' ').toLocaleLowerCase();
+        const normalizedLabels = labels.map(normalize);
         const button = Array.from(document.querySelectorAll('button'))
-          .find((item) => normalize(item.innerText) === normalize(label) && item.offsetParent !== null);
+          .find((item) => normalizedLabels.includes(normalize(item.innerText)) && item.offsetParent !== null);
         if (!button) return false;
         button.click();
         return true;
@@ -111,8 +124,19 @@ async def extract_visible_calendar_rows(page: Any, source_url: str) -> List[Dict
         for (const row of Array.from(document.querySelectorAll('tr'))) {{
           const heading = row.querySelector(':scope > td[colspan]');
           if (heading) {{
-            const match = (heading.innerText || '').match(/(\\d{{1,2}})\\s+tháng\\s+(\\d{{1,2}}),\\s*(\\d{{4}})/iu);
-            if (match) date = `${{match[3]}}-${{match[2].padStart(2, '0')}}-${{match[1].padStart(2, '0')}}`;
+            const text = (heading.innerText || '').trim();
+            const match = text.match(/(\\d{{1,2}})\\s+tháng\\s+(\\d{{1,2}}),\\s*(\\d{{4}})/iu);
+            if (match) {{
+              date = `${{match[3]}}-${{match[2].padStart(2, '0')}}-${{match[1].padStart(2, '0')}}`;
+            }} else {{
+              const english = text.match(/(January|February|March|April|May|June|July|August|September|October|November|December)\\s+(\\d{{1,2}}),\\s*(\\d{{4}})/iu);
+              if (english) {{
+                const months = {{ january: 1, february: 2, march: 3, april: 4, may: 5, june: 6,
+                  july: 7, august: 8, september: 9, october: 10, november: 11, december: 12 }};
+                const month = months[english[1].toLowerCase()];
+                date = `${{english[3]}}-${{String(month).padStart(2, '0')}}-${{english[2].padStart(2, '0')}}`;
+              }}
+            }}
             continue;
           }}
           const cells = Array.from(row.querySelectorAll(':scope > td'))
@@ -156,33 +180,47 @@ def deduplicate_rows(rows: Iterable[Dict[str, Any]]) -> List[Dict[str, Any]]:
 
 
 async def refresh_investing_calendar() -> Dict[str, Any]:
-    source_url = os.getenv("INVESTING_CALENDAR_URL", DEFAULT_SOURCE_URL).strip() or DEFAULT_SOURCE_URL
+    configured_url = os.getenv("INVESTING_CALENDAR_URL", "").strip()
+    configured_urls = os.getenv("INVESTING_CALENDAR_URLS", "").strip()
+    if configured_urls:
+        source_urls = [item.strip() for item in configured_urls.split(",") if item.strip()]
+    else:
+        source_urls = [configured_url or DEFAULT_SOURCE_URL]
+        if not configured_url or configured_url == DEFAULT_SOURCE_URL:
+            source_urls.extend(DEFAULT_SOURCE_URLS[1:])
+    source_urls = list(dict.fromkeys(source_urls))
     wait_seconds = max(1, float(os.getenv("INVESTING_BROWSER_PAGE_WAIT_SECONDS", "4")))
     session = create_browser_session()
     try:
         await session.start()
         page = await session.get_current_page()
-        await page.goto(source_url)
-        await asyncio.sleep(wait_seconds)
-        rows: List[Dict[str, Any]] = []
-        for label in REQUIRED_CALENDAR_RANGES:
-            if not await select_calendar_range(page, label):
-                raise RuntimeError(f"Investing calendar range button is unavailable: {label}")
-            await asyncio.sleep(wait_seconds)
-            rows.extend(await extract_visible_calendar_rows(page, source_url))
-        rows = deduplicate_rows(rows)
-        if not rows:
-            raise RuntimeError("Investing calendar returned no visible event rows for the required ranges.")
-        payload = {
-            "source": "investing_browser",
-            "source_url": source_url,
-            "fetched_at": datetime.now(timezone.utc).isoformat(),
-            "ranges": list(REQUIRED_CALENDAR_RANGES),
-            "events": rows,
-        }
-        target = write_snapshot(payload)
-        print(f"Investing calendar snapshot written: {target} ({len(rows)} events)")
-        return payload
+        errors = []
+        for source_url in source_urls:
+            try:
+                await page.goto(source_url)
+                await asyncio.sleep(wait_seconds)
+                rows: List[Dict[str, Any]] = []
+                for label in REQUIRED_CALENDAR_RANGES:
+                    if not await select_calendar_range(page, label):
+                        raise RuntimeError(f"Investing calendar range button is unavailable: {label}")
+                    await asyncio.sleep(wait_seconds)
+                    rows.extend(await extract_visible_calendar_rows(page, source_url))
+                rows = deduplicate_rows(rows)
+                if not rows:
+                    raise RuntimeError("Investing calendar returned no visible event rows for the required ranges.")
+                payload = {
+                    "source": "investing_browser",
+                    "source_url": source_url,
+                    "fetched_at": datetime.now(timezone.utc).isoformat(),
+                    "ranges": list(REQUIRED_CALENDAR_RANGES),
+                    "events": rows,
+                }
+                target = write_snapshot(payload)
+                print(f"Investing calendar snapshot written: {target} ({len(rows)} events)")
+                return payload
+            except Exception as exc:
+                errors.append(f"{source_url}: {exc}")
+        raise RuntimeError("; ".join(errors))
     finally:
         await session.kill()
 
