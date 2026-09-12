@@ -1,8 +1,10 @@
 # Economic calendar operations
 
-`datavest-calendar.timer` runs at minute 00 and 30 in Asia/Ho_Chi_Minh
-(up to 30 seconds jitter). The oneshot service exits after each refresh;
-Chrome is not kept running. The whole job has a 240 second limit.
+`datavest-calendar.service` is a long-running event-driven scheduler in
+Asia/Ho_Chi_Minh. It discovers the calendar once per day, runs a safety guard
+every six hours, and refreshes only around high-importance releases. A release
+refresh checks T-15m, T, T+5m, T+15m, T+30m and T+60m. It does not poll the
+provider every 30 minutes.
 
 The default job refreshes the free WallstreetCN/AkShare provider directly.
 Investing rendered-DOM refresh is opt-in with
@@ -17,8 +19,8 @@ AkShare Chinese event labels are enriched with validated `name_vi` and
 deterministic dictionary; uncached labels use the server-side DeepSeek key
 when configured and are stored in `event-name-translations.json`. The browser
 never receives or calls the DeepSeek credential.
-Each refresh translates at most 10 uncached labels, so the 30-minute timer
-remains bounded; later refreshes continue from the cache.
+Only daily planner/guard refreshes translate at most 10 uncached labels;
+release-time refreshes never call the LLM and preserve labels already cached.
 
 Crawl and import are one job, with separate atomic snapshots in
 `/opt/datavest/shared/data/economic-calendar/`:
@@ -47,15 +49,15 @@ One-time installation/migration as root (also called by bootstrap):
 bash /path/to/repo/deploy/vps/install-calendar.sh
 ```
 
-This stops the old user timer before enabling the system timer. CI deployments
-verify that the system timer is active; they do not install user calendar units
-or need new sudo permissions. Its executable follows `/opt/datavest/current`.
-After editing unit files, re-run the installer as root with the new release's
-`backend/calendar_worker` directory. Inspect operations as root:
+This stops old user/system timers before enabling the system service. CI
+deployments verify that the system service is active; they do not install user
+calendar units or need new sudo permissions. Its executable follows
+`/opt/datavest/current`. After editing unit files, re-run the installer as root
+with the new release's `backend/calendar_worker` directory. Inspect operations:
 
 ```sh
-systemctl list-timers datavest-calendar.timer
-systemctl start datavest-calendar.service
+systemctl status datavest-calendar.service
+systemctl restart datavest-calendar.service
 journalctl -u datavest-calendar.service -n 80 --no-pager
 ```
 
@@ -63,7 +65,7 @@ The API caches for 60 seconds. Smart Insights expires its calendar cache
 after five minutes and refreshes while visible. “Refresh” reloads the API
 snapshot; it does not launch a browser or bypass the scheduler.
 
-Verify a release by checking the timer, last service result, snapshot
+Verify a release by checking the service, scheduler state, snapshot
 `fetched_at`, `source`, and real `actual` / `forecast` coverage separately.
 Future events, speeches and holidays may legitimately lack numeric fields.
 

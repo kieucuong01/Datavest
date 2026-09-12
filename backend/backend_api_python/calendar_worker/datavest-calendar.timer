@@ -1,5 +1,5 @@
 [Unit]
-Description=Refresh DataVest economic calendar every 30 minutes (Vietnam)
+Description=Legacy DataVest economic calendar timer (not installed)
 
 [Timer]
 OnCalendar=*-*-* *:00,30:00 Asia/Ho_Chi_Minh

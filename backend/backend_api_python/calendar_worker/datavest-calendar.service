@@ -1,10 +1,10 @@
 [Unit]
-Description=DataVest economic calendar refresh and atomic import
+Description=DataVest event-driven economic calendar refresh
 After=network-online.target
 Wants=network-online.target
 
 [Service]
-Type=oneshot
+Type=simple
 User=datavest-deploy
 Group=datavest-deploy
 WorkingDirectory=/opt/datavest/current/backend
@@ -18,8 +18,11 @@ Environment=INVESTING_BROWSER_HEADLESS=true
 Environment=INVESTING_BROWSER_EXECUTABLE_PATH=/usr/bin/google-chrome-stable
 Environment=INVESTING_BROWSER_USER_DATA_DIR=/opt/datavest/shared/data/browser-profiles/investing
 Environment=INVESTING_CALENDAR_SNAPSHOT_PATH=/opt/datavest/shared/data/economic-calendar/investing-browser.json
-ExecStart=/opt/datavest/current/.venv/bin/python -m calendar_worker.refresh_snapshot
-TimeoutStartSec=240
+Environment=CALENDAR_EVENT_SCHEDULE_PATH=/opt/datavest/shared/data/economic-calendar/event-schedule.json
+ExecStart=/opt/datavest/current/.venv/bin/python -m calendar_worker.event_scheduler
+Restart=always
+RestartSec=20
+TimeoutStartSec=0
 TimeoutStopSec=30
 # Chrome's root-owned SUID helper needs privilege transition to create its
 # sandbox. This is a SYSTEM unit; the application itself runs as datavest-deploy.
