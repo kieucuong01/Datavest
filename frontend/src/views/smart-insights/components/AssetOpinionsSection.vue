@@ -58,7 +58,7 @@
           <p v-if="row.report" class="muted-line">{{ row.report.summary || $t('smartInsights.aiReportUnavailable') }}</p>
           <p v-else class="muted-line">{{ $t('smartInsights.aiNoResult') }}</p>
           <div class="opinion-meta">
-            <span class="engine-line"><a-icon type="robot" /> {{ $t('smartInsights.quickEngine') }}</span>
+            <span class="engine-line"><a-icon type="robot" /> {{ row.shared ? $t('smartInsights.sharedSnapshotEngine') : $t('smartInsights.quickEngine') }}</span>
             <span v-if="row.report && row.report.createdAt" class="opinion-time"><a-icon type="clock-circle" /> {{ formatDateTime(row.report.createdAt) }}</span>
             <span v-if="row.report && row.report.confidence != null" class="confidence-line">{{ $t('smartInsights.aiConfidence') }} {{ percent(row.report.confidence) }}</span>
           </div>
@@ -76,10 +76,10 @@
 
         <div class="opinion-actions" :data-label="$t('smartInsights.actions')">
           <template v-if="row.report">
-            <a-button size="small" type="primary" icon="search" class="quick-analysis-action" @click="$emit('open-analysis', row)">{{ $t('smartInsights.quickAnalysis') }}</a-button>
+            <a-button size="small" type="primary" icon="search" class="quick-analysis-action" @click="$emit('open-analysis', row)">{{ guest && row.shared ? $t('smartInsights.viewLatestOpinion') : $t('smartInsights.quickAnalysis') }}</a-button>
           </template>
-          <a-button v-else size="small" icon="robot" class="quick-analysis-action" @click="$emit('open-ai-assistant', row)">{{ $t('smartInsights.openAiAssistant') }}</a-button>
-          <a-button size="small" :icon="guest ? 'lock' : 'apartment'" class="deep-analysis-action" @click="$emit('open-deep-analysis', row)">{{ guest ? $t('guest.login') : $t('smartInsights.deepAnalysis') }}</a-button>
+          <a-button v-else size="small" icon="robot" class="quick-analysis-action" @click="$emit('open-ai-assistant', row)">{{ guest ? $t('smartInsights.loginToAnalyze') : $t('smartInsights.openAiAssistant') }}</a-button>
+          <a-button size="small" :icon="guest ? 'lock' : 'apartment'" class="deep-analysis-action" @click="$emit('open-deep-analysis', row)">{{ guest ? $t('smartInsights.loginForDeepAnalysis') : $t('smartInsights.deepAnalysis') }}</a-button>
         </div>
       </article>
     </div>

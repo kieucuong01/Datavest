@@ -28,3 +28,61 @@ test('keeps a watchlist row when analysis is unavailable', () => {
   assert.equal(row.analysisStatus, 'UNAVAILABLE')
   assert.equal(row.report, null)
 })
+
+test('maps the latest shared public opinion into a read-only report for guests', () => {
+  const [row] = buildWatchlistOpinionRows(
+    [{ market: 'Crypto', symbol: 'BTC/USDT', name: 'Bitcoin' }],
+    [{
+      id: 'public-opinion-1',
+      market: 'crypto',
+      symbol: 'BTC',
+      stance: 'NEUTRAL',
+      score: 0,
+      confidence: 70,
+      rationale: {
+        status: 'EVIDENCE_ONLY',
+        metrics: ['crypto.price.usd'],
+        warning: 'No directional model has been validated for this evidence bundle.'
+      },
+      explanation: null,
+      dataClass: 'LIVE'
+    }],
+    '2026-09-12T07:00:00+00:00'
+  )
+
+  assert.equal(row.shared, true)
+  assert.equal(row.report.source, 'PUBLIC_COMMON_SNAPSHOT')
+  assert.equal(row.report.createdAt, '2026-09-12T07:00:00+00:00')
+  assert.equal(row.report.decision, 'HOLD')
+  assert.equal(row.report.confidence, 70)
+  assert.match(row.report.summary, /No directional model/u)
+})
+
+test('does not replace an account report with the shared snapshot adapter', () => {
+  const [row] = buildWatchlistOpinionRows(
+    [{ market: 'Crypto', symbol: 'BTC/USDT', name: 'Bitcoin' }],
+    [{
+      market: 'crypto',
+      symbol: 'BTC',
+      stance: 'BUY',
+      confidence: 85,
+      report: { id: 'account-report-1', decision: 'SELL', summary: 'Private report' }
+    }],
+    '2026-09-12T07:00:00+00:00'
+  )
+
+  assert.equal(row.shared, false)
+  assert.equal(row.report.id, 'account-report-1')
+  assert.equal(row.report.decision, 'SELL')
+})
+
+test('keeps missing shared numeric fields unavailable instead of turning them into zero', () => {
+  const [row] = buildWatchlistOpinionRows(
+    [{ market: 'Crypto', symbol: 'BTC/USDT', name: 'Bitcoin' }],
+    [{ market: 'crypto', symbol: 'BTC', stance: 'NEUTRAL', score: null, confidence: null, dataClass: 'LIVE' }],
+    '2026-09-12'
+  )
+
+  assert.equal(row.report.score, null)
+  assert.equal(row.report.confidence, null)
+})

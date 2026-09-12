@@ -101,7 +101,7 @@
             @click="analysisMode = 'quick'"
           >
             <a-icon type="thunderbolt" />
-            <span><strong>{{ $t('smartInsights.quickAnalysis') }}</strong><small>{{ $t('smartInsights.quickEngine') }}</small></span>
+            <span><strong>{{ isGuest && selectedOpinionRow && selectedOpinionRow.shared ? $t('smartInsights.viewLatestOpinion') : $t('smartInsights.quickAnalysis') }}</strong><small>{{ selectedOpinionRow && selectedOpinionRow.shared ? $t('smartInsights.sharedSnapshotEngine') : $t('smartInsights.quickEngine') }}</small></span>
           </button>
           <button
             v-if="!isGuest"
@@ -414,7 +414,7 @@ export default {
     hasOverview () { return Boolean(this.overview && this.overview.status !== 'UNAVAILABLE') },
     dailyBrief () { return (this.overview && this.overview.dailyBrief) || { status: 'UNAVAILABLE', content: '', assetCount: 0 } },
     opinionRows () {
-      return buildWatchlistOpinionRows(this.watchlist, this.overview && this.overview.opinions)
+      return buildWatchlistOpinionRows(this.watchlist, this.overview && this.overview.opinions, this.overview && this.overview.asOf)
     },
     dailyBriefHighlights () {
       const highlights = Array.isArray(this.dailyBrief.highlights) ? this.dailyBrief.highlights : []
@@ -435,7 +435,11 @@ export default {
     },
     analysisModalTitle () {
       const symbol = this.selectedOpinionRow && this.selectedOpinionRow.displaySymbol
-      const modeLabel = this.analysisMode === 'deep' ? this.$t('smartInsights.deepAnalysis') : this.$t('smartInsights.quickAnalysis')
+      const modeLabel = this.analysisMode === 'deep'
+        ? this.$t('smartInsights.deepAnalysis')
+        : this.isGuest && this.selectedOpinionRow && this.selectedOpinionRow.shared
+          ? this.$t('smartInsights.viewLatestOpinion')
+          : this.$t('smartInsights.quickAnalysis')
       return symbol ? `${modeLabel} · ${symbol}` : modeLabel
     },
     selectedQuickReport () {
@@ -845,7 +849,7 @@ export default {
         const data = response && response.data
         const items = data && (data.items || data.list)
         const history = Array.isArray(items) ? items.map(normalizeQuickAnalysisReport) : []
-        const current = row.report ? [normalizeQuickAnalysisReport(row.report)] : []
+        const current = row.report && !row.shared ? [normalizeQuickAnalysisReport(row.report)] : []
         this.quickAnalysisHistory = dedupeQuickAnalysisReports([...history, ...current])
         if (!row.report && this.quickAnalysisHistory.length) this.selectedQuickReportId = this.quickAnalysisHistory[0].id
       } catch (error) {
@@ -862,6 +866,10 @@ export default {
       if (!row) return
       if (this.isGuest && mode === 'deep') {
         this.$router.push(loginTarget('/ai-asset-analysis'))
+        return
+      }
+      if (this.isGuest && mode !== 'deep' && !row.report) {
+        this.openAiAssistant(row)
         return
       }
       this.selectedOpinionRow = row
