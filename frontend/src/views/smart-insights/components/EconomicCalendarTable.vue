@@ -5,15 +5,15 @@
         <h2>{{ $t('smartInsights.calendarTitle') }}</h2>
         <p>{{ $t('smartInsights.calendarDesc') }}</p>
         <p role="status">{{ activeMeta.freshness === 'FRESH' ? (isVietnamese ? 'Đã cập nhật' : 'Updated') : (isVietnamese ? 'Dữ liệu cũ hoặc chưa đủ' : 'Stale or incomplete data') }} · {{ updatedAt }}</p>
-        <p>{{ selectedSource === 'primary' ? 'Investing.com' : 'WallstreetCN / AkShare' }} · {{ selectedSource === 'primary' ? (isVietnamese ? 'Nguồn ưu tiên' : 'Primary source') : (isVietnamese ? 'Nguồn dự phòng — không thay thế lịch Việt Nam của Investing' : 'Fallback — does not replace Investing Vietnam coverage') }}</p>
+        <p>{{ selectedSource === 'primary' ? 'Investing.com' : 'AkShare / WallstreetCN' }} · {{ selectedSource === 'primary' ? (isVietnamese ? 'Tạm ngưng do nguồn không phản hồi' : 'Temporarily unavailable upstream') : (isVietnamese ? 'Nguồn miễn phí mặc định' : 'Default free source') }}</p>
       </div>
       <a-button size="small" :loading="activeLoading" @click="refreshSelectedSource">{{ isVietnamese ? 'Làm mới' : 'Refresh' }}</a-button>
     </div>
 
     <div class="calendar-filter-panel" :aria-label="$t('smartInsights.calendarFilters')">
       <div class="calendar-filter-buttons" role="group" :aria-label="isVietnamese ? 'Nguồn lịch kinh tế' : 'Calendar source'">
-        <button type="button" :class="{ active: selectedSource === 'primary' }" :aria-pressed="selectedSource === 'primary'" @click="selectedSource = 'primary'">Investing</button>
-        <button type="button" :class="{ active: selectedSource === 'fallback' }" :aria-pressed="selectedSource === 'fallback'" @click="openFallback">{{ isVietnamese ? 'Xem nguồn dự phòng' : 'View fallback source' }}</button>
+        <button type="button" disabled :class="{ active: selectedSource === 'primary' }" :aria-pressed="selectedSource === 'primary'">{{ isVietnamese ? 'Investing (tạm ngưng)' : 'Investing (paused)' }}</button>
+        <button type="button" :class="{ active: selectedSource === 'fallback' }" :aria-pressed="selectedSource === 'fallback'" @click="openFallback">AkShare / WallstreetCN</button>
       </div>
       <div class="calendar-time-filter">
         <span class="calendar-filter-label">{{ $t('smartInsights.calendarTimeRange') }}</span>
@@ -175,13 +175,23 @@ export default {
     error: { type: String, default: '' }
   },
   data () {
-    return { showAll: false, selectedSource: 'primary', fallbackEvents: [], fallbackMeta: {}, fallbackLoading: false, fallbackError: '' }
+    return { showAll: false, selectedSource: 'fallback', fallbackEvents: [], fallbackMeta: {}, fallbackLoading: false, fallbackError: '' }
   },
   computed: {
-    activeMeta () { return this.selectedSource === 'primary' ? this.meta : this.fallbackMeta },
-    activeLoading () { return this.selectedSource === 'primary' ? this.loading : this.fallbackLoading },
+    activeMeta () {
+      if (this.selectedSource === 'primary') return this.meta
+      return Object.keys(this.fallbackMeta).length ? this.fallbackMeta : (this.meta.source === 'akshare_wallstreetcn' ? this.meta : {})
+    },
+    activeLoading () {
+      if (this.selectedSource === 'primary') return this.loading
+      return this.fallbackLoading || (this.meta.source === 'akshare_wallstreetcn' && this.loading)
+    },
     activeError () {
-      if (this.selectedSource === 'fallback') return this.fallbackError
+      if (this.selectedSource === 'fallback') {
+        if (this.fallbackError) return this.fallbackError
+        if (this.meta.source === 'akshare_wallstreetcn') return this.error
+        return ''
+      }
       if (['missing_snapshot', 'source_mismatch', 'invalid_snapshot', 'incomplete_snapshot'].includes(this.meta.status)) {
         return this.isVietnamese ? 'Chưa có snapshot Investing hợp lệ. Bạn có thể xem nguồn dự phòng riêng bên trên.' : 'No valid Investing snapshot. You can view the separate fallback source above.'
       }
@@ -192,7 +202,12 @@ export default {
       return Number.isNaN(date.getTime()) ? '—' : date.toLocaleString(this.isVietnamese ? 'vi-VN' : 'en-GB', { timeZone: 'Asia/Ho_Chi_Minh' }) + ' (UTC+7)'
     },
     activeFilter () { return { ...DEFAULT_ECONOMIC_CALENDAR_FILTER, ...(this.filter || {}) } },
-    normalizedEvents () { return normalizeEconomicCalendarEvents(this.selectedSource === 'primary' ? this.events : this.fallbackEvents, this.$i18n && this.$i18n.locale) },
+    normalizedEvents () {
+      const events = this.selectedSource === 'primary'
+        ? this.events
+        : (this.fallbackEvents.length ? this.fallbackEvents : (this.meta.source === 'akshare_wallstreetcn' ? this.events : []))
+      return normalizeEconomicCalendarEvents(events, this.$i18n && this.$i18n.locale)
+    },
     filteredEvents () { return filterEconomicCalendarEventsByCriteria(this.normalizedEvents, this.activeFilter) },
     visibleEvents () { return this.showAll ? this.filteredEvents : this.filteredEvents.slice(0, INITIAL_EVENT_LIMIT) },
     groupedEvents () { return groupEconomicCalendarEvents(this.visibleEvents) },
@@ -245,8 +260,7 @@ export default {
   },
   methods: {
     refreshSelectedSource () {
-      if (this.selectedSource === 'primary') this.$emit('refresh')
-      else this.openFallback()
+      this.openFallback()
     },
     async openFallback () {
       this.selectedSource = 'fallback'

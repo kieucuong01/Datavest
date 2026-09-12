@@ -159,7 +159,7 @@ def get_investing_calendar_snapshot_payload(source: str = "investing_browser") -
         "events": events,
         "status": "incomplete_snapshot" if not complete else ("stale" if age is None or age > stale_after else "ok"),
         "source": source,
-        "fallback_from": "investing_browser" if source == "akshare_wallstreetcn" else "",
+        "fallback_from": payload.get("fallback_from") or "",
         "fallback_reason": payload.get("fallback_reason") or "",
         "source_url": payload.get("source_url") or SOURCE_URL,
         "last_success_at": fetched_at or "",

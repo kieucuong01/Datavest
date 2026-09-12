@@ -9,6 +9,7 @@ from app.data_providers.economic_calendar import (
     _normalize_finnhub_event,
     _should_include_finnhub_row,
     get_economic_calendar,
+    get_economic_calendar_payload,
 )
 from app.data_providers.investing_calendar_snapshot import (
     get_investing_calendar_snapshot_payload,
@@ -48,6 +49,61 @@ def test_default_economic_calendar_reads_investing_browser_snapshot(monkeypatch,
     events = get_economic_calendar()
     assert len(events) == 1
     assert events[0]["source"] == "investing_browser"
+
+
+def test_default_economic_calendar_reads_free_wallstreetcn_snapshot(monkeypatch, tmp_path):
+    primary = tmp_path / "investing-browser.json"
+    fallback = tmp_path / "wallstreetcn.json"
+    write_investing_calendar_snapshot(
+        {
+            "source": "akshare_wallstreetcn",
+            "fetched_at": datetime.now(timezone.utc).isoformat(),
+            "ranges": ["Hôm qua", "Hôm nay", "Tuần này", "Tuần tới"],
+            "events": [
+                {
+                    "name": "CPI Hoa Kỳ",
+                    "country": "US",
+                    "date": "2026-09-12",
+                    "time": "19:30",
+                    "importance": "high",
+                    "actual": "3.1%",
+                    "forecast": "3.0%",
+                    "previous": "2.9%",
+                }
+            ],
+        },
+        fallback,
+    )
+    monkeypatch.setenv("ECONOMIC_CALENDAR_PROVIDER", "akshare_wallstreetcn")
+    monkeypatch.setenv("INVESTING_CALENDAR_SNAPSHOT_PATH", str(primary))
+
+    payload = get_economic_calendar_payload()
+
+    assert payload["source"] == "akshare_wallstreetcn"
+    assert payload["events"][0]["actual"] == "3.1%"
+    assert payload["events"][0]["forecast"] == "3.0%"
+    assert payload["events"][0]["previous"] == "2.9%"
+
+
+def test_economic_calendar_defaults_to_free_wallstreetcn_when_provider_is_unset(monkeypatch, tmp_path):
+    primary = tmp_path / "investing-browser.json"
+    fallback = tmp_path / "wallstreetcn.json"
+    write_investing_calendar_snapshot(
+        {
+            "source": "akshare_wallstreetcn",
+            "fetched_at": datetime.now(timezone.utc).isoformat(),
+            "ranges": ["Hôm qua", "Hôm nay", "Tuần này", "Tuần tới"],
+            "events": [{"name": "CPI", "country": "US", "date": "2026-09-12", "forecast": "3.0%"}],
+        },
+        fallback,
+    )
+    monkeypatch.delenv("ECONOMIC_CALENDAR_PROVIDER", raising=False)
+    monkeypatch.setenv("INVESTING_CALENDAR_SNAPSHOT_PATH", str(primary))
+
+    payload = get_economic_calendar_payload()
+
+    assert payload["source"] == "akshare_wallstreetcn"
+    assert payload["events"][0]["forecast"] == "3.0%"
 
 
 

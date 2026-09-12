@@ -72,6 +72,7 @@ def test_refresh_retains_snapshot_when_both_providers_fail(monkeypatch):
 
 def test_refresh_imports_explicit_fallback_in_same_job(monkeypatch):
     from calendar_worker import refresh_snapshot as worker
+    monkeypatch.setenv('ECONOMIC_CALENDAR_PROVIDER', 'investing_browser')
     def fail(*args, **kwargs):
         raise OSError('unavailable')
     saved = []
@@ -82,3 +83,19 @@ def test_refresh_imports_explicit_fallback_in_same_job(monkeypatch):
     assert saved[0]['source'] == 'akshare_wallstreetcn'
     assert saved[0]['fallback_from'] == 'investing_browser'
     assert saved[0]['events'][0]['actual'] == '0'
+
+
+def test_refresh_uses_free_provider_without_trying_investing(monkeypatch):
+    from calendar_worker import refresh_snapshot as worker
+    monkeypatch.setenv('ECONOMIC_CALENDAR_PROVIDER', 'akshare_wallstreetcn')
+    saved = []
+    monkeypatch.setattr(worker.subprocess, 'run', lambda *args, **kwargs: pytest.fail('Investing must be skipped'))
+    monkeypatch.setattr(worker, '_fetch_akshare_calendar', lambda: [{'name': 'CPI', 'actual': '0', 'forecast': '1'}])
+    monkeypatch.setattr(worker, 'write_investing_calendar_snapshot', saved.append)
+
+    worker.main()
+
+    assert saved[0]['source'] == 'akshare_wallstreetcn'
+    assert saved[0]['fallback_from'] == ''
+    assert saved[0]['fallback_reason'] == 'configured_free_provider'
+    assert saved[0]['events'][0]['forecast'] == '1'

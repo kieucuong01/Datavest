@@ -15,6 +15,9 @@ test('Smart Insights renders the API-backed economic calendar table with a real 
   assert.match(pageSource, /impacts:\s*\[\]/u)
   assert.match(calendarComponentSource, /calendarShowMore/u)
   assert.match(calendarComponentSource, /mode="multiple"/u)
+  assert.match(calendarComponentSource, /selectedSource: 'fallback'/u)
+  assert.match(calendarComponentSource, /AkShare \/ WallstreetCN/u)
+  assert.match(calendarComponentSource, /actual|forecast/u)
 })
 
 test('economic calendar normalizes provider rows into the table model and sorts by date/time', () => {
