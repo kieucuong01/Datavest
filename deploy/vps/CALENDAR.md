@@ -12,12 +12,19 @@ not bypass HTTP 403 or access challenges. The snapshot and API explicitly
 identify the actual provider and fallback reason.
 No previous value is substituted for a missing forecast. AkShare UTC+8
 event times are converted to Vietnam time before import.
+AkShare Chinese event labels are enriched with validated `name_vi` and
+`name_en` fields during this same scheduled job. Common labels use a
+deterministic dictionary; uncached labels use the server-side DeepSeek key
+when configured and are stored in `event-name-translations.json`. The browser
+never receives or calls the DeepSeek credential.
 
 Crawl and import are one job, with separate atomic snapshots in
 `/opt/datavest/shared/data/economic-calendar/`:
 
 - `investing-browser.json`: Investing only; a fallback run cannot replace it.
 - `wallstreetcn.json`: the optional fallback, selected explicitly in the UI.
+- `event-name-translations.json`: validated event-label translations shared by
+  future refreshes.
 
 The default API and UI read the fresh free WallstreetCN/AkShare snapshot.
 Investing remains available only when explicitly selected/configured and is

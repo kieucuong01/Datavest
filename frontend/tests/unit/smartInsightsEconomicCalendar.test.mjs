@@ -126,6 +126,21 @@ test('economic calendar localizes Chinese provider event names for Vietnamese us
   assert.doesNotMatch(normalized[1].name, /[\u3400-\u9fff]/u)
 })
 
+test('economic calendar prefers server-provided localized labels', () => {
+  const normalized = calendarModule.normalizeEconomicCalendarEvents([{
+    id: 'server-localized',
+    name: '美国未知指标',
+    name_vi: 'Chỉ báo chưa xác định của Hoa Kỳ',
+    name_en: 'US Unknown Indicator',
+    country: 'US',
+    date: '2026-08-25',
+    time: '19:30',
+    importance: 'medium'
+  }], 'vi-VN')
+
+  assert.equal(normalized[0].name, 'Chỉ báo chưa xác định của Hoa Kỳ')
+})
+
 test('economic calendar localizes Chinese provider event names for English users and preserves Chinese locale', () => {
   assert.ok(calendarModule)
   const sourceEvent = {
@@ -161,8 +176,10 @@ test('economic calendar preserves unknown source names instead of hiding event i
   const english = calendarModule.normalizeEconomicCalendarEvents([sourceEvent], 'en-US')
   const vietnamese = calendarModule.normalizeEconomicCalendarEvents([sourceEvent], 'vi-VN')
 
-  assert.equal(english[0].name, '美国未知指标')
-  assert.equal(vietnamese[0].name, '美国未知指标')
+  assert.equal(english[0].name, 'Economic event')
+  assert.equal(vietnamese[0].name, 'Sự kiện kinh tế')
+  assert.doesNotMatch(english[0].name, /[\u3400-\u9fff]/u)
+  assert.doesNotMatch(vietnamese[0].name, /[\u3400-\u9fff]/u)
 })
 
 test('economic calendar filters by impact without mutating the normalized list', () => {

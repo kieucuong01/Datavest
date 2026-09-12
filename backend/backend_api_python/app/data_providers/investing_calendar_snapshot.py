@@ -79,6 +79,7 @@ def normalize_investing_events(rows: Iterable[Any]) -> List[Dict[str, Any]]:
         events.append({
             "id": _text(row.get("id")) or f"investing-{date}-{_text(row.get('time')) or 'all'}-{_country(row.get('country'))}-{index}",
             "name": name,
+            "name_vi": _text(row.get("name_vi") or row.get("event_vi")),
             "name_en": _text(row.get("name_en") or row.get("event_en")),
             "country": _country(row.get("country")),
             "date": date[:10],

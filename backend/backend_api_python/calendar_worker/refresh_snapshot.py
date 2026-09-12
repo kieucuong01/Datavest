@@ -8,6 +8,7 @@ import subprocess
 from datetime import datetime, timezone
 
 from app.data_providers.economic_calendar import _fetch_akshare_calendar
+from app.data_providers.economic_calendar_translation import translate_calendar_event_names
 from app.data_providers.investing_calendar_snapshot import (
     REQUIRED_CALENDAR_RANGES, write_investing_calendar_snapshot,
 )
@@ -27,7 +28,7 @@ def main():
         raise RuntimeError(f'Unsupported ECONOMIC_CALENDAR_PROVIDER: {provider}')
     else:
         print('Calendar provider configured: AkShare/WallstreetCN; skipping Investing.', flush=True)
-    events = _fetch_akshare_calendar()
+    events = translate_calendar_event_names(_fetch_akshare_calendar())
     if not events:
         raise RuntimeError('Both calendar providers unavailable; previous snapshot retained.')
     payload = {
