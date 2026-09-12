@@ -11,6 +11,8 @@ def test_calendar_uses_system_manager_but_non_root_browser():
     assert 'Type=simple' in unit
     assert 'calendar_worker.event_scheduler' in unit
     assert 'Restart=always' in unit
+    assert '[Install]' in unit
+    assert 'WantedBy=multi-user.target' in unit
     assert 'NoNewPrivileges=false' in unit
     for protection in ('ProtectSystem=strict', 'ProtectHome=true', 'PrivateTmp=true', 'MemoryMax=700M'):
         assert protection in unit
