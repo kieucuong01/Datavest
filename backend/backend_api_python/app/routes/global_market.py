@@ -23,7 +23,7 @@ Endpoints:
 from __future__ import annotations
 
 from flask import jsonify, request
-from app.data_providers.investing_calendar_snapshot import calendar_freshness
+from app.data_providers.investing_calendar_snapshot import calendar_freshness, get_investing_calendar_snapshot_payload
 from app.openapi.blueprint import HumanBlueprint as Blueprint
 
 from app.utils.logger import get_logger
@@ -116,8 +116,12 @@ def economic_calendar():
     """Get economic calendar events with impact indicators."""
     try:
         force = request.args.get("force", "").lower() in ("true", "1")
+        source = request.args.get("source", "")
+        if source not in {"", "investing_browser", "akshare_wallstreetcn"}:
+            return jsonify({"code": 0, "msg": "Unsupported calendar source", "data": []}), 400
+        loader = (lambda: get_investing_calendar_snapshot_payload(source)) if source else get_economic_calendar_payload
         payload = cached_or_compute(
-            "economic_calendar_v4", get_economic_calendar_payload, ttl=60, force=force
+            f"economic_calendar_v5:{source or 'default'}", loader, ttl=60, force=force
         )
         if isinstance(payload, list):
             data = payload

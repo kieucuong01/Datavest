@@ -240,7 +240,7 @@ function localizeEventName (event, locale) {
     if (translatedEnglish) return translatedEnglish
     if (englishName && !CJK_PATTERN.test(englishName)) return englishName
     if (sourceName && !CJK_PATTERN.test(sourceName)) return sourceName
-    return CJK_PATTERN.test(sourceName || englishName) ? 'Economic event' : (sourceName || englishName)
+    return sourceName || englishName
   }
 
   const translated = translateVietnameseEventName(source)
@@ -250,7 +250,7 @@ function localizeEventName (event, locale) {
   const translatedEnglish = translateVietnameseEventName(englishName)
   if (translatedEnglish) return translatedEnglish
   if (englishName && !CJK_PATTERN.test(englishName)) return englishName
-  return CJK_PATTERN.test(source) ? 'Sự kiện kinh tế' : source
+  return source
 }
 
 function normalizeImpact (value) {

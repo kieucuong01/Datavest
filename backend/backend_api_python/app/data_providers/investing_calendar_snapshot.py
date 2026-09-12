@@ -36,8 +36,11 @@ _COUNTRIES = {
 }
 
 
-def snapshot_path() -> Path:
-    return Path(os.getenv("INVESTING_CALENDAR_SNAPSHOT_PATH", DEFAULT_SNAPSHOT_PATH)).expanduser()
+def snapshot_path(source: str = "investing_browser") -> Path:
+    if source not in {"investing_browser", "akshare_wallstreetcn"}:
+        raise ValueError("Unsupported calendar source")
+    primary = Path(os.getenv("INVESTING_CALENDAR_SNAPSHOT_PATH", DEFAULT_SNAPSHOT_PATH)).expanduser()
+    return primary if source == "investing_browser" else primary.with_name("wallstreetcn.json")
 
 
 def _text(value: Any) -> str | None:
@@ -93,7 +96,7 @@ def normalize_investing_events(rows: Iterable[Any]) -> List[Dict[str, Any]]:
 
 def write_investing_calendar_snapshot(payload: Dict[str, Any], path: Path | None = None) -> Path:
     """Atomically publish a worker payload so readers never see partial JSON."""
-    target = path or snapshot_path()
+    target = path or snapshot_path(payload.get("source") or "investing_browser")
     target.parent.mkdir(parents=True, exist_ok=True)
     descriptor, temporary_name = tempfile.mkstemp(prefix=f".{target.name}.", suffix=".tmp", dir=target.parent)
     try:
@@ -117,29 +120,37 @@ def _age_seconds(fetched_at: Any) -> float | None:
     return max(0.0, (datetime.now(timezone.utc) - parsed.astimezone(timezone.utc)).total_seconds())
 
 
-def get_investing_calendar_snapshot_payload() -> Dict[str, Any]:
-    path = snapshot_path()
+def get_investing_calendar_snapshot_payload(source: str = "investing_browser") -> Dict[str, Any]:
+    path = snapshot_path(source)
+    # Compatibility with releases which stored fallback data in the primary file.
+    # Only the explicitly selected fallback may read that file as fallback data.
+    if source == "akshare_wallstreetcn" and not path.is_file():
+        path = snapshot_path()
     if not path.is_file():
         return {
-            "events": [], "status": "missing_snapshot", "source": "investing_browser",
+            "events": [], "status": "missing_snapshot", "source": source,
             "config_key": "INVESTING_CALENDAR_SNAPSHOT_PATH",
             "message": "Investing browser calendar snapshot has not been created yet.",
         }
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exc:
+    except (OSError, json.JSONDecodeError):
         return {
-            "events": [], "status": "invalid_snapshot", "source": "investing_browser",
-            "config_key": "INVESTING_CALENDAR_SNAPSHOT_PATH", "message": str(exc),
+            "events": [], "status": "invalid_snapshot", "source": source,
+            "config_key": "INVESTING_CALENDAR_SNAPSHOT_PATH", "message": "Calendar snapshot cannot be read.",
         }
     if not isinstance(payload, dict):
         payload = {}
+    if (payload.get("source") or "investing_browser") != source:
+        return {
+            "events": [], "status": "source_mismatch", "source": source,
+            "message": "No snapshot matching the selected calendar source is available.",
+        }
     fetched_at = payload.get("fetched_at")
     ranges = tuple(str(item).strip() for item in payload.get("ranges", []) if str(item).strip())
     complete = set(REQUIRED_CALENDAR_RANGES).issubset(ranges)
     stale_after = max(60, int(os.getenv("INVESTING_CALENDAR_STALE_AFTER_SECONDS", DEFAULT_STALE_AFTER_SECONDS)))
     age = _age_seconds(fetched_at)
-    source = payload.get("source") or "investing_browser"
     events = normalize_investing_events(payload.get("events", [])) if complete else []
     for event in events:
         event["source"] = source
@@ -148,7 +159,7 @@ def get_investing_calendar_snapshot_payload() -> Dict[str, Any]:
         "events": events,
         "status": "incomplete_snapshot" if not complete else ("stale" if age is None or age > stale_after else "ok"),
         "source": source,
-        "fallback_from": payload.get("fallback_from") or "",
+        "fallback_from": "investing_browser" if source == "akshare_wallstreetcn" else "",
         "fallback_reason": payload.get("fallback_reason") or "",
         "source_url": payload.get("source_url") or SOURCE_URL,
         "last_success_at": fetched_at or "",

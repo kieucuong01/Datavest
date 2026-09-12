@@ -13,7 +13,6 @@ test('Smart Insights renders the API-backed economic calendar table with a real 
   assert.match(pageSource, /calendarFilter:\s*\{[\s\S]*timePreset:\s*'thisWeek'/u)
   assert.match(pageSource, /countries:\s*\['US',\s*'VN'\]/u)
   assert.match(pageSource, /impacts:\s*\[\]/u)
-  assert.match(calendarComponentSource, /normalizeEconomicCalendarEvents\(this\.events, this\.\$i18n && this\.\$i18n\.locale\)/u)
   assert.match(calendarComponentSource, /calendarShowMore/u)
   assert.match(calendarComponentSource, /mode="multiple"/u)
 })
@@ -144,7 +143,7 @@ test('economic calendar localizes Chinese provider event names for English users
   assert.equal(chinese[0].name, '美国建筑许可月率')
 })
 
-test('economic calendar does not leak unknown Chinese provider labels in English or Vietnamese', () => {
+test('economic calendar preserves unknown source names instead of hiding event identity', () => {
   assert.ok(calendarModule)
   const sourceEvent = {
     id: 'unknown',
@@ -159,10 +158,8 @@ test('economic calendar does not leak unknown Chinese provider labels in English
   const english = calendarModule.normalizeEconomicCalendarEvents([sourceEvent], 'en-US')
   const vietnamese = calendarModule.normalizeEconomicCalendarEvents([sourceEvent], 'vi-VN')
 
-  assert.equal(english[0].name, 'Economic event')
-  assert.equal(vietnamese[0].name, 'Sự kiện kinh tế')
-  assert.doesNotMatch(english[0].name, /[\u3400-\u9fff]/u)
-  assert.doesNotMatch(vietnamese[0].name, /[\u3400-\u9fff]/u)
+  assert.equal(english[0].name, '美国未知指标')
+  assert.equal(vietnamese[0].name, '美国未知指标')
 })
 
 test('economic calendar filters by impact without mutating the normalized list', () => {

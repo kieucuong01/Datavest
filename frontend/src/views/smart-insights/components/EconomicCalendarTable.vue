@@ -4,13 +4,17 @@
       <div>
         <h2>{{ $t('smartInsights.calendarTitle') }}</h2>
         <p>{{ $t('smartInsights.calendarDesc') }}</p>
-        <p role="status">{{ meta.freshness === 'FRESH' ? (isVietnamese ? 'Đã cập nhật' : 'Updated') : (isVietnamese ? 'Dữ liệu cũ hoặc chưa đủ' : 'Stale or incomplete data') }} · {{ updatedAt }}</p>
-        <p v-if="meta.source">{{ meta.source === 'akshare_wallstreetcn' ? 'WallstreetCN / AkShare' : meta.source }}<span v-if="meta.fallback_from"> · {{ isVietnamese ? 'Nguồn dự phòng — độ phủ có thể khác Investing' : 'Fallback source — coverage may differ from Investing' }}</span></p>
+        <p role="status">{{ activeMeta.freshness === 'FRESH' ? (isVietnamese ? 'Đã cập nhật' : 'Updated') : (isVietnamese ? 'Dữ liệu cũ hoặc chưa đủ' : 'Stale or incomplete data') }} · {{ updatedAt }}</p>
+        <p>{{ selectedSource === 'primary' ? 'Investing.com' : 'WallstreetCN / AkShare' }} · {{ selectedSource === 'primary' ? (isVietnamese ? 'Nguồn ưu tiên' : 'Primary source') : (isVietnamese ? 'Nguồn dự phòng — không thay thế lịch Việt Nam của Investing' : 'Fallback — does not replace Investing Vietnam coverage') }}</p>
       </div>
-      <a-button size="small" :loading="loading" @click="$emit('refresh')">{{ isVietnamese ? 'Làm mới' : 'Refresh' }}</a-button>
+      <a-button size="small" :loading="activeLoading" @click="refreshSelectedSource">{{ isVietnamese ? 'Làm mới' : 'Refresh' }}</a-button>
     </div>
 
     <div class="calendar-filter-panel" :aria-label="$t('smartInsights.calendarFilters')">
+      <div class="calendar-filter-buttons" role="group" :aria-label="isVietnamese ? 'Nguồn lịch kinh tế' : 'Calendar source'">
+        <button type="button" :class="{ active: selectedSource === 'primary' }" :aria-pressed="selectedSource === 'primary'" @click="selectedSource = 'primary'">Investing</button>
+        <button type="button" :class="{ active: selectedSource === 'fallback' }" :aria-pressed="selectedSource === 'fallback'" @click="openFallback">{{ isVietnamese ? 'Xem nguồn dự phòng' : 'View fallback source' }}</button>
+      </div>
       <div class="calendar-time-filter">
         <span class="calendar-filter-label">{{ $t('smartInsights.calendarTimeRange') }}</span>
         <div class="calendar-filter-buttons" role="group" :aria-label="$t('smartInsights.calendarTimeRange')">
@@ -96,14 +100,14 @@
             <th scope="col">{{ $t('smartInsights.calendarPrevious') }}</th>
           </tr>
         </thead>
-        <tbody v-if="loading">
+        <tbody v-if="activeLoading">
           <tr class="calendar-state-row">
             <td colspan="7"><a-spin size="small" /> {{ $t('smartInsights.calendarLoading') }}</td>
           </tr>
         </tbody>
-        <tbody v-else-if="error">
+        <tbody v-else-if="activeError">
           <tr class="calendar-state-row">
-            <td colspan="7">{{ error }}</td>
+            <td colspan="7">{{ activeError }}</td>
           </tr>
         </tbody>
         <tbody v-else-if="!groupedEvents.length">
@@ -156,6 +160,7 @@
 import { Icon } from '@iconify/vue2'
 import { DEFAULT_ECONOMIC_CALENDAR_FILTER, filterEconomicCalendarEventsByCriteria, groupEconomicCalendarEvents, normalizeEconomicCalendarEvents } from '../economicCalendar'
 import { calendarMissingValue } from '../calendarRefresh'
+import { getEconomicCalendar } from '@/api/global-market'
 
 const INITIAL_EVENT_LIMIT = 12
 
@@ -170,15 +175,24 @@ export default {
     error: { type: String, default: '' }
   },
   data () {
-    return { showAll: false }
+    return { showAll: false, selectedSource: 'primary', fallbackEvents: [], fallbackMeta: {}, fallbackLoading: false, fallbackError: '' }
   },
   computed: {
+    activeMeta () { return this.selectedSource === 'primary' ? this.meta : this.fallbackMeta },
+    activeLoading () { return this.selectedSource === 'primary' ? this.loading : this.fallbackLoading },
+    activeError () {
+      if (this.selectedSource === 'fallback') return this.fallbackError
+      if (['missing_snapshot', 'source_mismatch', 'invalid_snapshot', 'incomplete_snapshot'].includes(this.meta.status)) {
+        return this.isVietnamese ? 'Chưa có snapshot Investing hợp lệ. Bạn có thể xem nguồn dự phòng riêng bên trên.' : 'No valid Investing snapshot. You can view the separate fallback source above.'
+      }
+      return this.error
+    },
     updatedAt () {
-      const date = new Date(this.meta.fetchedAt || this.meta.last_success_at || '')
+      const date = new Date(this.activeMeta.fetchedAt || this.activeMeta.last_success_at || '')
       return Number.isNaN(date.getTime()) ? '—' : date.toLocaleString(this.isVietnamese ? 'vi-VN' : 'en-GB', { timeZone: 'Asia/Ho_Chi_Minh' }) + ' (UTC+7)'
     },
     activeFilter () { return { ...DEFAULT_ECONOMIC_CALENDAR_FILTER, ...(this.filter || {}) } },
-    normalizedEvents () { return normalizeEconomicCalendarEvents(this.events, this.$i18n && this.$i18n.locale) },
+    normalizedEvents () { return normalizeEconomicCalendarEvents(this.selectedSource === 'primary' ? this.events : this.fallbackEvents, this.$i18n && this.$i18n.locale) },
     filteredEvents () { return filterEconomicCalendarEventsByCriteria(this.normalizedEvents, this.activeFilter) },
     visibleEvents () { return this.showAll ? this.filteredEvents : this.filteredEvents.slice(0, INITIAL_EVENT_LIMIT) },
     groupedEvents () { return groupEconomicCalendarEvents(this.visibleEvents) },
@@ -230,6 +244,29 @@ export default {
     filter: { deep: true, handler () { this.showAll = false } }
   },
   methods: {
+    refreshSelectedSource () {
+      if (this.selectedSource === 'primary') this.$emit('refresh')
+      else this.openFallback()
+    },
+    async openFallback () {
+      this.selectedSource = 'fallback'
+      this.showAll = false
+      if (this.fallbackLoading) return
+      this.fallbackLoading = true
+      this.fallbackError = ''
+      try {
+        const response = await getEconomicCalendar({ source: 'akshare_wallstreetcn', force: 1 })
+        if (!response || response.code !== 1 || response.meta?.source !== 'akshare_wallstreetcn') throw new Error('Unavailable')
+        this.fallbackEvents = Array.isArray(response.data) ? response.data : []
+        this.fallbackMeta = response.meta || {}
+      } catch (_) {
+        this.fallbackEvents = []
+        this.fallbackMeta = {}
+        this.fallbackError = this.isVietnamese ? 'Không tải được nguồn dự phòng. Hãy thử lại.' : 'Fallback source unavailable. Please retry.'
+      } finally {
+        this.fallbackLoading = false
+      }
+    },
     displayValue (event, field) {
       const value = event[field]
       return value !== null && value !== undefined && String(value).trim() !== '' && !['-', '—', '–'].includes(String(value).trim())

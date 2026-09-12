@@ -40,7 +40,7 @@ def test_fallback_snapshot_preserves_provider(monkeypatch, tmp_path):
     path = tmp_path / 'calendar.json'
     monkeypatch.setenv('INVESTING_CALENDAR_SNAPSHOT_PATH', str(path))
     write_investing_calendar_snapshot({'source': 'akshare_wallstreetcn', 'source_url': 'https://wallstreetcn.com/calendar', 'fallback_from': 'investing_browser', 'fetched_at': datetime.now(timezone.utc).isoformat(), 'ranges': list(REQUIRED_CALENDAR_RANGES), 'events': [{'name': 'CPI', 'date': '2026-09-11', 'actual': '0', 'forecast': None}]}, path)
-    payload = get_investing_calendar_snapshot_payload()
+    payload = get_investing_calendar_snapshot_payload(source='akshare_wallstreetcn')
     assert payload['source'] == 'akshare_wallstreetcn'
     assert payload['events'][0]['source'] == 'akshare_wallstreetcn'
     assert payload['events'][0]['forecast'] is None
