@@ -17,7 +17,7 @@ AkShare Chinese event labels are enriched with validated `name_vi` and
 deterministic dictionary; uncached labels use the server-side DeepSeek key
 when configured and are stored in `event-name-translations.json`. The browser
 never receives or calls the DeepSeek credential.
-Each refresh translates at most 50 uncached labels, so the 30-minute timer
+Each refresh translates at most 10 uncached labels, so the 30-minute timer
 remains bounded; later refreshes continue from the cache.
 
 Crawl and import are one job, with separate atomic snapshots in

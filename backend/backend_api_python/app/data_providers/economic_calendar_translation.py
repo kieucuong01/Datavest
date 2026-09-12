@@ -20,8 +20,8 @@ logger = get_logger(__name__)
 
 CJK_PATTERN = re.compile(r"[\u3400-\u9fff]")
 DEFAULT_CACHE_PATH = "data/economic-calendar/event-name-translations.json"
-DEFAULT_BATCH_SIZE = 50
-DEFAULT_MAX_LABELS_PER_REFRESH = 50
+DEFAULT_BATCH_SIZE = 10
+DEFAULT_MAX_LABELS_PER_REFRESH = 10
 
 # Keep the common labels deterministic even when a deployment has no LLM key.
 # DeepSeek fills the long tail and future provider-label changes.
