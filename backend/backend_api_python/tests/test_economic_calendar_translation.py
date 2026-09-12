@@ -73,3 +73,21 @@ def test_calendar_translation_rejects_chinese_llm_output(monkeypatch, tmp_path):
 
     assert "name_vi" not in result[0]
     assert "name_en" not in result[0]
+
+
+def test_calendar_translation_limits_deepseek_labels_per_refresh(monkeypatch, tmp_path):
+    from app.data_providers import economic_calendar_translation as translation
+
+    batches = []
+    monkeypatch.setattr(translation, "_call_deepseek_batch", lambda sources: batches.append(sources) or {})
+    monkeypatch.setenv("ECONOMIC_CALENDAR_TRANSLATION_CACHE_PATH", str(tmp_path / "cache.json"))
+    monkeypatch.setenv("ECONOMIC_CALENDAR_TRANSLATION_BATCH_SIZE", "10")
+    monkeypatch.setenv("ECONOMIC_CALENDAR_TRANSLATION_MAX_LABELS", "12")
+
+    events = [{"name": f"指标 {index}", "name_en": f"指标 {index}"} for index in range(15)]
+    translation.translate_calendar_event_names(events)
+
+    assert batches == [
+        [f"指标 {index}" for index in range(10)],
+        ["指标 10", "指标 11"]
+    ]

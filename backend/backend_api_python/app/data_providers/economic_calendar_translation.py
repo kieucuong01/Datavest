@@ -21,6 +21,7 @@ logger = get_logger(__name__)
 CJK_PATTERN = re.compile(r"[\u3400-\u9fff]")
 DEFAULT_CACHE_PATH = "data/economic-calendar/event-name-translations.json"
 DEFAULT_BATCH_SIZE = 50
+DEFAULT_MAX_LABELS_PER_REFRESH = 50
 
 # Keep the common labels deterministic even when a deployment has no LLM key.
 # DeepSeek fills the long tail and future provider-label changes.
@@ -120,6 +121,16 @@ def _translation_enabled() -> bool:
     return str(os.getenv("ECONOMIC_CALENDAR_TRANSLATION_ENABLED", "true")).strip().lower() not in {
         "0", "false", "no", "off"
     }
+
+
+def _max_labels_per_refresh() -> int:
+    try:
+        return min(100, max(1, int(os.getenv(
+            "ECONOMIC_CALENDAR_TRANSLATION_MAX_LABELS",
+            DEFAULT_MAX_LABELS_PER_REFRESH,
+        ))))
+    except (TypeError, ValueError):
+        return DEFAULT_MAX_LABELS_PER_REFRESH
 
 
 def _source_name(event: Dict[str, Any]) -> str:
@@ -235,6 +246,10 @@ def translate_calendar_event_names(events: Iterable[Dict[str, Any]]) -> List[Dic
             seen.add(_cache_key(source))
 
     if _translation_enabled() and pending:
+        # Keep the scheduled crawl bounded. The cache makes the next refresh
+        # continue with the remaining labels instead of holding the service
+        # open for hundreds of LLM translations in one run.
+        pending = pending[:_max_labels_per_refresh()]
         for start in range(0, len(pending), _batch_size()):
             batch = pending[start:start + _batch_size()]
             for source, labels in _call_deepseek_batch(batch).items():
