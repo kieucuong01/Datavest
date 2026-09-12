@@ -158,10 +158,14 @@ user_systemctl enable datavest-api datavest-celery datavest-beat datavest-schedu
 user_systemctl restart datavest-api datavest-celery datavest-beat datavest-scheduler datavest-crypto-insights-browser datavest-trading-agents
 # Installed once by root via install-calendar.sh. Do not recreate the broken
 # user-manager sandbox or grant the deployment account blanket sudo access.
-systemctl is-active --quiet datavest-calendar.service || {
+if systemctl is-active --quiet datavest-calendar.service; then
+  :
+elif systemctl is-active --quiet datavest-calendar.timer; then
+  echo 'deploy_status=calendar_legacy_timer_active_run_install_calendar_as_root' >&2
+else
   echo 'deploy_status=calendar_system_service_missing_run_install_calendar_as_root' >&2
   false
-}
+fi
 
 for _ in {1..36}; do
   if curl -fsS --max-time 5 http://127.0.0.1:5100/api/health/ready >/dev/null && \

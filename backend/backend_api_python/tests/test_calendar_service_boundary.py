@@ -21,6 +21,7 @@ def test_deploy_cannot_recreate_broken_user_calendar_timer():
     deploy = (ROOT / 'deploy/vps/deploy.sh').read_text()
     assert 'user_systemctl enable --now datavest-calendar.timer' not in deploy
     assert 'systemctl is-active --quiet datavest-calendar.service' in deploy
+    assert 'calendar_legacy_timer_active_run_install_calendar_as_root' in deploy
     installer = (ROOT / 'deploy/vps/install-calendar.sh').read_text()
     assert 'disable --now datavest-calendar.timer' in installer
     assert '/etc/systemd/system' in installer
