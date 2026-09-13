@@ -783,7 +783,8 @@ IMPORTANT:
     # ==================== Main Analysis ====================
     
     def analyze(self, market: str, symbol: str, language: str = 'en-US', 
-                model: str = None, timeframe: str = "1D", user_id: int = None) -> Dict[str, Any]:
+                model: str = None, timeframe: str = "1D", user_id: int = None,
+                persist_history: bool = True) -> Dict[str, Any]:
         """
         Run fast single-call analysis.
         
@@ -794,6 +795,7 @@ IMPORTANT:
             model: LLM model to use
             timeframe: Analysis timeframe (1D, 4H, etc.)
             user_id: User ID for storing analysis history
+            persist_history: Store the result in account-owned analysis history
         
         Returns:
             Complete analysis result with actionable recommendations.
@@ -1377,8 +1379,8 @@ IMPORTANT:
                 "data_collection_time_ms": data.get("collection_time_ms", 0),
             })
             
-            # Store in memory for future retrieval and get memory_id for feedback
-            memory_id = self._store_analysis_memory(result, user_id=user_id)
+            # Public report publishing must not create or borrow account history.
+            memory_id = self._store_analysis_memory(result, user_id=user_id) if persist_history else None
             if memory_id:
                 result["memory_id"] = memory_id
             

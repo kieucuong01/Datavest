@@ -16,3 +16,17 @@ CREATE TABLE IF NOT EXISTS public_research_reports (
 
 CREATE INDEX IF NOT EXISTS idx_public_research_reports_latest
     ON public_research_reports (asset_key, report_kind, locale, effective_date DESC);
+
+-- This disabled principal exists solely to satisfy immutable TradingAgents
+-- ownership constraints. It cannot sign in and is never exposed by public APIs.
+INSERT INTO qd_users (username, password_hash, email, nickname, status, role, email_verified)
+VALUES (
+    '__datavest_public_research__',
+    '!public-research-principal-no-login!',
+    'public-research@datavest.invalid',
+    'DataVest Public Research',
+    'disabled',
+    'viewer',
+    TRUE
+)
+ON CONFLICT (username) DO NOTHING;

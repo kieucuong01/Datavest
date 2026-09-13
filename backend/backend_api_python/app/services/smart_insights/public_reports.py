@@ -57,6 +57,129 @@ class PublicResearchReportsRepository:
     def latest_status(self, *, asset_key: str, report_kind: str, locale: str) -> dict[str, Any] | None:
         return self._latest(asset_key=asset_key, report_kind=report_kind, locale=locale, completed_only=False)
 
+    def mark_pending(
+        self,
+        *,
+        asset_key: str,
+        report_kind: str,
+        locale: str,
+        effective_date: date | str,
+        source_run_id: str | None = None,
+    ) -> None:
+        self._upsert(
+            asset_key=asset_key,
+            report_kind=report_kind,
+            locale=locale,
+            effective_date=effective_date,
+            status="pending",
+            source_run_id=source_run_id,
+        )
+
+    def mark_complete(
+        self,
+        *,
+        asset_key: str,
+        report_kind: str,
+        locale: str,
+        effective_date: date | str,
+        payload: Mapping[str, Any],
+        source_run_id: str | None = None,
+    ) -> None:
+        self._upsert(
+            asset_key=asset_key,
+            report_kind=report_kind,
+            locale=locale,
+            effective_date=effective_date,
+            status="complete",
+            payload=payload,
+            source_run_id=source_run_id,
+        )
+
+    def mark_failed(
+        self,
+        *,
+        asset_key: str,
+        report_kind: str,
+        locale: str,
+        effective_date: date | str,
+        failure_code: str,
+        source_run_id: str | None = None,
+    ) -> None:
+        self._upsert(
+            asset_key=asset_key,
+            report_kind=report_kind,
+            locale=locale,
+            effective_date=effective_date,
+            status="failed",
+            failure_code=failure_code,
+            source_run_id=source_run_id,
+        )
+
+    def list_pending_deep(self, *, locale: str) -> list[dict[str, Any]]:
+        with get_db_connection() as db:
+            cur = db.cursor()
+            try:
+                cur.execute(
+                    """
+                    SELECT asset_key, report_kind, locale, effective_date, status, source_run_id
+                    FROM public_research_reports
+                    WHERE report_kind = 'deep' AND locale = ? AND status = 'pending'
+                      AND source_run_id IS NOT NULL
+                    ORDER BY effective_date ASC, id ASC
+                    """,
+                    (locale,),
+                )
+                return [dict(row) for row in (cur.fetchall() or [])]
+            finally:
+                cur.close()
+
+    def _upsert(
+        self,
+        *,
+        asset_key: str,
+        report_kind: str,
+        locale: str,
+        effective_date: date | str,
+        status: str,
+        payload: Mapping[str, Any] | None = None,
+        failure_code: str | None = None,
+        source_run_id: str | None = None,
+    ) -> None:
+        clean_payload = json.dumps(dict(payload or {}), ensure_ascii=False) if payload is not None else None
+        clean_failure = str(failure_code or "").strip()[:80] or None
+        clean_run_id = str(source_run_id or "").strip()[:128] or None
+        with get_db_connection() as db:
+            cur = db.cursor()
+            try:
+                cur.execute(
+                    """
+                    INSERT INTO public_research_reports
+                    (asset_key, report_kind, locale, effective_date, status, payload_json, failure_code, source_run_id, generated_at)
+                    VALUES (?, ?, ?, ?, ?, ?::jsonb, ?, ?, CASE WHEN ? = 'complete' THEN NOW() ELSE NULL END)
+                    ON CONFLICT (asset_key, report_kind, locale, effective_date) DO UPDATE
+                    SET status = EXCLUDED.status,
+                        payload_json = EXCLUDED.payload_json,
+                        failure_code = EXCLUDED.failure_code,
+                        source_run_id = COALESCE(EXCLUDED.source_run_id, public_research_reports.source_run_id),
+                        generated_at = EXCLUDED.generated_at,
+                        updated_at = NOW()
+                    """,
+                    (
+                        asset_key,
+                        report_kind,
+                        locale,
+                        _iso_date(effective_date),
+                        status,
+                        clean_payload,
+                        clean_failure,
+                        clean_run_id,
+                        status,
+                    ),
+                )
+                db.commit()
+            finally:
+                cur.close()
+
     def _latest(self, *, asset_key: str, report_kind: str, locale: str, completed_only: bool) -> dict[str, Any] | None:
         status_clause = "AND status = 'complete'" if completed_only else ""
         with get_db_connection() as db:

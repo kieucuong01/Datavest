@@ -66,6 +66,23 @@ def test_celery_beat_runs_watchlist_ai_analysis_at_7am_vietnam_time():
     assert schedule["schedule"].minute == {0}
 
 
+def test_celery_beat_publishes_fixed_guest_research_on_daily_and_weekly_cadence():
+    from app.celery_app import celery_app
+
+    schedule = celery_app.conf.beat_schedule
+
+    quick = schedule["public-research-daily-quick"]
+    deep = schedule["public-research-weekly-deep"]
+    sync = schedule["public-research-deep-sync"]
+    assert quick["task"] == "datavest.tasks.publish_public_quick_reports"
+    assert quick["schedule"].hour == {7}
+    assert quick["schedule"].minute == {15}
+    assert deep["task"] == "datavest.tasks.enqueue_public_deep_reports"
+    assert deep["schedule"].day_of_week == {1}
+    assert sync["task"] == "datavest.tasks.sync_public_deep_reports"
+    assert sync["schedule"] == 900
+
+
 def test_fast_analysis_dispatches_to_celery(monkeypatch):
     from app.services import fast_analysis_tasks
     from app.tasks.fast_analysis import execute_fast_analysis

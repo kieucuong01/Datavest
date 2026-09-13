@@ -126,9 +126,33 @@ def run_daily_watchlist_ai_analysis_task(self) -> dict:
     return run_daily_watchlist_ai_analysis()
 
 
+@celery_app.task(name="datavest.tasks.publish_public_quick_reports", acks_late=True)
+def publish_public_quick_reports() -> dict:
+    from app.services.smart_insights.public_research_publisher import PublicResearchPublisher
+
+    return PublicResearchPublisher().publish_daily_quick_reports()
+
+
+@celery_app.task(name="datavest.tasks.enqueue_public_deep_reports", acks_late=True)
+def enqueue_public_deep_reports() -> dict:
+    from app.services.smart_insights.public_research_publisher import PublicResearchPublisher
+
+    return PublicResearchPublisher().enqueue_weekly_deep_reports()
+
+
+@celery_app.task(name="datavest.tasks.sync_public_deep_reports", acks_late=True)
+def sync_public_deep_reports() -> dict:
+    from app.services.smart_insights.public_research_publisher import PublicResearchPublisher
+
+    return PublicResearchPublisher().sync_pending_deep_reports()
+
+
 __all__ = [
     "enqueue_smart_insights_refresh",
     "enqueue_smart_insights_refresh_for_sources",
     "run_daily_watchlist_ai_analysis_task",
+    "publish_public_quick_reports",
+    "enqueue_public_deep_reports",
+    "sync_public_deep_reports",
     "run_smart_insights_refresh",
 ]
