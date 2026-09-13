@@ -100,6 +100,23 @@ def public_live_assets():
         return _fail("smart_insights_live_assets_unavailable", 503)
 
 
+@smart_insights_blp.route(
+    "/public/reports/<path:asset_key>/<string:report_kind>", methods=["GET"]
+)
+def public_report(asset_key: str, report_kind: str):
+    """Read a final public report without entering an account-owned boundary."""
+    try:
+        data = get_public_smart_insights_service().get_public_report(
+            asset_key=asset_key, report_kind=report_kind, locale=_locale()
+        )
+        return _ok(data) if data is not None else _fail("public_report_not_found", 404)
+    except ValueError:
+        return _fail("public_report_not_found", 404)
+    except Exception:
+        logger.exception("public smart insights report failed")
+        return _fail("smart_insights_unavailable", 503)
+
+
 @smart_insights_blp.route("/public/crypto-market-pulse", methods=["GET"])
 @observe_feature_operation("smart_insights", "crypto_market_pulse")
 def public_crypto_market_pulse():

@@ -204,6 +204,45 @@ def test_public_routes_are_anonymous_while_private_routes_still_require_jwt(
     assert client.post("/api/smart-insights/refresh", json={}).status_code == 401
 
 
+def test_public_report_route_is_anonymous_and_fixed_to_the_common_asset_scope(
+    client, monkeypatch
+):
+    from app.routes import smart_insights as routes
+
+    class PublicService:
+        def get_public_report(self, *, asset_key, report_kind, locale):
+            assert (asset_key, report_kind, locale) == (
+                "crypto:BTC/USDT",
+                "quick",
+                "vi-VN",
+            )
+            return {
+                "assetKey": asset_key,
+                "reportKind": report_kind,
+                "title": "BTC",
+            }
+
+    monkeypatch.setattr(
+        routes, "get_public_smart_insights_service", lambda: PublicService()
+    )
+
+    response = client.get(
+        "/api/smart-insights/public/reports/crypto:BTC%2FUSDT/quick?lang=vi-VN"
+    )
+
+    assert response.status_code == 200
+    assert response.get_json()["data"]["assetKey"] == "crypto:BTC/USDT"
+
+
+def test_public_report_route_rejects_an_asset_outside_the_common_scope(client):
+    response = client.get(
+        "/api/smart-insights/public/reports/crypto:ETH%2FUSDT/quick?runId=private"
+    )
+
+    assert response.status_code == 404
+    assert "private" not in response.get_data(as_text=True)
+
+
 def test_public_calendar_is_anonymous_but_cannot_force_refresh(client, monkeypatch):
     from app.routes import global_market as routes
 

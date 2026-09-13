@@ -11,16 +11,16 @@ from app.utils.timeutil import vietnam_calendar_date
 
 from .crypto_pulse import build_crypto_market_pulse
 from .data_contract import attach_data_contract
+from .public_reports import (
+    PUBLIC_RESEARCH_ASSET_SCOPE,
+    PublicResearchReportsService,
+)
 from .repository import SmartInsightsRepository
 from .service import SmartInsightsService
 from .watchlist_scope import opinion_key
 
 
-PUBLIC_ASSET_SCOPE: tuple[dict[str, str], ...] = (
-    {"market": "Crypto", "symbol": "BTC/USDT", "displaySymbol": "BTC"},
-    {"market": "VNStock", "symbol": "VNINDEX", "displaySymbol": "VNINDEX"},
-    {"market": "Forex", "symbol": "XAUUSD", "displaySymbol": "XAU"},
-)
+PUBLIC_ASSET_SCOPE = PUBLIC_RESEARCH_ASSET_SCOPE
 
 PUBLIC_EVIDENCE_FIELDS = frozenset(
     {
@@ -152,8 +152,13 @@ def _public_evidence_value(value: Any) -> dict[str, Any]:
 class PublicSmartInsightsService:
     """Read shared LIVE evidence without resolving an authenticated tenant."""
 
-    def __init__(self, repository: SmartInsightsRepository | None = None) -> None:
+    def __init__(
+        self,
+        repository: SmartInsightsRepository | None = None,
+        public_reports: PublicResearchReportsService | None = None,
+    ) -> None:
         self.repository = repository or SmartInsightsRepository()
+        self.public_reports = public_reports or PublicResearchReportsService()
 
     def get_overview(
         self, *, as_of: str | None = None, locale: str = "vi-VN"
@@ -225,6 +230,11 @@ class PublicSmartInsightsService:
         from .live_assets import get_live_asset_snapshot
 
         return get_live_asset_snapshot()
+
+    def get_public_report(
+        self, *, asset_key: str, report_kind: str, locale: str = "vi-VN"
+    ) -> dict[str, Any] | None:
+        return self.public_reports.get_latest(asset_key, report_kind, locale)
 
     def get_crypto_market_pulse(
         self, *, as_of: str | None = None, compact: bool = False
