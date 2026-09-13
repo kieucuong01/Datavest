@@ -102,3 +102,24 @@ def test_public_projection_drops_internal_payload_fields():
         "body": "Nội dung công khai",
         "isFallback": False,
     }
+
+
+def test_public_projection_reads_the_postgres_payload_json_column():
+    from app.services.smart_insights.public_reports import PublicResearchReportsService
+
+    row = _row(effective_date="2026-09-13")
+    row.pop("payload", None)
+    row["payload_json"] = {
+        "title": "BTC",
+        "summary": "Nội dung từ payload_json",
+        "body": "Báo cáo chuyên sâu",
+        "sections": [{"title": "Luận điểm", "items": ["Dữ liệu đã được lưu"]}],
+        "decision": "BUY",
+        "confidence": 78,
+    }
+
+    result = PublicResearchReportsService.public_projection(row)
+
+    assert result["summary"] == "Nội dung từ payload_json"
+    assert result["body"] == "Báo cáo chuyên sâu"
+    assert result["sections"][0]["items"] == ["Dữ liệu đã được lưu"]

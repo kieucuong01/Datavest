@@ -229,7 +229,9 @@ class PublicResearchReportsService:
 
     @staticmethod
     def public_projection(row: Mapping[str, Any], *, is_fallback: bool = False) -> dict[str, Any]:
-        payload = row.get("payload") if isinstance(row, Mapping) else {}
+        # The repository selects PostgreSQL's payload_json column directly;
+        # keep payload as a compatibility fallback for lightweight adapters.
+        payload = row.get("payload_json", row.get("payload")) if isinstance(row, Mapping) else {}
         if isinstance(payload, str):
             try:
                 payload = json.loads(payload)
