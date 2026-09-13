@@ -3,6 +3,15 @@ import test from 'node:test'
 
 import { applyPublicQuickReports, buildSharedOpinionRows, buildWatchlistOpinionRows } from '../../src/views/smart-insights/watchlistOpinions.js'
 
+test('keeps VNINDEX visible to guests as research in development without a public report endpoint', () => {
+  const vnindex = buildSharedOpinionRows([
+    { market: 'VNStock', symbol: 'VNINDEX', name: 'VNINDEX' }
+  ], [], null).find(row => row.displaySymbol === 'VNINDEX')
+
+  assert.equal(vnindex.researchInDevelopment, true)
+  assert.equal(vnindex.publicAssetKey, '')
+})
+
 test('renders only watchlist assets in watchlist order', () => {
   const rows = buildWatchlistOpinionRows(
     [

@@ -774,7 +774,7 @@ export default {
       this.watchlist = Array.isArray(response.data && response.data.assets) ? response.data.assets : []
     },
     async loadPublicQuickReports (requestId) {
-      const assetKeys = ['crypto:BTC/USDT', 'vnstock:VNINDEX', 'forex:XAUUSD']
+      const assetKeys = ['crypto:BTC/USDT', 'forex:XAUUSD']
       const responses = await Promise.allSettled(assetKeys.map(assetKey => getPublicResearchReport(assetKey, 'quick')))
       if (!this.isCurrentRequest(requestId) || !this.isGuest) return
       this.publicQuickReports = responses
@@ -911,6 +911,7 @@ export default {
     },
     async openAssetAnalysis (row, mode = 'quick') {
       if (!row) return
+      if (this.isGuest && row.researchInDevelopment) return
       if (this.isGuest && mode !== 'deep' && !row.report) {
         this.openAiAssistant(row)
         return

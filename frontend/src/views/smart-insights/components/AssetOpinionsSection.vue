@@ -50,15 +50,19 @@
         <div class="opinion-main" :data-label="$t('smartInsights.todayOpinion')">
           <div class="opinion-main-head">
             <span class="opinion-column-label">{{ $t('smartInsights.todayOpinion') }}</span>
-            <template v-if="row.report">
+            <template v-if="row.researchInDevelopment">
+              <a-tag class="stance-neutral">{{ $t('smartInsights.researchInDevelopment') }}</a-tag>
+            </template>
+            <template v-else-if="row.report">
               <a-tag :class="decisionTone(row.report.decision)">{{ decisionLabel(row.report.decision) }}</a-tag>
             </template>
             <a-tag v-else class="stance-neutral">{{ $t('smartInsights.dataUnavailableShort') }}</a-tag>
           </div>
-          <p v-if="row.report" class="muted-line">{{ row.report.summary || $t('smartInsights.aiReportUnavailable') }}</p>
+          <p v-if="row.researchInDevelopment" class="muted-line">{{ $t('smartInsights.researchInDevelopmentDesc') }}</p>
+          <p v-else-if="row.report" class="muted-line">{{ row.report.summary || $t('smartInsights.aiReportUnavailable') }}</p>
           <p v-else class="muted-line">{{ $t('smartInsights.aiNoResult') }}</p>
           <div class="opinion-meta">
-            <span class="engine-line"><a-icon type="robot" /> {{ row.publicResearch ? $t('smartInsights.quickEngine') : row.shared ? $t('smartInsights.sharedSnapshotEngine') : $t('smartInsights.quickEngine') }}</span>
+            <span class="engine-line"><a-icon :type="row.researchInDevelopment ? 'tool' : 'robot'" /> {{ row.researchInDevelopment ? $t('smartInsights.researchInDevelopment') : row.publicResearch ? $t('smartInsights.quickEngine') : row.shared ? $t('smartInsights.sharedSnapshotEngine') : $t('smartInsights.quickEngine') }}</span>
             <span v-if="row.report && row.report.createdAt" class="opinion-time"><a-icon type="clock-circle" /> {{ formatDateTime(row.report.createdAt) }}</span>
             <span v-if="row.report && row.report.confidence != null" class="confidence-line">{{ $t('smartInsights.aiConfidence') }} {{ percent(row.report.confidence) }}</span>
           </div>
@@ -75,7 +79,10 @@
         </div>
 
         <div class="opinion-actions" :data-label="$t('smartInsights.actions')">
-          <template v-if="row.report">
+          <template v-if="row.researchInDevelopment">
+            <a-button size="small" icon="tool" disabled class="quick-analysis-action">{{ $t('smartInsights.researchInDevelopment') }}</a-button>
+          </template>
+          <template v-else-if="row.report">
             <a-button size="small" type="primary" icon="search" class="quick-analysis-action" @click="$emit('open-analysis', row)">{{ guest && row.shared ? $t('smartInsights.viewLatestOpinion') : $t('smartInsights.quickAnalysis') }}</a-button>
           </template>
           <a-button v-else size="small" icon="robot" class="quick-analysis-action" @click="$emit('open-ai-assistant', row)">{{ guest ? $t('smartInsights.loginToAnalyze') : $t('smartInsights.openAiAssistant') }}</a-button>

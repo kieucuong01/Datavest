@@ -12,7 +12,7 @@ from app.utils.timeutil import vietnam_calendar_date
 from .crypto_pulse import build_crypto_market_pulse
 from .data_contract import attach_data_contract
 from .public_reports import (
-    PUBLIC_RESEARCH_ASSET_SCOPE,
+    PUBLIC_GUEST_ASSET_SCOPE,
     PublicResearchReportsService,
 )
 from .repository import SmartInsightsRepository
@@ -20,7 +20,7 @@ from .service import SmartInsightsService
 from .watchlist_scope import opinion_key
 
 
-PUBLIC_ASSET_SCOPE = PUBLIC_RESEARCH_ASSET_SCOPE
+PUBLIC_ASSET_SCOPE = PUBLIC_GUEST_ASSET_SCOPE
 
 PUBLIC_EVIDENCE_FIELDS = frozenset(
     {

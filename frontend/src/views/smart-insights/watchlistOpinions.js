@@ -23,9 +23,13 @@ function identity (item) {
   return `${canonicalOpinionMarket(item && item.market)}:${canonicalOpinionSymbol(item && (item.symbol || item.sym))}`
 }
 
+function guestResearchInDevelopment (item) {
+  return canonicalOpinionMarket(item && item.market) === 'vn' && canonicalOpinionSymbol(item && (item.symbol || item.sym)) === 'VNINDEX'
+}
+
 const GUEST_PUBLIC_ASSETS = Object.freeze([
   { market: 'Crypto', symbol: 'BTC/USDT', name: 'Bitcoin' },
-  { market: 'VNStock', symbol: 'VNINDEX', name: 'VNINDEX' },
+  { market: 'VNStock', symbol: 'VNINDEX', name: 'VNINDEX', researchInDevelopment: true },
   { market: 'Forex', symbol: 'XAUUSD', name: 'Gold' }
 ])
 
@@ -33,7 +37,6 @@ export function publicResearchAssetKey (item) {
   const market = cleanSymbol(item && item.market)
   const symbol = cleanSymbol(item && (item.symbol || item.sym))
   if (market === 'CRYPTO' && canonicalOpinionSymbol(symbol) === 'BTC') return 'crypto:BTC/USDT'
-  if (market === 'VNSTOCK' && canonicalOpinionSymbol(symbol) === 'VNINDEX') return 'vnstock:VNINDEX'
   if ((market === 'FOREX' || market === 'GOLD') && canonicalOpinionSymbol(symbol) === 'XAU') return 'forex:XAUUSD'
   return ''
 }
@@ -122,7 +125,7 @@ export function buildWatchlistOpinionRows (watchlist = [], analyses = [], asOf =
     const report = analysis.report || sharedReport
     return {
       id: key,
-      publicAssetKey: publicResearchAssetKey(item),
+      publicAssetKey: item.researchInDevelopment ? '' : publicResearchAssetKey(item),
       symbol: item.symbol || item.sym,
       displaySymbol: canonicalOpinionSymbol(item.symbol || item.sym),
       market: item.market,
@@ -166,6 +169,7 @@ export function buildSharedOpinionRows (assets = [], analyses = [], asOf = null)
       watchlistItem: null,
       report,
       shared: Boolean(report),
+      researchInDevelopment: guestResearchInDevelopment(item),
       monitor: null,
       dataFreshness: report ? 'UNKNOWN' : 'UNAVAILABLE',
       analysisStatus: report ? 'AVAILABLE' : 'UNAVAILABLE'
