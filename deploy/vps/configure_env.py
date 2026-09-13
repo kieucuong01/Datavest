@@ -72,6 +72,11 @@ def main() -> int:
     app.setdefault("TZ", "Asia/Ho_Chi_Minh")
     app.setdefault("CRYPTO_INSIGHTS_SNAPSHOT_ROOT", "/opt/datavest/shared/data/crypto-insights")
     app.setdefault("CRYPTO_INSIGHTS_BROWSER_EXECUTABLE_PATH", "/usr/bin/google-chrome-stable")
+    app.setdefault(
+        "CRYPTO_INSIGHTS_IMPORT_CALLBACK_URL",
+        "http://127.0.0.1:5100/api/internal/smart-insights/snapshot-import",
+    )
+    app.setdefault("CRYPTO_INSIGHTS_IMPORT_CALLBACK_SECRET", secrets.token_hex(32))
     app.setdefault("LOG_DIR", "/opt/datavest/shared/logs")
     app.setdefault("FRONTEND_URL", "https://datavest.vn,https://www.datavest.vn")
     app.setdefault("PYTHON_API_DEBUG", "false")

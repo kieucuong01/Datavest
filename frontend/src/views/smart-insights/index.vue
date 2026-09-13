@@ -329,7 +329,8 @@
 import { mapState } from 'vuex'
 import storage from 'store'
 import { ACCESS_TOKEN } from '@/store/mutation-types'
-import { hasAccessToken, loginTarget } from '@/utils/guestAccess'
+import { hasAccessToken } from '@/utils/guestAccess'
+import { openAuthModal } from '@/utils/authModal'
 import { getEconomicCalendar } from '@/api/global-market'
 import { calendarCacheFresh } from './calendarRefresh'
 import { getSmartInsightsCryptoPulse, getSmartInsightsDataHealth, getSmartInsightsDates, getSmartInsightsEvidence, getSmartInsightsOverview } from '@/api/smart-insights'
@@ -337,7 +338,7 @@ import { getAnalysisHistory } from '@/api/fast-analysis'
 import { runSectionLoaders } from './loadingCoordinator'
 import { buildAssetAnalysisDetails, canShowTradingPlan } from './analysisReport'
 import { formatVietnamDate, formatVietnamDateTime } from '@/utils/vietnamTime'
-import { buildWatchlistOpinionRows } from './watchlistOpinions'
+import { buildSharedOpinionRows, buildWatchlistOpinionRows } from './watchlistOpinions'
 import { isCurrentRequest as isCurrentRequestToken, summarizeReadiness } from './dataReadiness'
 import { dedupeQuickAnalysisReports, normalizeQuickAnalysisReport } from './quickAnalysisHistory'
 import AssetOpinionsSection from './components/AssetOpinionsSection'
@@ -408,13 +409,17 @@ export default {
     }
   },
   computed: {
-    ...mapState({ navTheme: state => state.app.theme }),
-    isGuest () { return !hasAccessToken(storage.get(ACCESS_TOKEN)) },
+    ...mapState({ navTheme: state => state.app.theme, authToken: state => state.user && state.user.token }),
+    isGuest () { return !hasAccessToken(this.authToken || storage.get(ACCESS_TOKEN)) },
     isDarkTheme () { return this.navTheme === 'dark' || this.navTheme === 'realdark' },
     hasOverview () { return Boolean(this.overview && this.overview.status !== 'UNAVAILABLE') },
     dailyBrief () { return (this.overview && this.overview.dailyBrief) || { status: 'UNAVAILABLE', content: '', assetCount: 0 } },
     opinionRows () {
-      return buildWatchlistOpinionRows(this.watchlist, this.overview && this.overview.opinions, this.overview && this.overview.asOf)
+      const opinions = this.overview && this.overview.opinions
+      const asOf = this.overview && this.overview.asOf
+      return this.isGuest
+        ? buildSharedOpinionRows(this.overview && this.overview.assets, opinions, asOf)
+        : buildWatchlistOpinionRows(this.watchlist, opinions, asOf)
     },
     dailyBriefHighlights () {
       const highlights = Array.isArray(this.dailyBrief.highlights) ? this.dailyBrief.highlights : []
@@ -598,7 +603,17 @@ export default {
     }
   },
   watch: {
-    '$i18n.locale' () { this.loadAll(false) }
+    '$i18n.locale' () { this.loadAll(false) },
+    isGuest (guest, previous) {
+      if (guest === previous) return
+      this.asOf = undefined
+      this.dates = []
+      this.watchlist = []
+      this.overview = null
+      this.smartInsightsCache.dates = null
+      this.smartInsightsCache.overview.clear()
+      this.loadAll(true)
+    }
   },
   mounted () {
     this.loadAll()
@@ -865,7 +880,7 @@ export default {
     async openAssetAnalysis (row, mode = 'quick') {
       if (!row) return
       if (this.isGuest && mode === 'deep') {
-        this.$router.push(loginTarget('/ai-asset-analysis'))
+        openAuthModal({ redirect: '/ai-asset-analysis' })
         return
       }
       if (this.isGuest && mode !== 'deep' && !row.report) {
@@ -892,7 +907,7 @@ export default {
     openAiAssistant (row) {
       if (this.isGuest) {
         const redirect = `/ai-asset-analysis?market=${encodeURIComponent(row.market)}&symbol=${encodeURIComponent(row.displaySymbol)}&action=analyze`
-        this.$router.push(loginTarget(redirect))
+        openAuthModal({ redirect })
         return
       }
       this.$router.push({ path: '/ai-asset-analysis', query: { market: row.market, symbol: row.displaySymbol, action: 'analyze' } })

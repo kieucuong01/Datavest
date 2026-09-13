@@ -13,8 +13,10 @@ from typing import Any
 import argparse
 import asyncio
 import ast
+import hmac
 import os
 import sys
+import time
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 from zoneinfo import ZoneInfo
@@ -35,7 +37,7 @@ CRYPTOETF_SOURCES = tuple(f"cryptoetf-{asset}-etf" for asset in CRYPTOETF_ASSETS
 XOOMAR_SOURCES = ("xoomar-btc-etf", "xoomar-eth-etf")
 FARSIDE_SOURCES = ("farside-btc-etf", "farside-eth-etf", "farside-sol-etf")
 COINSHARES_SOURCE = "coinshares-weekly"
-_DAILY_SNAPSHOT_TIME = (8, 15)
+_DAILY_SNAPSHOT_TIME = (9, 0)
 _COINSHARES_SNAPSHOT_TIME = (18, 0)
 SOURCE_URLS = {
     "alternative-fng": "https://api.alternative.me/fng/?limit=0&format=json",
@@ -625,7 +627,7 @@ def due_snapshot_sources(local_now: datetime, seen: set[str]) -> tuple[str, ...]
     """Return one daily catch-up batch when this long-running worker starts late.
 
     The old exact-minute check silently skipped an entire day's ETF snapshot if
-    Docker restarted after 08:15.  A per-day key keeps the normal worker to one
+    Docker restarted after 09:00.  A per-day key keeps the normal worker to one
     batch while allowing a restart later that day to recover the missed fetch.
     """
     zone = ZoneInfo("Asia/Ho_Chi_Minh")
@@ -644,6 +646,74 @@ def due_snapshot_sources(local_now: datetime, seen: set[str]) -> tuple[str, ...]
         seen.add(coinshares_key)
         return (COINSHARES_SOURCE,)
     return ()
+
+
+def _callback_timeout() -> int:
+    try:
+        return max(3, min(30, int(os.getenv("CRYPTO_INSIGHTS_IMPORT_CALLBACK_TIMEOUT_SEC", "15"))))
+    except ValueError:
+        return 15
+
+
+def notify_snapshot_import(
+    source_codes: Sequence[str],
+    *,
+    observed_at: datetime,
+) -> dict[str, object]:
+    """Ask the API to import snapshots immediately after a crawl batch.
+
+    The browser sidecar intentionally has no database or Celery dependency. It
+    hands off only successful source codes over a signed private HTTP boundary;
+    the API then creates the normal audited collector run.
+    """
+    normalized = tuple(dict.fromkeys(str(code).strip().lower() for code in source_codes if str(code).strip()))
+    if not normalized:
+        return {"status": "skipped", "reason": "no_successful_snapshots"}
+    callback_url = os.getenv("CRYPTO_INSIGHTS_IMPORT_CALLBACK_URL", "").strip()
+    secret = os.getenv("CRYPTO_INSIGHTS_IMPORT_CALLBACK_SECRET", "").strip()
+    if not callback_url:
+        return {"status": "skipped", "reason": "callback_not_configured"}
+    if len(secret.encode("utf-8")) < 16 or not callback_url.startswith(("http://", "https://")):
+        return {"status": "failed", "error": "CALLBACK_NOT_CONFIGURED"}
+
+    body = json.dumps(
+        {
+            "sourceCodes": list(normalized),
+            "observedAt": observed_at.astimezone(timezone.utc).isoformat(),
+        },
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    timestamp = str(int(time.time()))
+    signature = hmac.new(
+        secret.encode("utf-8"),
+        timestamp.encode("ascii") + b"." + body,
+        hashlib.sha256,
+    ).hexdigest()
+    request = Request(
+        callback_url,
+        data=body,
+        headers={
+            "Content-Type": "application/json",
+            "X-DataVest-Smart-Insights-Timestamp": timestamp,
+            "X-DataVest-Smart-Insights-Signature": signature,
+        },
+        method="POST",
+    )
+    try:
+        with urlopen(request, timeout=_callback_timeout()) as response:  # noqa: S310 - operator-configured private callback
+            status = int(getattr(response, "status", 200) or 200)
+            response.read(64 * 1024)
+            if not 200 <= status < 300:
+                return {"status": "failed", "error": "IMPORT_CALLBACK_REJECTED"}
+    except HTTPError as exc:
+        if 400 <= int(exc.code) < 500:
+            return {"status": "failed", "error": "IMPORT_CALLBACK_REJECTED"}
+        return {"status": "failed", "error": "IMPORT_CALLBACK_UNAVAILABLE"}
+    except (URLError, TimeoutError, OSError):
+        return {"status": "failed", "error": "IMPORT_CALLBACK_UNAVAILABLE"}
+    return {"status": "ok", "sourceCount": len(normalized)}
 
 
 async def _farside_table(page: Any, url: str) -> list[list[str]]:
@@ -846,6 +916,7 @@ async def browser_backfill(source_codes: Sequence[str]) -> dict[str, dict[str, o
     try:
         now = datetime.now(timezone.utc)
         result: dict[str, dict[str, object]] = {}
+        successful_sources: list[str] = []
         for source_code in source_codes:
             try:
                 if source_code not in {*CRYPTOETF_SOURCES, *XOOMAR_SOURCES, "alternative-fng"} and page is None:
@@ -855,10 +926,16 @@ async def browser_backfill(source_codes: Sequence[str]) -> dict[str, dict[str, o
                 payload = await collect_source(source_code, page, as_of=now)
                 write_snapshot(source_code, payload)
                 result[source_code] = {"status": "ok", **_coverage(payload)}
+                successful_sources.append(source_code)
             except SnapshotUnavailable as exc:
                 result[source_code] = {"status": "failed", "error": str(exc)}
             except Exception as exc:
                 result[source_code] = {"status": "failed", "error": f"UNEXPECTED:{type(exc).__name__}"}
+        result["import"] = (
+            notify_snapshot_import(tuple(successful_sources), observed_at=now)
+            if successful_sources
+            else {"status": "skipped", "reason": "no_successful_snapshots"}
+        )
         return result
     finally:
         if session is not None:
@@ -879,7 +956,8 @@ def main() -> None:
     if args.backfill:
         result = asyncio.run(browser_backfill(source_codes))
         print(json.dumps(result, ensure_ascii=False))
-        if any(value["status"] != "ok" for value in result.values()):
+        source_results = [value for key, value in result.items() if key != "import"]
+        if any(value["status"] != "ok" for value in source_results) or result.get("import", {}).get("status") == "failed":
             raise SystemExit(1)
         return
     async def loop() -> None:

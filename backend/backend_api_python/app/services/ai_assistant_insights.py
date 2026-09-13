@@ -447,6 +447,10 @@ class AiAssistantInsightsService:
             "status": status,
             "mode": "live",
             "source": "AI_ASSISTANT_HISTORY",
+            # Keep the authenticated asset scope explicit for the Smart
+            # Insights UI. This is the same watchlist used to select reports;
+            # it is never returned by the anonymous public endpoint.
+            "assets": [dict(item) for item in watchlist if isinstance(item, dict)],
             "opinions": opinions,
             "dailyBrief": daily_brief,
             "summary": {},

@@ -1,12 +1,32 @@
 import request from '@/utils/request'
+import storage from 'store'
+import { ACCESS_TOKEN } from '@/store/mutation-types'
+import { hasAccessToken } from '@/utils/guestAccess'
 import { PUBLIC_MARKET_ENDPOINTS } from './publicMarketEndpoints'
 
+const AUTHENTICATED_SMART_INSIGHTS_ENDPOINTS = Object.freeze({
+  overview: '/api/smart-insights/overview',
+  dates: '/api/smart-insights/dates'
+})
+
+function smartInsightsEndpoint (publicEndpoint, authenticatedEndpoint) {
+  return hasAccessToken(storage.get(ACCESS_TOKEN)) ? authenticatedEndpoint : publicEndpoint
+}
+
 export function getSmartInsightsOverview (params = {}) {
-  return request({ url: PUBLIC_MARKET_ENDPOINTS.smartInsightsOverview, method: 'get', params })
+  return request({
+    url: smartInsightsEndpoint(PUBLIC_MARKET_ENDPOINTS.smartInsightsOverview, AUTHENTICATED_SMART_INSIGHTS_ENDPOINTS.overview),
+    method: 'get',
+    params
+  })
 }
 
 export function getSmartInsightsDates (params = {}) {
-  return request({ url: PUBLIC_MARKET_ENDPOINTS.smartInsightsDates, method: 'get', params })
+  return request({
+    url: smartInsightsEndpoint(PUBLIC_MARKET_ENDPOINTS.smartInsightsDates, AUTHENTICATED_SMART_INSIGHTS_ENDPOINTS.dates),
+    method: 'get',
+    params
+  })
 }
 
 export function getSmartInsightsEvidence (evidenceId) {

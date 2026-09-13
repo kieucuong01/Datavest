@@ -4,6 +4,7 @@ import test from 'node:test'
 
 const source = fs.readFileSync(new URL('../../src/views/smart-insights/index.vue', import.meta.url), 'utf8')
 const opinionsSource = fs.readFileSync(new URL('../../src/views/smart-insights/components/AssetOpinionsSection.vue', import.meta.url), 'utf8')
+const apiSource = fs.readFileSync(new URL('../../src/api/smart-insights.js', import.meta.url), 'utf8')
 const routerSource = fs.readFileSync(new URL('../../src/config/router.config.js', import.meta.url), 'utf8')
 const layoutSource = fs.readFileSync(new URL('../../src/layouts/BasicLayout.vue', import.meta.url), 'utf8')
 const layoutStyles = fs.readFileSync(new URL('../../src/layouts/BasicLayout.less', import.meta.url), 'utf8')
@@ -18,10 +19,12 @@ test('Smart Insights viewport matches the Mock Portfolio workspace treatment', (
   assert.doesNotMatch(source, /@media[^{]*\{[^}]*\.legacy-main\s*\{\s*width:\s*calc\(100%\s*-\s*24px\)/isu)
 })
 
-test('Asset Opinions is sourced from the shared public asset scope', () => {
-  assert.doesNotMatch(source, /getWatchlist/u)
+test('Asset Opinions keeps account watchlists private and uses shared rows for guests', () => {
+  assert.match(apiSource, /hasAccessToken/u)
+  assert.match(apiSource, /\/api\/smart-insights\/overview/u)
   assert.match(source, /response\.data\.assets/u)
   assert.match(source, /buildWatchlistOpinionRows/u)
+  assert.match(source, /buildSharedOpinionRows/u)
   assert.match(opinionsSource, /guest/u)
 })
 

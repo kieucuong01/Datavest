@@ -84,6 +84,114 @@ def test_daily_sources_are_caught_up_once_when_worker_starts_after_schedule():
     assert due_snapshot_sources(after_schedule, seen) == ()
 
 
+def test_daily_sources_start_at_9am_vietnam_time():
+    from crypto_insights_worker.browser_snapshots import due_snapshot_sources
+
+    before_schedule: set[str] = set()
+    at_schedule: set[str] = set()
+    zone = ZoneInfo("Asia/Ho_Chi_Minh")
+
+    assert due_snapshot_sources(datetime(2026, 9, 2, 8, 59, tzinfo=zone), before_schedule) == ()
+    assert due_snapshot_sources(datetime(2026, 9, 2, 9, 0, tzinfo=zone), at_schedule)
+
+
+def test_browser_batch_imports_successful_snapshots_immediately(monkeypatch):
+    import asyncio
+
+    from crypto_insights_worker import browser_snapshots as worker
+
+    payloads = {
+        source: _payload(source, _farside_records())
+        for source in ("alternative-fng", "xoomar-btc-etf")
+    }
+    events: list[object] = []
+
+    async def collect(source_code, _page, *, as_of):
+        events.append(("collect", source_code))
+        return {**payloads[source_code], "fetched_at": as_of.isoformat()}
+
+    def write(source_code, _payload):
+        events.append(("write", source_code))
+
+    def notify(source_codes, *, observed_at):
+        events.append(("import", tuple(source_codes), observed_at))
+        assert any(event[0] == "write" for event in events)
+        return {"status": "ok", "sourceCount": len(source_codes)}
+
+    monkeypatch.setattr(worker, "collect_source", collect)
+    monkeypatch.setattr(worker, "write_snapshot", write)
+    monkeypatch.setattr(worker, "notify_snapshot_import", notify)
+
+    result = asyncio.run(worker.browser_backfill(tuple(payloads)))
+
+    assert result["alternative-fng"]["status"] == "ok"
+    assert result["xoomar-btc-etf"]["status"] == "ok"
+    assert result["import"] == {"status": "ok", "sourceCount": 2}
+    assert [event[0] for event in events] == ["collect", "write", "collect", "write", "import"]
+
+
+def test_browser_batch_does_not_import_when_all_sources_fail(monkeypatch):
+    import asyncio
+
+    from crypto_insights_worker import browser_snapshots as worker
+
+    async def collect(_source_code, _page, *, as_of):
+        del as_of
+        raise worker.SnapshotUnavailable("SOURCE_DOWN")
+
+    called = []
+
+    monkeypatch.setattr(worker, "collect_source", collect)
+    monkeypatch.setattr(worker, "notify_snapshot_import", lambda **_kwargs: called.append(True))
+
+    result = asyncio.run(worker.browser_backfill(("xoomar-btc-etf",)))
+
+    assert result["xoomar-btc-etf"] == {"status": "failed", "error": "SOURCE_DOWN"}
+    assert result["import"] == {"status": "skipped", "reason": "no_successful_snapshots"}
+    assert called == []
+
+
+def test_snapshot_import_callback_posts_only_source_provenance(monkeypatch):
+    from crypto_insights_worker import browser_snapshots as worker
+
+    sent: list[tuple[object, int]] = []
+
+    class Response:
+        status = 202
+
+        def read(self, _limit):
+            return b'{"accepted":true}'
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+    def fake_urlopen(request, timeout):
+        sent.append((request, timeout))
+        return Response()
+
+    monkeypatch.setenv("CRYPTO_INSIGHTS_IMPORT_CALLBACK_URL", "http://127.0.0.1:5100/api/internal/smart-insights/snapshot-import")
+    monkeypatch.setenv("CRYPTO_INSIGHTS_IMPORT_CALLBACK_SECRET", "callback-secret-for-tests")
+    monkeypatch.setattr(worker, "urlopen", fake_urlopen)
+    monkeypatch.setattr(worker.time, "time", lambda: 1_788_400_000)
+
+    result = worker.notify_snapshot_import(("farside-btc-etf", "farside-btc-etf"), observed_at=NOW)
+
+    assert result == {"status": "ok", "sourceCount": 1}
+    assert len(sent) == 1
+    request, timeout = sent[0]
+    assert request.full_url.endswith("/api/internal/smart-insights/snapshot-import")
+    assert timeout == 15
+    assert json.loads(request.data.decode("utf-8")) == {
+        "observedAt": NOW.isoformat(),
+        "sourceCodes": ["farside-btc-etf"],
+    }
+    assert any("smart-insights-signature" in key.casefold() for key in request.headers)
+    assert "callback-secret-for-tests" not in repr(request.headers)
+
+
 def test_public_document_parsers_keep_history_and_current_metrics():
     from crypto_insights_worker.browser_snapshots import (
         parse_altcoin_season,

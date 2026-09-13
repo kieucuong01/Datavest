@@ -1,5 +1,5 @@
 <template>
-  <div class="main">
+  <div :class="['main', { 'auth-embedded': embedded }]">
     <div class="auth-intro">
       <div class="desc">{{ $t('user.login.subtitle') }}</div>
     </div>
@@ -666,12 +666,26 @@ import { resolvePostLoginPath } from '@/utils/guestAccess'
 
 export default {
   name: 'Login',
+  props: {
+    embedded: {
+      type: Boolean,
+      default: false
+    },
+    initialTab: {
+      type: String,
+      default: 'login'
+    },
+    redirect: {
+      type: String,
+      default: ''
+    }
+  },
   components: {
     Turnstile
   },
   data () {
     return {
-      activeTab: 'login',
+      activeTab: this.initialTab === 'register' ? 'register' : 'login',
       showLegal: false,
       legalAgreed: true,
       legalError: false,
@@ -769,6 +783,9 @@ export default {
     })
   },
   watch: {
+    activeTab (value) {
+      this.$emit('tab-change', value)
+    },
     '$route.query' () {
       // Re-extract referral code when route query changes
       this.extractReferralCode()
@@ -901,6 +918,7 @@ export default {
         storage.set(ACCESS_TOKEN, oauthToken, new Date().getTime() + 7 * 24 * 60 * 60 * 1000)
         window.history.replaceState({}, document.title, window.location.pathname + window.location.hash.split('?')[0])
         this.$store.dispatch('GetInfo').then(() => {
+          this.$emit('authenticated')
           this.$router.push({ path: this.postLoginPath() })
           this.$notification.success({
             message: 'Welcome',
@@ -999,6 +1017,7 @@ export default {
     },
 
     afterLoginSuccess () {
+      this.$emit('authenticated')
       this.$router.push({ path: this.postLoginPath() })
       this.$notification.success({
         message: 'Welcome',
@@ -1041,7 +1060,7 @@ export default {
     },
 
     postLoginPath () {
-      return resolvePostLoginPath(this.$route && this.$route.query && this.$route.query.redirect)
+      return resolvePostLoginPath(this.redirect || (this.$route && this.$route.query && this.$route.query.redirect))
     },
 
     // ==================== Email Code Login ====================
@@ -1170,6 +1189,7 @@ export default {
             this.$store.dispatch('ResetRoutes')
 
             const isNew = res.data.is_new_user
+            this.$emit('authenticated')
             this.$router.push({ path: this.postLoginPath() }).then(() => {
               this.$notification.success({
                 message: isNew ? (this.$t('user.login.welcomeNew') || 'Welcome!') : 'Welcome',
@@ -1353,6 +1373,7 @@ export default {
 
               this.$store.dispatch('ResetRoutes')
 
+              this.$emit('authenticated')
               this.$router.push({ path: this.postLoginPath() }).then(() => {
                 this.$notification.success({
                   message: 'Welcome',
@@ -1930,6 +1951,24 @@ export default {
 .turnstile-modal-content ::v-deep .turnstile-error {
   max-width: 320px;
   text-align: center;
+}
+
+.main.auth-embedded {
+  min-height: 0;
+  padding: 0;
+  background: transparent;
+
+  .auth-intro {
+    display: none;
+  }
+
+  .auth-card {
+    min-width: 0;
+    width: 100%;
+    padding: 24px;
+    border-radius: 0;
+    box-shadow: none;
+  }
 }
 </style>
 

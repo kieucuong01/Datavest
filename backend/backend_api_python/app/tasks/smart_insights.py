@@ -7,6 +7,37 @@ import os
 from app.celery_app import celery_app
 
 
+_BROWSER_SNAPSHOT_SOURCE_CODES = frozenset({
+    "alternative-fng",
+    "bitinfocharts-top-addresses",
+    "blockchaincenter-altcoin-season",
+    "coinshares-weekly",
+    "farside-btc-etf",
+    "farside-eth-etf",
+    "farside-sol-etf",
+    "xoomar-btc-etf",
+    "xoomar-eth-etf",
+    "cryptoetf-btc-etf",
+    "cryptoetf-eth-etf",
+    "cryptoetf-sol-etf",
+    "cryptoetf-xrp-etf",
+    "cryptoetf-hyp-etf",
+    "cryptoetf-doge-etf",
+    "cryptoetf-link-etf",
+    "cryptoetf-avax-etf",
+    "cryptoetf-hbar-etf",
+    "cryptoetf-ltc-etf",
+    "cryptoetf-bnb-etf",
+    "cryptoetf-dot-etf",
+    "cryptoetf-sui-etf",
+})
+
+
+def _bulk_refresh_source_codes(source_codes: tuple[str, ...]) -> tuple[str, ...]:
+    """Keep snapshot-owned sources on the crawl-complete import path."""
+    return tuple(code for code in source_codes if code not in _BROWSER_SNAPSHOT_SOURCE_CODES)
+
+
 @celery_app.task(
     bind=True,
     name="datavest.tasks.smart_insights_refresh",
@@ -50,6 +81,9 @@ def enqueue_smart_insights_refresh() -> dict:
     source_codes = tuple(code for code in source_codes if code != "bitview-onchain")
     if not source_codes:
         return {"skipped": True, "reason": "no_enabled_sources"}
+    source_codes = _bulk_refresh_source_codes(source_codes)
+    if not source_codes:
+        return {"skipped": True, "reason": "browser_snapshots_use_callback"}
     run_id = repository.create_refresh_request(
         requested_by_user_id=None,
         market=None,

@@ -121,4 +121,37 @@ export function buildWatchlistOpinionRows (watchlist = [], analyses = [], asOf =
   })
 }
 
+export function buildSharedOpinionRows (assets = [], analyses = [], asOf = null) {
+  const sharedAnalyses = Array.isArray(analyses)
+    ? analyses.filter(analysis => analysis && typeof analysis === 'object' && !analysis.report)
+    : []
+  const sourceAssets = Array.isArray(assets) && assets.length
+    ? assets
+    : sharedAnalyses
+  const indexed = new Map()
+  for (const analysis of sharedAnalyses) {
+    const key = identity(analysis)
+    if (key !== ':') indexed.set(key, analysis || {})
+  }
+
+  return sourceAssets.map(item => {
+    const key = identity(item)
+    const analysis = indexed.get(key) || {}
+    const report = buildSharedOpinionReport(analysis, asOf)
+    return {
+      id: key,
+      symbol: item.symbol || item.sym,
+      displaySymbol: canonicalOpinionSymbol(item.symbol || item.sym),
+      market: item.market,
+      name: item.name || item.displaySymbol || item.symbol || item.sym,
+      watchlistItem: null,
+      report,
+      shared: Boolean(report),
+      monitor: null,
+      dataFreshness: report ? 'UNKNOWN' : 'UNAVAILABLE',
+      analysisStatus: report ? 'AVAILABLE' : 'UNAVAILABLE'
+    }
+  })
+}
+
 export default buildWatchlistOpinionRows

@@ -188,6 +188,7 @@ def build_imported_overview(
         "primary": _safe_primary(briefing.get("primary")),
         "riskAlerts": risk_alerts,
         "portfolioState": _safe_portfolio_state(briefing.get("portfolioState")),
+        "assets": [dict(item) for item in (watchlist_pairs or []) if isinstance(item, Mapping)],
         "opinions": opinions,
         "portfolioChanges": changes,
         "evidence": [],

@@ -17,6 +17,7 @@ def test_imported_brief_is_watchlist_scoped_and_does_not_expose_unvalidated_ai_t
         watchlist_pairs=[{"market": "Crypto", "symbol": "BTC/USDT"}],
     )
 
+    assert result["assets"] == [{"market": "Crypto", "symbol": "BTC/USDT"}]
     assert [item["symbol"] for item in result["opinions"]] == ["BTC"]
     assert result["opinions"][0]["evidenceValidated"] is False
     assert result["opinions"][0]["explanation"] is None

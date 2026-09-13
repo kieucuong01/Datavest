@@ -2,6 +2,7 @@
   <a-config-provider :locale="locale" :direction="direction">
     <div id="app">
       <router-view/>
+      <auth-modal />
     </div>
   </a-config-provider>
 </template>
@@ -9,8 +10,10 @@
 <script>
 import { domTitle, setDocumentTitle } from '@/utils/domUtil'
 import { i18nRender } from '@/locales'
+import AuthModal from '@/components/AuthModal/AuthModal.vue'
 
 export default {
+  components: { AuthModal },
   data () {
     return {
     }

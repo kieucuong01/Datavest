@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { buildWatchlistOpinionRows } from '../../src/views/smart-insights/watchlistOpinions.js'
+import { buildSharedOpinionRows, buildWatchlistOpinionRows } from '../../src/views/smart-insights/watchlistOpinions.js'
 
 test('renders only watchlist assets in watchlist order', () => {
   const rows = buildWatchlistOpinionRows(
@@ -85,4 +85,26 @@ test('keeps missing shared numeric fields unavailable instead of turning them in
 
   assert.equal(row.report.score, null)
   assert.equal(row.report.confidence, null)
+})
+
+test('builds guest rows from the latest shared snapshot without a personal watchlist', () => {
+  const [row] = buildSharedOpinionRows(
+    [],
+    [{
+      id: 'public-btc-opinion',
+      market: 'crypto',
+      symbol: 'BTC',
+      stance: 'BUY',
+      score: 72,
+      confidence: 81,
+      explanation: 'Shared BTC snapshot',
+      dataClass: 'LIVE'
+    }],
+    '2026-09-13T07:00:00+00:00'
+  )
+
+  assert.equal(row.displaySymbol, 'BTC')
+  assert.equal(row.shared, true)
+  assert.equal(row.report.source, 'PUBLIC_COMMON_SNAPSHOT')
+  assert.equal(row.report.decision, 'BUY')
 })

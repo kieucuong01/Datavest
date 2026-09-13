@@ -21,7 +21,8 @@ import NoticeIcon from '@/components/NoticeIcon'
 import { mapGetters } from 'vuex'
 import storage from 'store'
 import { ACCESS_TOKEN } from '@/store/mutation-types'
-import { hasAccessToken, loginTarget } from '@/utils/guestAccess'
+import { hasAccessToken } from '@/utils/guestAccess'
+import { openAuthModal } from '@/utils/authModal'
 
 export default {
   name: 'RightContent',
@@ -55,7 +56,7 @@ export default {
   },
   methods: {
     openLogin () {
-      this.$router.push(loginTarget(this.$route.fullPath))
+      openAuthModal({ redirect: this.$route && this.$route.fullPath })
     },
     handleSettingClick () {
       this.$root.$emit('show-setting-drawer')

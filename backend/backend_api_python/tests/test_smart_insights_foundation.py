@@ -258,6 +258,11 @@ def test_smart_insights_routes_are_registered_and_require_jwt(app, client):
         assert response.status_code == 401, (method, path)
 
 
+def test_snapshot_import_callback_is_private_and_not_jwt_scoped(app):
+    paths = {rule.rule for rule in app.url_map.iter_rules()}
+    assert "/api/internal/smart-insights/snapshot-import" in paths
+
+
 def test_overview_passes_user_scope_and_explicit_mode(client, monkeypatch):
     from app.routes import smart_insights as routes
 

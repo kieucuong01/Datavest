@@ -278,6 +278,7 @@ def test_overview_and_daily_brief_expose_date_and_data_readiness_contract():
     assert overview["fetchedAt"].endswith("+07:00")
     assert overview["freshness"] == "FRESH"
     assert overview["coverage"] == {"expectedAssets": 1, "availableAssets": 1, "ratio": 1.0}
+    assert overview["assets"] == watchlist
     assert overview["dailyBrief"]["requestedAsOf"] == today
     assert overview["dailyBrief"]["resolvedAsOf"] == today
     assert overview["dailyBrief"]["coverage"]["expectedAssets"] == 1

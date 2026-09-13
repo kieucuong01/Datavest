@@ -59,7 +59,7 @@
 <script>
 import { mapState } from 'vuex'
 import KlineChart from '@/views/indicator-analysis/components/KlineChart'
-import { loginTarget } from '@/utils/guestAccess'
+import { openAuthModal } from '@/utils/authModal'
 import { applyIndicatorToggle, GUEST_ASSETS } from './guestIndicatorState'
 
 export default {
@@ -87,7 +87,7 @@ export default {
       this.activeIndicators = applyIndicatorToggle(this.activeIndicators, change)
     },
     openStrategyLogin () {
-      this.$router.push(loginTarget('/strategy-ide'))
+      openAuthModal({ redirect: '/strategy-ide' })
     }
   }
 }

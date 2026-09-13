@@ -22,8 +22,10 @@ def test_celery_beat_owns_periodic_maintenance():
     assert schedule["market-catalog-sync"]["schedule"] == 86400
     assert schedule["smart-insights-refresh"]["task"] == "datavest.tasks.enqueue_smart_insights_refresh"
     assert schedule["smart-insights-refresh"]["schedule"] == 21600
-    assert schedule["crypto-insights-daily-import"]["task"] == "datavest.tasks.enqueue_smart_insights_refresh_for_sources"
-    assert schedule["crypto-insights-daily-import-retry"]["task"] == "datavest.tasks.enqueue_smart_insights_refresh_for_sources"
+    assert "crypto-insights-daily-import" not in schedule
+    assert "crypto-insights-daily-import-retry" not in schedule
+    assert "crypto-insights-coinshares-import-mon" not in schedule
+    assert "crypto-insights-coinshares-import-tue" not in schedule
     assert schedule["crypto-derivatives-daily-import"]["task"] == "datavest.tasks.enqueue_smart_insights_refresh_for_sources"
     assert schedule["crypto-derivatives-daily-retry"]["task"] == "datavest.tasks.enqueue_smart_insights_refresh_for_sources"
 
@@ -32,8 +34,7 @@ def test_celery_crypto_snapshot_schedule_excludes_retired_cbbi_source():
     from app.celery_app import celery_app
 
     schedule = celery_app.conf.beat_schedule
-    for name in ("crypto-insights-daily-import", "crypto-insights-daily-import-retry"):
-        assert "cbbi-public" not in str(schedule[name].get("args", ()))
+    assert all("cbbi-public" not in str(entry.get("args", ())) for entry in schedule.values())
 
 
 def test_celery_beat_defaults_to_vietnam_timezone_for_crypto_snapshot_handoff():
@@ -41,6 +42,17 @@ def test_celery_beat_defaults_to_vietnam_timezone_for_crypto_snapshot_handoff():
     from app.celery_app import celery_app
 
     assert celery_app.conf.timezone == "Asia/Ho_Chi_Minh"
+
+
+def test_bulk_smart_insights_refresh_leaves_browser_snapshot_sources_to_callback():
+    from app.tasks.smart_insights import _bulk_refresh_source_codes
+
+    assert _bulk_refresh_source_codes((
+        "farside-btc-etf",
+        "cryptoetf-eth-etf",
+        "defillama-chains",
+        "mempool-space",
+    )) == ("defillama-chains", "mempool-space")
 
 
 def test_celery_beat_runs_watchlist_ai_analysis_at_7am_vietnam_time():

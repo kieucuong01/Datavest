@@ -15,5 +15,10 @@ def register_routes(app: Flask):
     from app.services.trading_agents import create_internal_callback_blueprint
     app.register_blueprint(create_internal_callback_blueprint())
 
+    from app.runtime.features import is_enabled
+    if is_enabled("DATAVEST_SMART_INSIGHTS_ENABLED"):
+        from app.services.smart_insights.import_callback import create_internal_snapshot_import_blueprint
+        app.register_blueprint(create_internal_snapshot_import_blueprint())
+
     from app.routes.agent_v1 import register as register_agent_v1
     register_agent_v1(app)

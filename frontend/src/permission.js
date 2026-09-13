@@ -18,6 +18,7 @@ import {
 import { promptChangeInitialPassword } from '@/utils/initialPasswordReminder'
 import { isPublicPath } from '@/router/access'
 import { normalizeAccessToken, resolvePostLoginPath } from '@/utils/guestAccess'
+import { isAuthModalReady, openAuthModal } from '@/utils/authModal'
 
 NProgress.configure({
   showSpinner: false
@@ -104,8 +105,16 @@ router.beforeEach((to, from, next) => {
         })
       }
     } else {
-      next({ path: loginRoutePath, query: { redirect: to.fullPath } })
-      NProgress.done() // if current page is login will not trigger afterEach hook, so manually handle it
+      if (isAuthModalReady()) {
+        openAuthModal({ redirect: to.fullPath })
+        const fromTitle = from.meta && from.meta.title
+        setDocumentTitle(fromTitle ? `${i18nRender(fromTitle)} - ${domTitle}` : domTitle)
+        next(false)
+        NProgress.done()
+      } else {
+        next({ path: loginRoutePath, query: { redirect: to.fullPath } })
+        NProgress.done() // if current page is login will not trigger afterEach hook, so manually handle it
+      }
     }
   }
 })
