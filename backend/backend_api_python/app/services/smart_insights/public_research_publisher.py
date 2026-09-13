@@ -22,6 +22,7 @@ PUBLIC_RESEARCH_SYSTEM_USERNAME = "__datavest_public_research__"
 _UPSTREAM_SOURCE_PIN = "TauricResearch/TradingAgents@9dee508c44662702281a8dbaad1f7b42179b5ba7"
 _DEEP_MARKET_BY_PUBLIC_MARKET = {"Crypto": "Crypto", "VNStock": "VNStock", "Forex": "Gold"}
 _CONTROL_CHARS = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
+_INTERNAL_RUN_LINE = re.compile(r"(?im)^.*\b(?:run[ _-]?id|internal-run)\b.*(?:\r?\n|$)")
 
 
 def _effective_date(value: date | None = None) -> date:
@@ -230,6 +231,7 @@ class PublicResearchPublisher:
     @staticmethod
     def build_deep_payload(*, display_symbol: str, report_markdown: str) -> dict[str, Any]:
         body = _CONTROL_CHARS.sub("", str(report_markdown or ""))[:500_000]
+        body = _INTERNAL_RUN_LINE.sub("", body)
         return {
             "title": f"Phân tích chuyên sâu {display_symbol}",
             "body": body,

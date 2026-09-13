@@ -11,8 +11,8 @@ test('Smart Insights presents quick and deep analysis in one asset-analysis hub'
 
   assert.match(page, /analysis-mode-switcher/u)
   assert.match(page, /analysisMode/u)
-  assert.match(page, /@click="analysisMode = 'quick'"/u)
-  assert.match(page, /@click="analysisMode = 'deep'"/u)
+  assert.match(page, /@click="switchAnalysisMode\('quick'\)"/u)
+  assert.match(page, /@click="switchAnalysisMode\('deep'\)"/u)
   assert.match(page, /:embedded="true"/u)
   assert.match(page, /openAssetAnalysis \(row, mode = 'quick'\)/u)
   assert.match(page, /this\.analysisMode = mode === 'deep' \? 'deep' : 'quick'/u)

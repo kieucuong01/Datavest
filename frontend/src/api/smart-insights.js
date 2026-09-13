@@ -44,3 +44,10 @@ export function getSmartInsightsLiveAssets () {
 export function getSmartInsightsCryptoPulse (params = {}) {
   return request({ url: PUBLIC_MARKET_ENDPOINTS.smartInsightsCryptoPulse, method: 'get', params })
 }
+
+export function getPublicResearchReport (assetKey, reportKind) {
+  return request({
+    url: `/api/smart-insights/public/reports/${encodeURIComponent(String(assetKey || ''))}/${encodeURIComponent(String(reportKind || ''))}`,
+    method: 'get'
+  })
+}

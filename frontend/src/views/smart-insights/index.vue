@@ -98,19 +98,18 @@
             class="analysis-mode-option"
             :class="{ active: analysisMode === 'quick' }"
             :aria-selected="analysisMode === 'quick'"
-            @click="analysisMode = 'quick'"
+            @click="switchAnalysisMode('quick')"
           >
             <a-icon type="thunderbolt" />
             <span><strong>{{ isGuest && selectedOpinionRow && selectedOpinionRow.shared ? $t('smartInsights.viewLatestOpinion') : $t('smartInsights.quickAnalysis') }}</strong><small>{{ selectedOpinionRow && selectedOpinionRow.shared ? $t('smartInsights.sharedSnapshotEngine') : $t('smartInsights.quickEngine') }}</small></span>
           </button>
           <button
-            v-if="!isGuest"
             type="button"
             role="tab"
             class="analysis-mode-option"
             :class="{ active: analysisMode === 'deep' }"
             :aria-selected="analysisMode === 'deep'"
-            @click="analysisMode = 'deep'"
+            @click="switchAnalysisMode('deep')"
           >
             <a-icon type="apartment" />
             <span><strong>{{ $t('smartInsights.deepAnalysis') }}</strong><small>{{ $t('smartInsights.deepEngine') }}</small></span>
@@ -275,22 +274,40 @@
         </template>
 
         <template v-else>
-          <div class="analysis-deep-intro">
-            <div>
-              <strong>{{ $t('smartInsights.deepAnalysis') }}</strong>
-              <span>{{ $t('smartInsights.deepAnalysisDesc') }}</span>
+          <template v-if="isGuest">
+            <div class="analysis-deep-intro">
+              <div>
+                <strong>{{ $t('smartInsights.deepAnalysis') }}</strong>
+                <span>{{ $t('smartInsights.deepEngine') }}</span>
+              </div>
+              <a-tag color="blue">TradingAgents</a-tag>
             </div>
-            <a-tag color="blue">TradingAgents</a-tag>
-          </div>
-          <deep-analysis-panel
-            v-if="!isGuest"
-            :visible="analysisModalVisible && analysisMode === 'deep'"
-            :embedded="true"
-            :target="deepAnalysisTarget || selectedOpinionRow"
-            :analysis-date="asOf || ''"
-            :dark="isDarkTheme"
-            @close="closeDeepAnalysis"
-          />
+            <a-spin :spinning="publicDeepLoading">
+              <section v-if="publicDeepReport" class="analysis-drawer-section public-deep-report">
+                <div class="analysis-drawer-section-title"><a-icon type="file-text" /><h3>{{ publicDeepReport.title || $t('smartInsights.deepAnalysis') }}</h3></div>
+                <small>{{ publicDeepReport.effectiveDate ? formatDate(publicDeepReport.effectiveDate) : $t('smartInsights.notAvailable') }}</small>
+                <pre>{{ publicDeepReport.body }}</pre>
+              </section>
+              <div v-else class="analysis-empty analysis-empty--compact"><span>{{ publicDeepError || $t('smartInsights.aiReportUnavailable') }}</span></div>
+            </a-spin>
+          </template>
+          <template v-else>
+            <div class="analysis-deep-intro">
+              <div>
+                <strong>{{ $t('smartInsights.deepAnalysis') }}</strong>
+                <span>{{ $t('smartInsights.deepAnalysisDesc') }}</span>
+              </div>
+              <a-tag color="blue">TradingAgents</a-tag>
+            </div>
+            <deep-analysis-panel
+              :visible="analysisModalVisible && analysisMode === 'deep'"
+              :embedded="true"
+              :target="deepAnalysisTarget || selectedOpinionRow"
+              :analysis-date="asOf || ''"
+              :dark="isDarkTheme"
+              @close="closeDeepAnalysis"
+            />
+          </template>
         </template>
       </div>
     </a-modal>
@@ -333,12 +350,12 @@ import { hasAccessToken } from '@/utils/guestAccess'
 import { openAuthModal } from '@/utils/authModal'
 import { getEconomicCalendar } from '@/api/global-market'
 import { calendarCacheFresh } from './calendarRefresh'
-import { getSmartInsightsCryptoPulse, getSmartInsightsDataHealth, getSmartInsightsDates, getSmartInsightsEvidence, getSmartInsightsOverview } from '@/api/smart-insights'
+import { getPublicResearchReport, getSmartInsightsCryptoPulse, getSmartInsightsDataHealth, getSmartInsightsDates, getSmartInsightsEvidence, getSmartInsightsOverview } from '@/api/smart-insights'
 import { getAnalysisHistory } from '@/api/fast-analysis'
 import { runSectionLoaders } from './loadingCoordinator'
 import { buildAssetAnalysisDetails, canShowTradingPlan } from './analysisReport'
 import { formatVietnamDate, formatVietnamDateTime } from '@/utils/vietnamTime'
-import { buildSharedOpinionRows, buildWatchlistOpinionRows } from './watchlistOpinions'
+import { applyPublicQuickReports, buildSharedOpinionRows, buildWatchlistOpinionRows } from './watchlistOpinions'
 import { isCurrentRequest as isCurrentRequestToken, summarizeReadiness } from './dataReadiness'
 import { dedupeQuickAnalysisReports, normalizeQuickAnalysisReport } from './quickAnalysisHistory'
 import AssetOpinionsSection from './components/AssetOpinionsSection'
@@ -370,6 +387,11 @@ export default {
       watchlist: [],
       evidence: null,
       selectedOpinionRow: null,
+      publicQuickReports: [],
+      publicDeepReport: null,
+      publicDeepLoading: false,
+      publicDeepError: '',
+      publicDeepRequestId: 0,
       quickAnalysisHistory: [],
       quickHistoryLoading: false,
       quickHistoryError: '',
@@ -418,7 +440,7 @@ export default {
       const opinions = this.overview && this.overview.opinions
       const asOf = this.overview && this.overview.asOf
       return this.isGuest
-        ? buildSharedOpinionRows(this.overview && this.overview.assets, opinions, asOf)
+        ? applyPublicQuickReports(buildSharedOpinionRows(this.overview && this.overview.assets, opinions, asOf), this.publicQuickReports)
         : buildWatchlistOpinionRows(this.watchlist, opinions, asOf)
     },
     dailyBriefHighlights () {
@@ -609,6 +631,7 @@ export default {
       this.asOf = undefined
       this.dates = []
       this.watchlist = []
+      this.publicQuickReports = []
       this.overview = null
       this.smartInsightsCache.dates = null
       this.smartInsightsCache.overview.clear()
@@ -692,6 +715,7 @@ export default {
       this.errorMessage = ''
       const independentLoaders = {}
       if (force || !Array.isArray(this.smartInsightsCache.health)) independentLoaders.health = requestId => this.loadHealth(requestId, force)
+      if (this.isGuest) independentLoaders.opinions = requestId => this.loadPublicQuickReports(requestId)
       const independentResults = this.runSections(independentLoaders, requestId)
       const needsDates = force || !Array.isArray(this.smartInsightsCache.dates)
       let datesPending = Promise.resolve()
@@ -748,6 +772,14 @@ export default {
       this.smartInsightsCache.overview.set(cacheKey, response.data)
       this.overview = response.data
       this.watchlist = Array.isArray(response.data && response.data.assets) ? response.data.assets : []
+    },
+    async loadPublicQuickReports (requestId) {
+      const assetKeys = ['crypto:BTC/USDT', 'vnstock:VNINDEX', 'forex:XAUUSD']
+      const responses = await Promise.allSettled(assetKeys.map(assetKey => getPublicResearchReport(assetKey, 'quick')))
+      if (!this.isCurrentRequest(requestId) || !this.isGuest) return
+      this.publicQuickReports = responses
+        .filter(result => result.status === 'fulfilled' && result.value && result.value.code === 1 && result.value.data)
+        .map(result => result.value.data)
     },
     async loadDates (requestId, force = false) {
       if (!force && Array.isArray(this.smartInsightsCache.dates)) {
@@ -879,10 +911,6 @@ export default {
     },
     async openAssetAnalysis (row, mode = 'quick') {
       if (!row) return
-      if (this.isGuest && mode === 'deep') {
-        openAuthModal({ redirect: '/ai-asset-analysis' })
-        return
-      }
       if (this.isGuest && mode !== 'deep' && !row.report) {
         this.openAiAssistant(row)
         return
@@ -891,6 +919,8 @@ export default {
       this.selectedQuickReportId = null
       this.quickAnalysisHistory = []
       this.quickHistoryError = ''
+      this.publicDeepReport = null
+      this.publicDeepError = ''
       this.deepAnalysisTarget = {
         market: row && row.market,
         symbol: row && (row.displaySymbol || row.symbol)
@@ -898,7 +928,32 @@ export default {
       this.analysisMode = mode === 'deep' ? 'deep' : 'quick'
       this.deepAnalysisVisible = this.analysisMode === 'deep'
       this.analysisModalVisible = true
+      if (this.isGuest && mode === 'deep') await this.loadPublicDeepReport(row)
       if (!this.isGuest) this.loadQuickAnalysisHistory(row)
+    },
+    async switchAnalysisMode (mode) {
+      if (mode === 'deep' && this.isGuest && this.selectedOpinionRow) {
+        this.analysisMode = 'deep'
+        await this.loadPublicDeepReport(this.selectedOpinionRow)
+        return
+      }
+      this.analysisMode = mode
+    },
+    async loadPublicDeepReport (row) {
+      if (!row || !row.publicAssetKey) return
+      const requestId = ++this.publicDeepRequestId
+      this.publicDeepLoading = true
+      this.publicDeepReport = null
+      this.publicDeepError = ''
+      try {
+        const response = await getPublicResearchReport(row.publicAssetKey, 'deep')
+        if (requestId !== this.publicDeepRequestId || !this.analysisModalVisible || this.selectedOpinionRow !== row) return
+        this.publicDeepReport = response && response.code === 1 ? response.data : null
+      } catch (error) {
+        if (requestId === this.publicDeepRequestId && this.analysisModalVisible && this.selectedOpinionRow === row) this.publicDeepError = this.$t('smartInsights.aiReportUnavailable')
+      } finally {
+        if (requestId === this.publicDeepRequestId) this.publicDeepLoading = false
+      }
     },
     openBriefHighlight (highlight) {
       const row = this.opinionRows.find(item => item.id === highlight.assetKey)
@@ -922,7 +977,9 @@ export default {
       this.analysisModalVisible = false
       this.deepAnalysisVisible = false
       this.quickHistoryRequestId++
+      this.publicDeepRequestId++
       this.quickHistoryLoading = false
+      this.publicDeepLoading = false
       this.selectedQuickReportId = null
     },
     toggleHeroSpeech () {
@@ -1045,6 +1102,9 @@ export default {
 .asset-analysis-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-bottom: 12px; border-bottom: 1px solid var(--line); }.asset-analysis-header > div { display: grid; gap: 3px; }.asset-analysis-header strong { color: var(--ink); font-size: 18px; }.asset-analysis-header span { color: var(--muted); font-size: 12px; }
 .asset-analysis-meta { display: flex; flex-wrap: wrap; gap: 12px; padding: 10px 0; color: var(--muted); font-size: 12px; }
 .quick-analysis-history { margin-top: 12px; }
+.public-deep-report { display: grid; gap: 10px; }
+.public-deep-report > small { color: var(--muted); font-size: 11px; }
+.public-deep-report pre { max-height: 62vh; margin: 0; padding: 14px; overflow: auto; border: 1px solid var(--line); border-radius: 10px; color: var(--ink); background: var(--page-bg); font: 13px/1.65 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; white-space: pre-wrap; overflow-wrap: anywhere; }
 .quick-analysis-history .analysis-drawer-section-title { align-items: center; }
 .quick-history-count { display: inline-grid; place-items: center; min-width: 21px; height: 21px; margin-left: auto; padding: 0 6px; border-radius: 999px; color: var(--blue); background: var(--soft-blue); font-size: 11px; font-weight: 700; }
 .quick-analysis-history-list { display: grid; gap: 7px; max-height: 210px; padding-right: 2px; overflow-y: auto; }

@@ -28,6 +28,15 @@ test('Asset Opinions keeps account watchlists private and uses shared rows for g
   assert.match(opinionsSource, /guest/u)
 })
 
+test('Guest Asset Opinions reads public quick and deep reports without a login redirect', () => {
+  assert.match(apiSource, /getPublicResearchReport/u)
+  assert.match(source, /loadPublicQuickReports/u)
+  assert.match(source, /getPublicResearchReport\(row\.publicAssetKey, 'deep'\)/u)
+  assert.doesNotMatch(source, /isGuest && mode === 'deep'[\s\S]{0,180}openAuthModal/u)
+  assert.match(source, /public-deep-report/u)
+  assert.doesNotMatch(opinionsSource, /guest \? 'lock' : 'apartment'/u)
+})
+
 test('Smart Insights page has no BTC Forecast or Kronos surface', () => {
   assert.doesNotMatch(source, /forecast|kronos|btcBottom/iu)
 })

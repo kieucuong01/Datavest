@@ -23,6 +23,21 @@ function identity (item) {
   return `${canonicalOpinionMarket(item && item.market)}:${canonicalOpinionSymbol(item && (item.symbol || item.sym))}`
 }
 
+const GUEST_PUBLIC_ASSETS = Object.freeze([
+  { market: 'Crypto', symbol: 'BTC/USDT', name: 'Bitcoin' },
+  { market: 'VNStock', symbol: 'VNINDEX', name: 'VNINDEX' },
+  { market: 'Forex', symbol: 'XAUUSD', name: 'Gold' }
+])
+
+export function publicResearchAssetKey (item) {
+  const market = cleanSymbol(item && item.market)
+  const symbol = cleanSymbol(item && (item.symbol || item.sym))
+  if (market === 'CRYPTO' && canonicalOpinionSymbol(symbol) === 'BTC') return 'crypto:BTC/USDT'
+  if (market === 'VNSTOCK' && canonicalOpinionSymbol(symbol) === 'VNINDEX') return 'vnstock:VNINDEX'
+  if ((market === 'FOREX' || market === 'GOLD') && canonicalOpinionSymbol(symbol) === 'XAU') return 'forex:XAUUSD'
+  return ''
+}
+
 function objectOrEmpty (value) {
   return value && typeof value === 'object' && !Array.isArray(value) ? value : {}
 }
@@ -107,6 +122,7 @@ export function buildWatchlistOpinionRows (watchlist = [], analyses = [], asOf =
     const report = analysis.report || sharedReport
     return {
       id: key,
+      publicAssetKey: publicResearchAssetKey(item),
       symbol: item.symbol || item.sym,
       displaySymbol: canonicalOpinionSymbol(item.symbol || item.sym),
       market: item.market,
@@ -125,9 +141,11 @@ export function buildSharedOpinionRows (assets = [], analyses = [], asOf = null)
   const sharedAnalyses = Array.isArray(analyses)
     ? analyses.filter(analysis => analysis && typeof analysis === 'object' && !analysis.report)
     : []
-  const sourceAssets = Array.isArray(assets) && assets.length
-    ? assets
-    : sharedAnalyses
+  const candidates = [...(Array.isArray(assets) ? assets : []), ...sharedAnalyses]
+  const sourceAssets = GUEST_PUBLIC_ASSETS.map(defaultAsset => {
+    const defaultIdentity = identity(defaultAsset)
+    return candidates.find(item => identity(item) === defaultIdentity) || defaultAsset
+  })
   const indexed = new Map()
   for (const analysis of sharedAnalyses) {
     const key = identity(analysis)
@@ -140,6 +158,7 @@ export function buildSharedOpinionRows (assets = [], analyses = [], asOf = null)
     const report = buildSharedOpinionReport(analysis, asOf)
     return {
       id: key,
+      publicAssetKey: publicResearchAssetKey(item),
       symbol: item.symbol || item.sym,
       displaySymbol: canonicalOpinionSymbol(item.symbol || item.sym),
       market: item.market,
@@ -150,6 +169,55 @@ export function buildSharedOpinionRows (assets = [], analyses = [], asOf = null)
       monitor: null,
       dataFreshness: report ? 'UNKNOWN' : 'UNAVAILABLE',
       analysisStatus: report ? 'AVAILABLE' : 'UNAVAILABLE'
+    }
+  })
+}
+
+function publicQuickReport (item) {
+  const source = objectOrEmpty(item)
+  if (String(source.reportKind || source.report_kind || '').toLowerCase() !== 'quick') return null
+  const sections = Array.isArray(source.sections) ? source.sections : []
+  const sectionItems = title => sections
+    .filter(section => String(section && section.title || '').toLowerCase() === title)
+    .flatMap(section => Array.isArray(section && section.items) ? section.items : [])
+    .map(textOrEmpty)
+    .filter(Boolean)
+    .slice(0, 8)
+  const confidence = Number(source.confidence)
+  return {
+    id: `public:${source.assetKey || source.asset_key}:${source.effectiveDate || source.effective_date || ''}`,
+    source: 'PUBLIC_RESEARCH_REPORT',
+    scope: 'PUBLIC_COMMON_ASSETS',
+    status: 'completed',
+    decision: normalizeSharedDecision(source.decision),
+    confidence: Number.isFinite(confidence) ? confidence : null,
+    summary: textOrEmpty(source.summary),
+    reasons: sectionItems('luận điểm'),
+    risks: sectionItems('rủi ro'),
+    analysisDate: source.effectiveDate || source.effective_date || null,
+    createdAt: source.generatedAt || source.generated_at || null,
+    updatedAt: source.generatedAt || source.generated_at || null,
+    inputData: { capturedAt: source.generatedAt || source.generated_at || null, components: [] }
+  }
+}
+
+export function applyPublicQuickReports (rows = [], reports = []) {
+  const indexed = new Map()
+  for (const item of Array.isArray(reports) ? reports : []) {
+    const key = String(item && (item.assetKey || item.asset_key) || '')
+    const report = publicQuickReport(item)
+    if (key && report) indexed.set(key, { report, isFallback: Boolean(item && item.isFallback) })
+  }
+  return (Array.isArray(rows) ? rows : []).map(row => {
+    const publicReport = indexed.get(row.publicAssetKey)
+    if (!publicReport) return row
+    return {
+      ...row,
+      report: publicReport.report,
+      shared: true,
+      publicResearch: true,
+      dataFreshness: publicReport.isFallback ? 'STALE' : 'UNKNOWN',
+      analysisStatus: publicReport.isFallback ? 'STALE' : 'AVAILABLE'
     }
   })
 }

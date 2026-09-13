@@ -70,7 +70,8 @@ def test_public_deep_projection_uses_only_completed_report_and_never_leaks_run_i
     )
 
     assert payload["title"] == "Phân tích chuyên sâu BTC"
-    assert payload["body"] == "# BTC\nPrivate run id: internal-run-123\n"
+    assert payload["body"] == "# BTC\n"
+    assert "internal-run-123" not in payload["body"]
     assert "run_id" not in payload
     assert "sourceRunId" not in payload
     assert payload["provenance"] == {"engine": "TradingAgents", "schedule": "weekly"}

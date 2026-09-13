@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { buildSharedOpinionRows, buildWatchlistOpinionRows } from '../../src/views/smart-insights/watchlistOpinions.js'
+import { applyPublicQuickReports, buildSharedOpinionRows, buildWatchlistOpinionRows } from '../../src/views/smart-insights/watchlistOpinions.js'
 
 test('renders only watchlist assets in watchlist order', () => {
   const rows = buildWatchlistOpinionRows(
@@ -107,4 +107,26 @@ test('builds guest rows from the latest shared snapshot without a personal watch
   assert.equal(row.shared, true)
   assert.equal(row.report.source, 'PUBLIC_COMMON_SNAPSHOT')
   assert.equal(row.report.decision, 'BUY')
+})
+
+test('prioritizes the latest tenant-free quick report for the fixed guest asset set', () => {
+  const rows = applyPublicQuickReports(buildSharedOpinionRows([], [], null), [
+    {
+      assetKey: 'crypto:BTC/USDT',
+      reportKind: 'quick',
+      effectiveDate: '2026-09-13',
+      generatedAt: '2026-09-13T00:15:00Z',
+      summary: 'BTC public daily report',
+      decision: 'BUY',
+      confidence: 79,
+      sections: [{ title: 'Luận điểm', items: ['Public evidence'] }]
+    }
+  ])
+
+  assert.deepEqual(rows.map(row => row.displaySymbol), ['BTC', 'VNINDEX', 'XAU'])
+  assert.equal(rows[0].publicResearch, true)
+  assert.equal(rows[0].report.source, 'PUBLIC_RESEARCH_REPORT')
+  assert.equal(rows[0].report.summary, 'BTC public daily report')
+  assert.deepEqual(rows[0].report.reasons, ['Public evidence'])
+  assert.equal(rows[1].report, null)
 })
