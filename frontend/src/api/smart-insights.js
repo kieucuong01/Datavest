@@ -54,3 +54,13 @@ export function getPublicResearchReport (assetKey, reportKind) {
     params: { lang: 'vi-VN' }
   })
 }
+
+export function getPublicResearchReportPdf (assetKey) {
+  return request({
+    url: `/api/smart-insights/public/reports/${encodeURIComponent(String(assetKey || ''))}/deep.pdf`,
+    method: 'get',
+    params: { lang: 'vi-VN' },
+    responseType: 'blob',
+    timeout: 120000
+  })
+}

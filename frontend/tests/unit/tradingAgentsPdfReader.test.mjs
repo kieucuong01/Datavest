@@ -3,12 +3,12 @@ import test from 'node:test'
 import vm from 'node:vm'
 import { readFileSync } from 'node:fs'
 
-function reader (fetchPdf) {
+function reader (fetchPdf, fetchPublicPdf = fetchPdf) {
   const source = readFileSync(new URL('../../src/components/TradingAgents/ReportPdfReader.vue', import.meta.url), 'utf8')
   const script = source.split('<script>')[1].split('</script>')[0]
     .replace(/import[^\n]+/g, '').replace('export default', 'globalThis.component =')
   const revoked = []
-  const context = { Blob, getTradingAgentsReportPdf: fetchPdf, URL: { createObjectURL: () => 'blob:pdf', revokeObjectURL: url => revoked.push(url) } }
+  const context = { Blob, getTradingAgentsReportPdf: fetchPdf, getPublicResearchReportPdf: fetchPublicPdf, URL: { createObjectURL: () => 'blob:pdf', revokeObjectURL: url => revoked.push(url) } }
   vm.runInNewContext(script, context)
   const instance = { ...context.component.data(), runId: 'a', active: true }
   for (const [name, method] of Object.entries(context.component.methods)) instance[name] = method.bind(instance)
@@ -16,11 +16,11 @@ function reader (fetchPdf) {
 }
 
 test('PDF reader discards a late response after changing asset or closing', async () => {
-  let resolve
-  const { instance } = reader(() => new Promise(r => { resolve = r }))
+  let resolvePending
+  const { instance } = reader(() => new Promise(resolve => { resolvePending = resolve }))
   const loading = instance.loadPdf()
   instance.reset()
-  resolve(new Blob(['%PDF-1.4']))
+  resolvePending(new Blob(['%PDF-1.4']))
   await loading
   assert.equal(instance.pdfUrl, '')
   assert.equal(instance.loading, false)
@@ -41,4 +41,17 @@ test('PDF reader recovers after failure and releases its URL on close', async ()
   assert.equal(attempts, 2)
   instance.reset()
   assert.deepEqual(revoked, ['blob:pdf'])
+})
+
+test('PDF reader uses the anonymous public report endpoint for guest deep analysis', async () => {
+  const calls = []
+  const { instance } = reader(
+    async () => { throw new Error('private endpoint must not be called') },
+    async assetKey => { calls.push(assetKey); return new Blob(['%PDF-1.4']) }
+  )
+  instance.runId = ''
+  instance.publicAssetKey = 'crypto:BTC/USDT'
+  await instance.loadPdf()
+  assert.deepEqual(calls, ['crypto:BTC/USDT'])
+  assert.equal(instance.pdfUrl, 'blob:pdf')
 })

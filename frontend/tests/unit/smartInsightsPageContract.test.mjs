@@ -35,6 +35,8 @@ test('Guest Asset Opinions reads public quick and deep reports without a login r
   assert.match(source, /getPublicResearchReport\(row\.publicAssetKey, 'deep'\)/u)
   assert.doesNotMatch(source, /isGuest && mode === 'deep'[\s\S]{0,180}openAuthModal/u)
   assert.match(source, /public-deep-report/u)
+  assert.match(source, /<report-pdf-reader[\s\S]*:public-asset-key="selectedOpinionRow\.publicAssetKey"/u)
+  assert.doesNotMatch(source, /<pre>\{\{ publicDeepReport\.body \}\}<\/pre>/u)
   assert.doesNotMatch(opinionsSource, /guest \? 'lock' : 'apartment'/u)
 })
 

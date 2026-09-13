@@ -19,14 +19,22 @@
 
 <script>
 import { getTradingAgentsReportPdf } from '@/api/trading-agents'
+import { getPublicResearchReportPdf } from '@/api/smart-insights'
 
 export default {
   name: 'ReportPdfReader',
-  props: { runId: { type: String, required: true }, active: { type: Boolean, default: true } },
+  props: {
+    runId: { type: String, default: '' },
+    publicAssetKey: { type: String, default: '' },
+    active: { type: Boolean, default: true }
+  },
   data: () => ({ pdfUrl: '', pdfBlob: null, loading: false, error: false, generation: 0 }),
   watch: {
-    runId: { immediate: true, handler () { this.reset(); if (this.active) this.loadPdf() } },
+    pdfSource: { immediate: true, handler () { this.reset(); if (this.active) this.loadPdf() } },
     active (value) { if (value) this.loadPdf(); else this.reset() }
+  },
+  computed: {
+    pdfSource () { return this.publicAssetKey || this.runId }
   },
   beforeDestroy () { this.reset() },
   methods: {
@@ -39,12 +47,14 @@ export default {
       this.error = false
     },
     async loadPdf () {
-      if (!this.runId || !this.active || this.loading || this.pdfUrl) return
+      if ((!this.runId && !this.publicAssetKey) || !this.active || this.loading || this.pdfUrl) return
       const generation = ++this.generation
       this.loading = true
       this.error = false
       try {
-        const response = await getTradingAgentsReportPdf(this.runId)
+        const response = this.publicAssetKey
+          ? await getPublicResearchReportPdf(this.publicAssetKey)
+          : await getTradingAgentsReportPdf(this.runId)
         if (generation !== this.generation) return
         const blob = response instanceof Blob ? response : response.data
         if (!(blob instanceof Blob) || !blob.size) throw new Error('Empty PDF')

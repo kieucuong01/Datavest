@@ -12,7 +12,7 @@ function page (api = {}) {
   const script = source.split('<script>')[1].split('</script>')[0]
     .replace(/import[^\n]+\n/g, '').replace('export default', 'globalThis.component =')
   const context = {
-    mapState: () => ({}), AssetOpinionsSection: {}, EconomicCalendarTable: {}, MarketPulseSection: {}, DeepAnalysisPanel: {},
+    mapState: () => ({}), AssetOpinionsSection: {}, EconomicCalendarTable: {}, MarketPulseSection: {}, DeepAnalysisPanel: {}, ReportPdfReader: {},
     runSectionLoaders, isCurrentRequestToken: isCurrentRequest, summarizeReadiness, vietnamToday, calendarCacheFresh,
     getSmartInsightsOverview: async () => ({ data: { status: 'AVAILABLE' } }),
     getSmartInsightsCryptoPulse: async () => ({ data: { status: 'AVAILABLE' } }),

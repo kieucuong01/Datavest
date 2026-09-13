@@ -283,10 +283,13 @@
               <a-tag color="blue">TradingAgents</a-tag>
             </div>
             <a-spin :spinning="publicDeepLoading">
-              <section v-if="publicDeepReport" class="analysis-drawer-section public-deep-report">
+              <section v-if="publicDeepReport && publicDeepReport.body" class="analysis-drawer-section public-deep-report">
                 <div class="analysis-drawer-section-title"><a-icon type="file-text" /><h3>{{ publicDeepReport.title || $t('smartInsights.deepAnalysis') }}</h3></div>
                 <small>{{ publicDeepReport.effectiveDate ? formatDate(publicDeepReport.effectiveDate) : $t('smartInsights.notAvailable') }}</small>
-                <pre>{{ publicDeepReport.body }}</pre>
+                <report-pdf-reader
+                  :public-asset-key="selectedOpinionRow.publicAssetKey"
+                  :active="analysisModalVisible && analysisMode === 'deep'"
+                />
               </section>
               <div v-else class="analysis-empty analysis-empty--compact"><span>{{ publicDeepError || $t('smartInsights.aiReportUnavailable') }}</span></div>
             </a-spin>
@@ -362,10 +365,11 @@ import AssetOpinionsSection from './components/AssetOpinionsSection'
 import EconomicCalendarTable from './components/EconomicCalendarTable'
 import MarketPulseSection from './components/MarketPulseSection'
 import DeepAnalysisPanel from '@/components/TradingAgents/DeepAnalysisPanel'
+import ReportPdfReader from '@/components/TradingAgents/ReportPdfReader'
 
 export default {
   name: 'SmartInsights',
-  components: { AssetOpinionsSection, EconomicCalendarTable, MarketPulseSection, DeepAnalysisPanel },
+  components: { AssetOpinionsSection, EconomicCalendarTable, MarketPulseSection, DeepAnalysisPanel, ReportPdfReader },
   data () {
     return {
       asOf: undefined,
@@ -1105,7 +1109,6 @@ export default {
 .quick-analysis-history { margin-top: 12px; }
 .public-deep-report { display: grid; gap: 10px; }
 .public-deep-report > small { color: var(--muted); font-size: 11px; }
-.public-deep-report pre { max-height: 62vh; margin: 0; padding: 14px; overflow: auto; border: 1px solid var(--line); border-radius: 10px; color: var(--ink); background: var(--page-bg); font: 13px/1.65 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; white-space: pre-wrap; overflow-wrap: anywhere; }
 .quick-analysis-history .analysis-drawer-section-title { align-items: center; }
 .quick-history-count { display: inline-grid; place-items: center; min-width: 21px; height: 21px; margin-left: auto; padding: 0 6px; border-radius: 999px; color: var(--blue); background: var(--soft-blue); font-size: 11px; font-weight: 700; }
 .quick-analysis-history-list { display: grid; gap: 7px; max-height: 210px; padding-right: 2px; overflow-y: auto; }
