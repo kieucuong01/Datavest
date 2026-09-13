@@ -28,6 +28,28 @@ function page (api = {}) {
   instance.smartInsightsCache.dates = ['2026-09-07', '2026-09-06']
   return { instance, definition }
 }
+
+function marketPulseSection (browser = {}) {
+  const source = readFileSync(new URL('../../src/views/smart-insights/components/MarketPulseSection.vue', import.meta.url), 'utf8')
+  const script = source.split('<script>')[1].split('</script>')[0]
+    .replace(/^import[^\n]+\n/gm, '').replace('export default', 'globalThis.component =')
+  const context = {
+    window: browser,
+    MARKET_PULSE_TABS: [],
+    buildPulsePanel: () => ({}),
+    pulseTabLabel: tab => tab && tab.key
+  }
+  vm.runInNewContext(script, context)
+  const definition = context.component
+  const emitted = []
+  const instance = {
+    ...definition.data(),
+    $el: {},
+    $emit: event => emitted.push(event)
+  }
+  Object.entries(definition.methods).forEach(([key, fn]) => { instance[key] = fn.bind(instance) })
+  return { definition, emitted, instance }
+}
 const deferred = () => {
   let resolve, reject
   const promise = new Promise((a, b) => { resolve = a; reject = b })
@@ -51,38 +73,76 @@ test('selected date starts overview without waiting for the dates endpoint', asy
   assert.equal(callsBeforeDates, 1)
 })
 
-test('pulse can render while calendar is still pending', async () => {
+test('pulse completion does not eagerly schedule heavy terminals', async () => {
   const calendar = deferred()
   const { instance: p } = page({ getEconomicCalendar: () => calendar.promise })
-  let scheduled = false
-  p.scheduleCryptoTerminals = () => { scheduled = true }
+  let scheduled = 0
+  p.scheduleCryptoTerminals = () => { scheduled++ }
   const loading = p.loadAll()
   await tick()
-  const readyBeforeCalendar = scheduled
+  assert.equal(scheduled, 0)
   calendar.resolve({ code: 1, data: [] })
   await loading
-  assert.equal(readyBeforeCalendar, true)
+  assert.equal(scheduled, 0)
 })
 
-test('first visit derives shared assets from public overview after discovering the newest date', async () => {
+test('first visit starts latest overview and pulse without waiting for dates', async () => {
   const dates = deferred()
   const overviewDates = []
+  const pulseDates = []
   const { instance: p } = page({
     getSmartInsightsDates: () => dates.promise,
     getSmartInsightsOverview: async args => {
       overviewDates.push(args.as_of)
       return { data: { assets: [{ market: 'Crypto', symbol: 'BTC/USDT', displaySymbol: 'BTC' }] } }
+    },
+    getSmartInsightsCryptoPulse: async args => {
+      pulseDates.push(args.as_of)
+      return { data: { status: 'AVAILABLE' } }
     }
   })
   p.asOf = undefined
   p.smartInsightsCache.dates = null
   const loading = p.loadAll()
   await tick()
-  assert.equal(overviewDates.length, 0)
+  assert.deepEqual(overviewDates, [undefined])
+  assert.deepEqual(pulseDates, [undefined])
   dates.resolve({ data: { dates: ['2026-09-08', '2026-09-07'] } })
   await loading
-  assert.deepEqual(overviewDates, ['2026-09-08'])
+  assert.equal(p.asOf, '2026-09-08')
   assert.deepEqual(p.watchlist.map(asset => asset.displaySymbol), ['BTC'])
+})
+
+test('market pulse requests heavy terminals only when it nears the viewport', () => {
+  let observer
+  class FakeIntersectionObserver {
+    constructor (callback, options) {
+      this.callback = callback
+      this.options = options
+      this.disconnected = false
+      observer = this
+    }
+
+    observe (element) { this.element = element }
+    disconnect () { this.disconnected = true }
+  }
+
+  const { definition, emitted, instance } = marketPulseSection({ IntersectionObserver: FakeIntersectionObserver })
+  definition.mounted.call(instance)
+
+  assert.equal(observer.element, instance.$el)
+  assert.equal(observer.options.rootMargin, '160px 0px')
+  observer.callback([{ isIntersecting: false }])
+  assert.deepEqual(emitted, [])
+  observer.callback([{ isIntersecting: true }])
+  assert.deepEqual(emitted, ['near-viewport'])
+  assert.equal(observer.disconnected, true)
+})
+
+test('market pulse loads terminals immediately when viewport observation is unavailable', () => {
+  const { definition, emitted, instance } = marketPulseSection({})
+  definition.mounted.call(instance)
+  assert.deepEqual(emitted, ['near-viewport'])
 })
 
 test('retry pulse touches only pulse and does not invalidate concurrent overview', async () => {

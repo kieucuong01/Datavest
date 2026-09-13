@@ -59,6 +59,7 @@
         :locale="$i18n && $i18n.locale"
         :loading="pulseLoading"
         :crypto-ready="cryptoTerminalsReady"
+        @near-viewport="scheduleCryptoTerminals"
         @open-evidence="openEvidence"
       />
 
@@ -730,8 +731,6 @@ export default {
         }).finally(() => {
           this.setSectionLoading('dates', false, requestId)
         })
-        // Only the initial automatic date selection depends on this response.
-        if (!this.asOf) await datesPending
       } else {
         this.dates = this.smartInsightsCache.dates
         if (!this.asOf && this.dates.length) this.asOf = this.dates[0]
@@ -739,10 +738,7 @@ export default {
       if (!this.isCurrentRequest(requestId)) return
       const loaders = {
         overview: requestId => this.loadOverview(requestId, force),
-        pulse: async requestId => {
-          await this.loadPulse(requestId, force)
-          if (this.isCurrentRequest(requestId)) this.scheduleCryptoTerminals()
-        },
+        pulse: requestId => this.loadPulse(requestId, force),
         calendar: requestId => this.loadCalendar(force, requestId)
       }
       const [pageResults, extraResults] = await Promise.all([this.runSections(loaders, requestId), independentResults, datesPending])
@@ -752,7 +748,6 @@ export default {
       if (failed) {
         this.errorMessage = this.friendlyError(failed.reason, 'smartInsights.unavailable')
       }
-      this.scheduleCryptoTerminals()
     },
     setSectionLoading (section, active, requestId) {
       if (requestId !== undefined && !this.isCurrentRequest(requestId)) return
