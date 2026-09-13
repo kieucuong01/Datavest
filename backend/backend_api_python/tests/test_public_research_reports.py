@@ -63,6 +63,19 @@ def test_failed_current_period_returns_the_previous_completed_projection():
     assert result["title"] == "BTC"
 
 
+def test_latest_returns_the_public_report_when_the_ui_locale_is_not_vietnamese():
+    from app.services.smart_insights.public_reports import PublicResearchReportsService
+
+    service = PublicResearchReportsService(repository=FakeRepository([
+        _row(effective_date="2026-09-13"),
+    ]))
+
+    result = service.get_latest("crypto:BTC/USDT", "quick", locale="en-US")
+
+    assert result["summary"] == "Công khai"
+    assert result["locale"] == "vi-VN"
+
+
 def test_public_projection_drops_internal_payload_fields():
     from app.services.smart_insights.public_reports import PublicResearchReportsService
 

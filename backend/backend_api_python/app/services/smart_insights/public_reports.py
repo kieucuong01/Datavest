@@ -216,13 +216,15 @@ class PublicResearchReportsService:
     def _validate(asset_key: str, report_kind: str, locale: str) -> tuple[str, str, str]:
         clean_key = str(asset_key or "").strip()
         clean_kind = str(report_kind or "").strip().lower()
-        clean_locale = str(locale or PUBLIC_RESEARCH_LOCALE).strip() or PUBLIC_RESEARCH_LOCALE
+        # Guest reports are published once in the canonical product language.
+        # The UI may still send en-US (or another supported display locale), so
+        # treat the requested locale as an advisory value and read the
+        # tenant-free canonical row instead of returning a misleading 404.
+        clean_locale = PUBLIC_RESEARCH_LOCALE
         if clean_key not in PUBLIC_RESEARCH_ASSET_KEYS:
             raise ValueError("unsupported_public_asset")
         if clean_kind not in PUBLIC_RESEARCH_REPORT_KINDS:
             raise ValueError("unsupported_public_report_kind")
-        if clean_locale != PUBLIC_RESEARCH_LOCALE:
-            raise ValueError("unsupported_public_report_locale")
         return clean_key, clean_kind, clean_locale
 
     @staticmethod

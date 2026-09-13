@@ -30,6 +30,7 @@ test('Asset Opinions keeps account watchlists private and uses shared rows for g
 
 test('Guest Asset Opinions reads public quick and deep reports without a login redirect', () => {
   assert.match(apiSource, /getPublicResearchReport/u)
+  assert.match(apiSource, /params:\s*\{\s*lang:\s*'vi-VN'\s*\}/u)
   assert.match(source, /loadPublicQuickReports/u)
   assert.match(source, /getPublicResearchReport\(row\.publicAssetKey, 'deep'\)/u)
   assert.doesNotMatch(source, /isGuest && mode === 'deep'[\s\S]{0,180}openAuthModal/u)

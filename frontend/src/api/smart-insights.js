@@ -48,6 +48,9 @@ export function getSmartInsightsCryptoPulse (params = {}) {
 export function getPublicResearchReport (assetKey, reportKind) {
   return request({
     url: `/api/smart-insights/public/reports/${encodeURIComponent(String(assetKey || ''))}/${encodeURIComponent(String(reportKind || ''))}`,
-    method: 'get'
+    method: 'get',
+    // Public research is generated once in vi-VN. Keep it readable for
+    // guests even when the surrounding UI is currently en-US.
+    params: { lang: 'vi-VN' }
   })
 }
