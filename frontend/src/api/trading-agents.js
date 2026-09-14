@@ -41,3 +41,12 @@ export function getTradingAgentsReportPdf (runId) {
     timeout: 120000
   })
 }
+
+export function getTradingAgentsSummaryPdf (runId) {
+  return request({
+    url: `/api/trading-agents/runs/${encodeURIComponent(runId)}/summary.pdf`,
+    method: 'get',
+    responseType: 'blob',
+    timeout: 120000
+  })
+}

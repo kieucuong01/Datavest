@@ -18,7 +18,7 @@
 </template>
 
 <script>
-import { getTradingAgentsReportPdf } from '@/api/trading-agents'
+import { getTradingAgentsReportPdf, getTradingAgentsSummaryPdf } from '@/api/trading-agents'
 import { getPublicResearchReportPdf } from '@/api/smart-insights'
 
 export default {
@@ -26,6 +26,7 @@ export default {
   props: {
     runId: { type: String, default: '' },
     publicAssetKey: { type: String, default: '' },
+    variant: { type: String, default: 'full' },
     active: { type: Boolean, default: true }
   },
   data: () => ({ pdfUrl: '', pdfBlob: null, loading: false, error: false, generation: 0 }),
@@ -34,7 +35,7 @@ export default {
     active (value) { if (value) this.loadPdf(); else this.reset() }
   },
   computed: {
-    pdfSource () { return this.publicAssetKey || this.runId }
+    pdfSource () { return `${this.publicAssetKey || this.runId}:${this.variant}` }
   },
   beforeDestroy () { this.reset() },
   methods: {
@@ -54,7 +55,9 @@ export default {
       try {
         const response = this.publicAssetKey
           ? await getPublicResearchReportPdf(this.publicAssetKey)
-          : await getTradingAgentsReportPdf(this.runId)
+          : this.variant === 'summary'
+            ? await getTradingAgentsSummaryPdf(this.runId)
+            : await getTradingAgentsReportPdf(this.runId)
         if (generation !== this.generation) return
         const blob = response instanceof Blob ? response : response.data
         if (!(blob instanceof Blob) || !blob.size) throw new Error('Empty PDF')

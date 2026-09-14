@@ -3,12 +3,12 @@ import test from 'node:test'
 import vm from 'node:vm'
 import { readFileSync } from 'node:fs'
 
-function reader (fetchPdf, fetchPublicPdf = fetchPdf) {
+function reader (fetchPdf, fetchPublicPdf = fetchPdf, fetchSummaryPdf = fetchPdf) {
   const source = readFileSync(new URL('../../src/components/TradingAgents/ReportPdfReader.vue', import.meta.url), 'utf8')
   const script = source.split('<script>')[1].split('</script>')[0]
     .replace(/import[^\n]+/g, '').replace('export default', 'globalThis.component =')
   const revoked = []
-  const context = { Blob, getTradingAgentsReportPdf: fetchPdf, getPublicResearchReportPdf: fetchPublicPdf, URL: { createObjectURL: () => 'blob:pdf', revokeObjectURL: url => revoked.push(url) } }
+  const context = { Blob, getTradingAgentsReportPdf: fetchPdf, getTradingAgentsSummaryPdf: fetchSummaryPdf, getPublicResearchReportPdf: fetchPublicPdf, URL: { createObjectURL: () => 'blob:pdf', revokeObjectURL: url => revoked.push(url) } }
   vm.runInNewContext(script, context)
   const instance = { ...context.component.data(), runId: 'a', active: true }
   for (const [name, method] of Object.entries(context.component.methods)) instance[name] = method.bind(instance)
@@ -24,6 +24,19 @@ test('PDF reader discards a late response after changing asset or closing', asyn
   await loading
   assert.equal(instance.pdfUrl, '')
   assert.equal(instance.loading, false)
+})
+
+test('PDF reader loads the private summary endpoint when summary view is selected', async () => {
+  const calls = []
+  const { instance } = reader(
+    async () => { throw new Error('full endpoint must not be called') },
+    undefined,
+    async runId => { calls.push(runId); return new Blob(['%PDF-1.4 summary']) }
+  )
+  instance.variant = 'summary'
+  await instance.loadPdf()
+  assert.deepEqual(calls, ['a'])
+  assert.equal(instance.pdfUrl, 'blob:pdf')
 })
 
 test('PDF reader recovers after failure and releases its URL on close', async () => {

@@ -252,6 +252,21 @@ _TRADING_REPORT_ROLES = {
     "quản lý danh mục",
 }
 
+_TRADING_REPORT_SUMMARY_ROLES = {
+    "analyst team reports": {"market analyst", "sentiment analyst", "news analyst"},
+    "báo cáo nhóm phân tích": {
+        "chuyên gia phân tích thị trường",
+        "chuyên gia phân tích tâm lý",
+        "chuyên gia phân tích tin tức",
+    },
+    "research team decision": {"bull researcher", "bear researcher", "research manager"},
+    "quyết định của nhóm nghiên cứu": {
+        "nhà nghiên cứu xu hướng tăng",
+        "nhà nghiên cứu xu hướng giảm",
+        "quản lý nghiên cứu",
+    },
+}
+
 _TRADING_REPORT_CALLOUTS = {
     "action",
     "confidence",
@@ -543,6 +558,230 @@ def structure_trading_agents_report(content: str) -> list[dict[str, Any]]:
     if fence:
         blocks.append({"type": "code", "text": "\n".join(code_lines)})
     return blocks
+
+
+def _select_trading_agents_summary_blocks(blocks: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Keep the requested native analyst/research sections without rewriting them."""
+    selected: list[dict[str, Any]] = []
+    current_team = ""
+    current_team_heading: dict[str, Any] | None = None
+    team_heading_added = False
+    current_role = ""
+    current_role_heading: dict[str, Any] | None = None
+    current_role_blocks: list[dict[str, Any]] = []
+
+    section_buckets = {
+        "market analyst": [
+            ("tranh tổng thể", "market overview", "overall picture"),
+            ("bảng tổng hợp", "summary table", "key points table"),
+            ("kết luận", "conclusion", "recommendation"),
+        ],
+        "chuyên gia phân tích thị trường": [
+            ("tranh tổng thể", "market overview", "overall picture"),
+            ("bảng tổng hợp", "summary table", "key points table"),
+            ("kết luận", "conclusion", "khuyến nghị"),
+        ],
+        "sentiment analyst": [
+            ("divergence", "alignment", "tổng quan tâm lý"),
+            ("bảng tổng hợp", "summary table", "sentiment signals"),
+            ("kết luận", "conclusion"),
+        ],
+        "chuyên gia phân tích tâm lý": [
+            ("divergence", "alignment", "tổng quan tâm lý"),
+            ("bảng tổng hợp", "summary table", "tín hiệu sentiment", "tín hiệu tâm lý"),
+            ("kết luận", "conclusion"),
+        ],
+        "news analyst": [
+            ("tóm tắt điều hành", "executive summary"),
+            ("bảng tổng hợp", "summary table", "key points table"),
+            ("hành động cụ thể", "conclusion", "recommendation"),
+        ],
+        "chuyên gia phân tích tin tức": [
+            ("tóm tắt điều hành", "executive summary"),
+            ("bảng tổng hợp", "summary table", "key points table"),
+            ("hành động cụ thể", "kết luận", "conclusion"),
+        ],
+        "bull researcher": [
+            ("kịch bản", "scenario", "scenarios"),
+            ("các mức", "action levels", "watch levels"),
+            ("kết luận", "conclusion"),
+        ],
+        "nhà nghiên cứu xu hướng tăng": [
+            ("kịch bản", "scenario", "scenarios"),
+            ("các mức", "action levels", "watch levels"),
+            ("kết luận", "conclusion"),
+        ],
+        "bear researcher": [
+            ("risk/reward", "risk reward", "chiến lược", "strategy"),
+            ("tổng hợp", "summary", "synthesis"),
+            ("kết luận", "conclusion"),
+        ],
+        "nhà nghiên cứu xu hướng giảm": [
+            ("risk/reward", "risk reward", "chiến lược", "strategy"),
+            ("tổng hợp", "summary", "synthesis"),
+            ("kết luận", "conclusion"),
+        ],
+        "research manager": [
+            ("rationale", "reasoning", "tổng hợp"),
+            ("strategic actions", "strategy", "chiến lược"),
+        ],
+        "quản lý nghiên cứu": [
+            ("rationale", "reasoning", "tổng hợp", "lý do"),
+            ("strategic actions", "strategy", "chiến lược"),
+        ],
+    }
+    debate_roles = {
+        "bull researcher",
+        "bear researcher",
+        "nhà nghiên cứu xu hướng tăng",
+        "nhà nghiên cứu xu hướng giảm",
+    }
+    intro_roles = debate_roles | {"research manager", "quản lý nghiên cứu"}
+
+    def whole_text(value: object) -> str:
+        """Return a native block verbatim; never create an interrupted excerpt."""
+        return str(value or "").strip()
+
+    def trim_blocks(source: list[dict[str, Any]], budget: int) -> list[dict[str, Any]]:
+        """Fit a native excerpt on one digest page while preserving its original wording."""
+        result: list[dict[str, Any]] = []
+        remaining = budget
+        for source_block in source:
+            block = dict(source_block)
+            block_type = block.get("type")
+            if block_type == "heading":
+                result.append(block)
+                continue
+            if remaining <= 0:
+                break
+            if block_type == "table":
+                headers = [whole_text(cell) for cell in block.get("headers", [])]
+                header_cost = sum(len(cell) for cell in headers)
+                if header_cost > remaining:
+                    continue
+                rows: list[list[str]] = []
+                table_cost = header_cost
+                for row in block.get("rows", [])[:4]:
+                    row_values = [whole_text(cell) for cell in row]
+                    row_cost = sum(len(cell) for cell in row_values)
+                    if table_cost + row_cost > remaining:
+                        break
+                    rows.append(row_values)
+                    table_cost += row_cost
+                if block.get("rows") and not rows:
+                    continue
+                block["headers"] = headers
+                block["rows"] = rows
+                remaining -= table_cost
+            elif block_type == "list":
+                items: list[str] = []
+                for item in block.get("items", [])[:5]:
+                    if remaining <= 0:
+                        break
+                    item_text = whole_text(item)
+                    if not item_text or len(item_text) > min(260, remaining):
+                        continue
+                    items.append(item_text)
+                    remaining -= len(item_text)
+                block["items"] = items
+                if not items:
+                    continue
+            elif block_type == "callout":
+                value = whole_text(block.get("value", ""))
+                if not value or len(value) > min(remaining, 520):
+                    continue
+                block["value"] = value
+                remaining -= len(value)
+            else:
+                text = whole_text(block.get("text", ""))
+                if not text or len(text) > min(remaining, 620):
+                    continue
+                block["text"] = text
+                remaining -= len(text)
+            result.append(block)
+        return result
+
+    def condensed_role_blocks(role_key: str, role_blocks: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        intro: list[dict[str, Any]] = []
+        sections: list[list[dict[str, Any]]] = []
+        current_section: list[dict[str, Any]] | None = None
+        role_patterns = tuple(pattern for bucket in section_buckets.get(role_key, []) for pattern in bucket)
+        for role_block in role_blocks:
+            is_semantic_section = (
+                role_block.get("type") == "heading"
+                and (
+                    int(role_block.get("level") or 4) == 4
+                    or any(pattern in _trading_report_heading_key(str(role_block.get("text") or "")) for pattern in role_patterns)
+                )
+            )
+            if is_semantic_section:
+                current_section = [role_block]
+                sections.append(current_section)
+            elif current_section is None:
+                intro.append(role_block)
+            else:
+                current_section.append(role_block)
+
+        chosen: list[list[dict[str, Any]]] = []
+        used: set[int] = set()
+        for patterns in section_buckets.get(role_key, []):
+            for section_index, section in enumerate(sections):
+                if section_index in used:
+                    continue
+                heading_key = _trading_report_heading_key(str(section[0].get("text") or ""))
+                if any(pattern in heading_key for pattern in patterns):
+                    chosen.append(section)
+                    used.add(section_index)
+                    break
+
+        intro_budget = 180 if role_key in {"bear researcher", "nhà nghiên cứu xu hướng giảm"} else 280
+        section_budget = 420 if role_key in {"bear researcher", "nhà nghiên cứu xu hướng giảm"} else 520
+        result = trim_blocks(intro, intro_budget) if role_key in intro_roles else []
+        for section in chosen:
+            result.extend(trim_blocks(section, section_budget))
+        if result:
+            return result
+        # Older native reports may not use the current semantic headings.
+        # Keep a small source-native fallback instead of inventing content.
+        return (intro + [block for section in sections[:2] for block in section])[:12]
+
+    def flush_role() -> None:
+        nonlocal team_heading_added, current_role, current_role_heading, current_role_blocks
+        if current_role_heading is None or current_role not in _TRADING_REPORT_SUMMARY_ROLES.get(current_team, set()):
+            current_role = ""
+            current_role_heading = None
+            current_role_blocks = []
+            return
+        if not team_heading_added and current_team_heading is not None:
+            selected.append(current_team_heading)
+            team_heading_added = True
+        selected.append(current_role_heading)
+        selected.extend(condensed_role_blocks(current_role, current_role_blocks))
+        current_role = ""
+        current_role_heading = None
+        current_role_blocks = []
+
+    for block in blocks:
+        if block.get("type") == "heading":
+            level = int(block.get("level") or 4)
+            heading_key = _trading_report_heading_key(str(block.get("text") or ""))
+            if level == 2:
+                flush_role()
+                current_team = heading_key
+                current_team_heading = block
+                team_heading_added = False
+                continue
+            if level == 3 and heading_key in _TRADING_REPORT_ROLES:
+                flush_role()
+                current_role = heading_key
+                current_role_heading = block
+                continue
+        if current_role_heading is not None:
+            current_role_blocks.append(block)
+
+    flush_role()
+
+    return selected
 
 
 def extract_portfolio_manager_decision(content: str) -> dict[str, Any]:
@@ -1026,6 +1265,7 @@ def build_trading_agents_report_pdf(
     analysis_date: str,
     language: str,
     run_id: str,
+    _summary_variant: bool = False,
 ) -> bytes:
     """Render the immutable native TradingAgents Markdown artifact as a PDF."""
     from reportlab.lib import colors
@@ -1037,8 +1277,24 @@ def build_trading_agents_report_pdf(
 
     is_vietnamese = _language_key(language) == "vi"
     labels = {
-        "title": "Báo cáo chuyên sâu TradingAgents" if is_vietnamese else "TradingAgents Deep Research Report",
-        "subtitle": "Báo cáo nghiên cứu do AI tạo; xem giới hạn dữ liệu trong từng phần." if is_vietnamese else "AI-generated research; see data limitations in each section.",
+        "title": (
+            "Tóm tắt phân tích chuyên sâu TradingAgents"
+            if is_vietnamese and _summary_variant
+            else "TradingAgents Deep Research Summary"
+            if _summary_variant
+            else "Báo cáo chuyên sâu TradingAgents"
+            if is_vietnamese
+            else "TradingAgents Deep Research Report"
+        ),
+        "subtitle": (
+            "Trích nguyên văn các phần trọng yếu từ báo cáo gốc; không tạo thêm nhận định."
+            if is_vietnamese and _summary_variant
+            else "Selected native sections from the full report; no additional analysis is generated."
+            if _summary_variant
+            else "Báo cáo nghiên cứu do AI tạo; xem giới hạn dữ liệu trong từng phần."
+            if is_vietnamese
+            else "AI-generated research; see data limitations in each section."
+        ),
         "asset": "Tài sản" if is_vietnamese else "Asset",
         "date": "Ngày phân tích" if is_vietnamese else "Analysis date",
         "run": "Mã lần chạy" if is_vietnamese else "Run ID",
@@ -1215,7 +1471,22 @@ def build_trading_agents_report_pdf(
         cleaned = re.sub(r"\s+", " ", re.sub(r"[*`#]", "", value)).strip()
         if len(cleaned) <= limit:
             return cleaned
-        return f"{cleaned[:limit].rsplit(' ', 1)[0].rstrip()}..."
+        # Keep only complete sentences when a fallback card needs to be
+        # shortened. Never append an ellipsis that makes the source look
+        # abruptly cut in the middle of a thought.
+        sentences = re.split(r"(?<=[.!?])\s+", cleaned)
+        complete: list[str] = []
+        total = 0
+        for sentence in sentences:
+            sentence = sentence.strip()
+            if not sentence:
+                continue
+            cost = len(sentence) if not complete else len(sentence) + 1
+            if total + cost > limit:
+                break
+            complete.append(sentence)
+            total += cost
+        return " ".join(complete) or cleaned
 
     def append_report_summary() -> None:
         summary_title = ParagraphStyle(
@@ -1297,7 +1568,10 @@ def build_trading_agents_report_pdf(
                 [[Paragraph(label.upper(), summary_label)], [value_cell]] if stacked else [[Paragraph(label.upper(), summary_label), value_cell]],
                 colWidths=[doc.width] if stacked else [doc.width * 0.26, doc.width * 0.74],
                 repeatRows=1 if stacked else 0,
-                splitInRow=1,
+                # Keep a decision/thesis card together. Splitting its single
+                # content row across pages makes the native sentence look
+                # truncated even though no characters were removed.
+                splitInRow=0,
                 hAlign="LEFT",
             )
             card_styles = [
@@ -1465,7 +1739,13 @@ def build_trading_agents_report_pdf(
             stamp = str(block["text"]).removeprefix("Generated:").strip()
             caption = "Thời điểm trong báo cáo gốc (chưa ghi múi giờ)" if is_vietnamese else "Original report timestamp (timezone unspecified)"
             story.append(paragraph(f"{caption}: {stamp}", small))
-    append_report_summary()
+    if _summary_variant:
+        # The portfolio decision is the executive front page of the digest;
+        # the selected native analyst/research sections follow it.
+        append_report_summary()
+        report_blocks = _select_trading_agents_summary_blocks(report_blocks)
+    else:
+        append_report_summary()
 
     report_page_has_content = False
     allow_first_role_on_team_page = False
@@ -1674,4 +1954,25 @@ def build_trading_agents_report_pdf(
 
     doc.build(story, onFirstPage=draw_page, onLaterPages=draw_page)
     return buffer.getvalue()
+
+
+def build_trading_agents_summary_pdf(
+    *,
+    content: str,
+    market: str,
+    symbol: str,
+    analysis_date: str,
+    language: str,
+    run_id: str,
+) -> bytes:
+    """Render a 7–10 page native-section digest plus the existing final decision summary."""
+    return build_trading_agents_report_pdf(
+        content=content,
+        market=market,
+        symbol=symbol,
+        analysis_date=analysis_date,
+        language=language,
+        run_id=run_id,
+        _summary_variant=True,
+    )
 

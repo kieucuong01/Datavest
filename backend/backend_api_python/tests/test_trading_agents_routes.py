@@ -410,3 +410,50 @@ def test_owned_report_pdf_is_rendered_from_the_verified_native_artifact(monkeypa
             "run_id": "run-123",
         }]
     assert summary_reads == []
+
+
+def test_owned_summary_pdf_is_rendered_from_the_verified_native_artifact(monkeypatch):
+    client, route_module = _client(monkeypatch)
+    report = b"# BTC research\n\nVerified native report content."
+    rendered = []
+
+    class Repository:
+        def get_owned_run(self, **kwargs):
+            assert kwargs == {"user_id": 7, "run_id": "run-123"}
+            return {
+                "run_id": "run-123",
+                "user_id": 7,
+                "request_json": {
+                    "market": "Crypto",
+                    "symbol": "BTC/USDT",
+                    "analysis_date": "2026-09-05",
+                    "language": "vi-VN",
+                },
+                "artifacts": [{
+                    "artifact_name": "complete_report.md",
+                    "sha256": hashlib.sha256(report).hexdigest(),
+                }],
+            }
+
+    monkeypatch.setattr(route_module, "get_repository", lambda: Repository())
+    monkeypatch.setattr(route_module, "fetch_artifact_from_service", lambda **_kwargs: (report, "text/markdown"))
+    monkeypatch.setattr(
+        route_module,
+        "build_trading_agents_summary_pdf",
+        lambda **kwargs: rendered.append(kwargs) or b"%PDF-1.4 summary",
+    )
+
+    response = client.get("/api/trading-agents/runs/run-123/summary.pdf")
+
+    assert response.status_code == 200
+    assert response.mimetype == "application/pdf"
+    assert response.data == b"%PDF-1.4 summary"
+    assert "DataVest_TradingAgents_Summary_BTC_USDT_20260905.pdf" in response.headers["Content-Disposition"]
+    assert rendered == [{
+        "content": report.decode("utf-8"),
+        "market": "Crypto",
+        "symbol": "BTC/USDT",
+        "analysis_date": "2026-09-05",
+        "language": "vi-VN",
+        "run_id": "run-123",
+    }]

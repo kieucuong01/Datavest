@@ -176,24 +176,34 @@
         <section v-if="reportContent" class="deep-analysis-report" aria-labelledby="deep-analysis-report-title">
           <div class="report-heading">
             <div class="report-heading-copy">
-              <span class="report-eyebrow"><a-icon type="file-text" /> {{ $t('tradingAgents.reportTitle') }}</span>
+              <span class="report-eyebrow"><a-icon type="file-text" /> {{ $t(reportView === 'summary' ? 'tradingAgents.summaryReportTitle' : 'tradingAgents.reportTitle') }}</span>
               <h4 id="deep-analysis-report-title">{{ localizeHeading(reportDocumentTitle) }}</h4>
-              <span>{{ $t('tradingAgents.reportProvenance') }}</span>
+              <span>{{ $t(reportView === 'summary' ? 'tradingAgents.summaryReportDescription' : 'tradingAgents.reportProvenance') }}</span>
             </div>
             <div class="report-heading-tags">
               <a-tag color="blue"><a-icon type="global" /> {{ reportLanguageLabel }}</a-tag>
               <a-tag color="green"><a-icon type="safety-certificate" /> {{ $t('tradingAgents.researchOnly') }}</a-tag>
-              <a-button size="small" :loading="exportingPdf" @click="exportReportPdf">
+              <a-button v-if="reportView === 'summary'" size="small" :loading="exportingPdf === 'summary'" @click="exportSummaryPdf">
+                <a-icon type="file-pdf" /> {{ $t('tradingAgents.exportSummaryPdf') }}
+              </a-button>
+              <a-button v-else size="small" :loading="exportingPdf === 'full'" @click="exportReportPdf">
                 <a-icon type="file-pdf" /> {{ $t('tradingAgents.exportPdf') }}
               </a-button>
             </div>
+          </div>
+          <div class="report-view-switcher">
+            <a-radio-group v-model="reportView" button-style="solid" size="small" :aria-label="$t('tradingAgents.reportViewLabel')">
+              <a-radio-button value="summary">{{ $t('tradingAgents.summaryView') }}</a-radio-button>
+              <a-radio-button value="full">{{ $t('tradingAgents.fullView') }}</a-radio-button>
+            </a-radio-group>
+            <span>{{ $t(reportView === 'summary' ? 'tradingAgents.summaryViewHint' : 'tradingAgents.fullViewHint') }}</span>
           </div>
           <div class="report-meta-grid">
             <div><span>{{ $t('tradingAgents.reportDate') }}</span><strong>{{ reportDate }}</strong></div>
             <div><span>{{ $t('tradingAgents.reportSource') }}</span><strong>{{ $t('tradingAgents.nativeGraph') }}</strong></div>
             <div><span>{{ $t('tradingAgents.reportRunId') }}</span><strong>{{ run.run_id }}</strong></div>
           </div>
-          <report-pdf-reader :run-id="run.run_id" :active="visible" />
+          <report-pdf-reader :run-id="run.run_id" :variant="reportView" :active="visible" />
         </section>
         <div v-else-if="run.status === 'succeeded'" class="deep-analysis-report-loading">
           <template v-if="reportError">
@@ -219,6 +229,7 @@ import {
   createTradingAgentsRun,
   getTradingAgentsArtifact,
   getTradingAgentsReportPdf,
+  getTradingAgentsSummaryPdf,
   getTradingAgentsRun,
   getTradingAgentsRuns,
   resumeTradingAgentsRun
@@ -273,7 +284,8 @@ export default {
       pollError: false,
       reportError: false,
       reportRequest: null,
-      exportingPdf: false,
+      exportingPdf: '',
+      reportView: 'summary',
       progressTimer: null,
       progressClock: Date.now(),
       historyLoading: false,
@@ -446,6 +458,7 @@ export default {
       this.reportContent = ''
       this.reportRequest = null
       this.reportError = false
+      this.reportView = 'summary'
       this.errorMessage = ''
       this.historyReports = []
       this.todayRun = null
@@ -653,13 +666,15 @@ export default {
         if (this.reportRequest === requestKey) this.reportRequest = null
       }
     },
-    async exportReportPdf () {
+    async exportReportPdf (variant = 'full') {
       if (!this.run || !this.run.run_id || this.exportingPdf) return
       const preview = window.open('', '_blank')
       this.writePdfLoadingPreview(preview)
-      this.exportingPdf = true
+      this.exportingPdf = variant
       try {
-        const response = await getTradingAgentsReportPdf(this.run.run_id)
+        const response = variant === 'summary'
+          ? await getTradingAgentsSummaryPdf(this.run.run_id)
+          : await getTradingAgentsReportPdf(this.run.run_id)
         const blob = response instanceof Blob ? response : new Blob([response && response.data ? response.data : response], { type: 'application/pdf' })
         const url = window.URL.createObjectURL(blob)
         if (preview) {
@@ -670,7 +685,7 @@ export default {
         }
         const link = document.createElement('a')
         link.href = url
-        link.download = this.reportPdfFilename()
+        link.download = this.reportPdfFilename(variant)
         document.body.appendChild(link)
         link.click()
         document.body.removeChild(link)
@@ -679,8 +694,11 @@ export default {
         if (preview) preview.close()
         this.$message.error(this.$t('tradingAgents.pdfExportFailed'))
       } finally {
-        this.exportingPdf = false
+        this.exportingPdf = ''
       }
+    },
+    exportSummaryPdf () {
+      return this.exportReportPdf('summary')
     },
     async openHistoryReport (report) {
       if (!report || !report.run_id || this.historyReportOpening) return
@@ -720,10 +738,11 @@ export default {
       preview.document.write(`<!doctype html><html lang="${this.isVietnamese ? 'vi' : 'en'}"><head><meta charset="utf-8"><title>${title}</title><style>body{margin:0;min-height:100vh;display:grid;place-items:center;background:#f7fafc;color:#15324d;font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}.card{width:min(420px,calc(100vw - 48px));padding:30px;border:1px solid #dbe7f1;border-radius:18px;background:#fff;box-shadow:0 18px 48px rgba(15,48,76,.12)}.spinner{width:26px;height:26px;border:3px solid #dbeafe;border-top-color:#2563eb;border-radius:50%;animation:spin .8s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}h1{margin:18px 0 8px;font-size:20px}p{margin:0;color:#61758a;line-height:1.55}</style></head><body><main class="card"><div class="spinner" aria-hidden="true"></div><h1>${title}</h1><p>${description}</p></main></body></html>`)
       preview.document.close()
     },
-    reportPdfFilename () {
+    reportPdfFilename (variant = 'full') {
       const symbol = String((this.run && this.run.symbol) || this.targetLabel || 'report').replace(/[\\/:*?"<>|]+/g, '_')
       const date = String((this.run && this.run.analysis_date) || this.analysisDate || this.vietnamToday).replace(/-/g, '')
-      return `DataVest_TradingAgents_${symbol}_${date}.pdf`
+      const prefix = variant === 'summary' ? 'DataVest_TradingAgents_Summary' : 'DataVest_TradingAgents'
+      return `${prefix}_${symbol}_${date}.pdf`
     },
     startPolling () {
       this.stopPolling()
@@ -821,9 +840,10 @@ export default {
 .deep-analysis-report { margin-top: 14px; overflow: hidden; border: 1px solid var(--line, #dbe4ef); border-radius: 10px; background: var(--card, #fff); }.report-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 13px 15px; border-bottom: 1px solid var(--line, #dbe4ef); }.report-heading h4 { margin: 0; color: var(--ink, #1f2d3d); font-size: 15px; }.report-heading span { display: block; margin-top: 2px; color: var(--muted, #61738b); font-size: 11px; }.report-heading .ant-tag { margin: 0; }.deep-analysis-report pre { max-height: 52vh; margin: 0; overflow: auto; padding: 16px; color: var(--ink, #1f2d3d); background: transparent; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 12px; line-height: 1.65; white-space: pre-wrap; overflow-wrap: anywhere; }.deep-analysis-history-loading, .deep-analysis-report-loading { display: flex; align-items: center; gap: 8px; min-height: 110px; color: var(--muted, #61738b); }.deep-analysis-error { margin-bottom: 12px; }
 .deep-analysis-footer { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--line, #dbe4ef); color: var(--muted, #61738b); font-size: 12px; line-height: 1.45; }.deep-analysis-footer span { display: inline-flex; align-items: flex-start; gap: 6px; }
 .deep-analysis-report { border-radius: 12px; }.report-heading { align-items: flex-start; padding: 16px 18px; background: var(--soft-blue, #f5f9ff); }.report-heading-copy { min-width: 0; }.report-eyebrow { display: inline-flex !important; align-items: center; gap: 6px; margin: 0 0 5px !important; color: var(--blue, #2563eb) !important; font-size: 11px !important; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }.report-heading h4 { margin: 0; color: var(--ink, #1f2d3d); font-size: 19px; letter-spacing: -.01em; }.report-heading-copy > span:last-child { display: block; margin-top: 5px; color: var(--muted, #61738b); font-size: 12px; line-height: 1.45; }.report-heading-tags { display: flex; flex: 0 0 auto; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }.report-heading .ant-tag { margin: 0; }.report-meta-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1px; border-bottom: 1px solid var(--line, #dbe4ef); background: var(--line, #dbe4ef); }.report-meta-grid > div { display: grid; gap: 4px; min-width: 0; padding: 10px 14px; background: var(--card, #fff); }.report-meta-grid span { color: var(--muted, #61738b); font-size: 10px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; }.report-meta-grid strong { overflow: hidden; color: var(--ink, #1f2d3d); font-size: 12px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }.report-body { max-height: 52vh; overflow: auto; padding: 6px 18px 18px; }.report-block { color: var(--ink, #1f2d3d); }.report-block--heading { margin-top: 14px; }.report-block h5 { margin: 0; color: var(--ink, #1f2d3d); font-size: 13px; line-height: 1.4; }.report-block-title { padding: 10px 0 7px; border-bottom: 1px solid var(--line, #dbe4ef); color: var(--blue, #245dcc) !important; font-size: 15px !important; }.report-block--paragraph p { margin: 8px 0; color: var(--text-secondary, #4f6380); font-size: 13px; line-height: 1.7; overflow-wrap: anywhere; }.report-list { display: grid; gap: 7px; margin: 9px 0 12px; padding: 0 0 0 19px; color: var(--text-secondary, #4f6380); font-size: 13px; line-height: 1.6; }.report-list li::marker { color: var(--blue, #2563eb); }.report-empty { padding: 22px 0; color: var(--muted, #61738b); font-size: 13px; }
+.report-view-switcher { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 11px 14px; border-bottom: 1px solid var(--line, #dbe4ef); background: var(--card, #fff); }.report-view-switcher > span { color: var(--muted, #61738b); font-size: 12px; line-height: 1.45; text-align: right; }.report-view-switcher .ant-radio-group { flex: 0 0 auto; }
 .report-callout { display: grid; grid-template-columns: minmax(110px, .35fr) minmax(0, .65fr); gap: 12px; align-items: center; margin: 10px 0; padding: 11px 13px; border: 1px solid var(--line, #dbe4ef); border-left: 4px solid var(--blue, #2563eb); border-radius: 9px; background: var(--callout-info-bg, var(--soft-blue, #f5f9ff)); }.report-callout > span { color: var(--muted, #61738b); font-size: 10px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; }.report-callout > strong { color: var(--ink, #1f2d3d); font-size: 13px; line-height: 1.5; overflow-wrap: anywhere; }.report-callout--positive { border-left-color: #16a34a; background: var(--callout-positive-bg, #f0fdf4); }.report-callout--negative { border-left-color: #dc2626; background: var(--callout-negative-bg, #fff1f2); }.report-callout--hold { border-left-color: #d97706; background: var(--callout-hold-bg, #fffbeb); }.report-callout--positive > strong { color: #166534; }.report-callout--negative > strong { color: #b91c1c; }.report-callout--hold > strong { color: #92400e; }
 .theme-dark .report-callout { border-color: #334155; background: #1b2b41; }.theme-dark .report-callout > span { color: #a4b5cc; }.theme-dark .report-callout > strong { color: #e6edf6; }.theme-dark .report-callout--positive { background: #143427; }.theme-dark .report-callout--negative { background: #3b1e27; }.theme-dark .report-callout--hold { background: #3b2c18; }
-@media (max-width: 640px) { .report-callout { grid-template-columns: 1fr; gap: 4px; } }
+@media (max-width: 640px) { .report-callout { grid-template-columns: 1fr; gap: 4px; } .report-view-switcher { align-items: stretch; flex-direction: column; }.report-view-switcher > span { text-align: left; }.report-view-switcher .ant-radio-group { display: flex; }.report-view-switcher .ant-radio-button-wrapper { flex: 1; height: auto; min-height: 40px; padding: 8px 10px; line-height: 22px; text-align: center; white-space: normal; } }
 </style>
 
 <style lang="less">

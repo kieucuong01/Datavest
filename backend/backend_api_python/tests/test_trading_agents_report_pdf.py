@@ -5,10 +5,108 @@ from pypdf import PdfReader
 
 from app.services.ai_report_pdf import (
     build_trading_agents_report_pdf,
+    build_trading_agents_summary_pdf,
     extract_portfolio_manager_decision,
     extract_portfolio_manager_decision_sections,
     structure_trading_agents_report,
 )
+
+
+def test_summary_pdf_starts_with_portfolio_decision_and_keeps_requested_native_sections() -> None:
+    content = (
+        "# Trading Analysis Report: BTC-USD\n"
+        "## I. Analyst Team Reports\n"
+        "### Market Analyst\nTECHNICAL-NATIVE\n"
+        "### Sentiment Analyst\nSENTIMENT-NATIVE\n"
+        "### News Analyst\nNEWS-MACRO-NATIVE\n"
+        "### Fundamentals Analyst\nFUNDAMENTALS-EXCLUDED\n"
+        "## II. Research Team Decision\n"
+        "### Bull Researcher\nBULL-NATIVE\n"
+        "### Bear Researcher\nBEAR-NATIVE\n"
+        "### Research Manager\nRESEARCH-MANAGER-NATIVE\n"
+        "## III. Trading Team Plan\n### Trader\nTRADER-EXCLUDED\n"
+        "## IV. Risk Management Team Decision\n### Neutral Analyst\nRISK-EXCLUDED\n"
+        "## V. Portfolio Manager Decision\n"
+        "### Portfolio Manager\n"
+        "Portfolio Manager Rating: Hold\n"
+        "Executive Summary: PORTFOLIO-FINAL-NATIVE\n"
+        "Bull Case: Giá giữ trên SMA50.\n"
+        "Bear Case: Thanh khoản suy yếu.\n"
+        "Portfolio Manager Conclusion: Giữ tỷ trọng và chờ xác nhận.\n"
+    )
+
+    pdf = build_trading_agents_summary_pdf(
+        content=content,
+        market="Crypto",
+        symbol="BTC-USD",
+        analysis_date="2026-09-14",
+        language="vi-VN",
+        run_id="summary-native-sections",
+    )
+    pages = [" ".join((page.extract_text() or "").split()) for page in PdfReader(BytesIO(pdf)).pages]
+    extracted = " ".join(pages)
+
+    assert 7 <= len(pages) <= 10
+    assert "TÓM TẮT BÁO CÁO QUYẾT ĐỊNH DANH MỤC ĐẦU TƯ" in pages[0]
+    for marker in (
+        "TECHNICAL-NATIVE",
+        "SENTIMENT-NATIVE",
+        "NEWS-MACRO-NATIVE",
+        "BULL-NATIVE",
+        "BEAR-NATIVE",
+        "RESEARCH-MANAGER-NATIVE",
+        "PORTFOLIO-FINAL-NATIVE",
+    ):
+        assert marker in extracted
+    for marker in ("FUNDAMENTALS-EXCLUDED", "TRADER-EXCLUDED", "RISK-EXCLUDED"):
+        assert marker not in extracted
+    portfolio_page = next(index for index, page in enumerate(pages) if "PORTFOLIO-FINAL-NATIVE" in page)
+    technical_page = next(index for index, page in enumerate(pages) if "TECHNICAL-NATIVE" in page)
+    assert portfolio_page < technical_page
+    assert "…" not in extracted
+    assert "..." not in extracted
+
+
+def test_summary_pdf_caps_long_native_sections_to_the_target_page_range() -> None:
+    long_native_paragraph = "NATIVE-EVIDENCE Giá và khối lượng được đối chiếu từ báo cáo gốc. " * 80
+    table_rows = "\n".join(f"| {index} | Tín hiệu gốc {index} |" for index in range(1, 13))
+    content = (
+        "# Trading Analysis Report: BTC-USD\n"
+        "## I. Analyst Team Reports\n"
+        "### Market Analyst\n## Overall picture\n" + long_native_paragraph + "\n"
+        "## Key points table\n| STT | Tín hiệu |\n| --- | --- |\n" + table_rows + "\n"
+        "## Conclusion\n" + long_native_paragraph + "\n"
+        "### Sentiment Analyst\n## Divergence & Alignment\n" + long_native_paragraph + "\n"
+        "## Sentiment signals\n| STT | Tín hiệu |\n| --- | --- |\n" + table_rows + "\n"
+        "## Conclusion\n" + long_native_paragraph + "\n"
+        "### News Analyst\n## Executive Summary\n" + long_native_paragraph + "\n"
+        "## Summary table\n| STT | Tin & vĩ mô |\n| --- | --- |\n" + table_rows + "\n"
+        "## Recommendation\n" + long_native_paragraph + "\n"
+        "## II. Research Team Decision\n"
+        "### Bull Researcher\nBull thesis native.\n## Strategy\n" + long_native_paragraph + "\n"
+        "## Watch levels\n" + long_native_paragraph + "\n## Conclusion\n" + long_native_paragraph + "\n"
+        "### Bear Researcher\nBear thesis native.\n## Risk/Reward\n" + long_native_paragraph + "\n"
+        "## Synthesis\n" + long_native_paragraph + "\n## Conclusion\n" + long_native_paragraph + "\n"
+        "### Research Manager\nRecommendation: Hold\nRationale: " + long_native_paragraph + "\n"
+        "Strategic Actions: " + long_native_paragraph + "\n"
+        "## V. Portfolio Manager Decision\n### Portfolio Manager\n"
+        "Portfolio Manager Rating: Hold\nExecutive Summary: Giữ tỷ trọng và chờ xác nhận.\n"
+    )
+
+    pdf = build_trading_agents_summary_pdf(
+        content=content,
+        market="Crypto",
+        symbol="BTC-USD",
+        analysis_date="2026-09-14",
+        language="vi-VN",
+        run_id="summary-long-sections",
+    )
+
+    pages = PdfReader(BytesIO(pdf)).pages
+    extracted = " ".join((page.extract_text() or "") for page in pages)
+    assert 7 <= len(pages) <= 10
+    assert "…" not in extracted
+    assert "..." not in extracted
 
 
 def test_pdf_heading_depth_is_relative_to_each_agent_and_numbered_path() -> None:

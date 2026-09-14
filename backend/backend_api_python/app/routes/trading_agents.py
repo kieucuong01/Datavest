@@ -22,7 +22,7 @@ from app.tasks.trading_agents import (
     fetch_artifact_from_service,
 )
 from app.services.trading_agents_progress import build_public_progress, public_event
-from app.services.ai_report_pdf import build_trading_agents_report_pdf
+from app.services.ai_report_pdf import build_trading_agents_report_pdf, build_trading_agents_summary_pdf
 from app.utils.auth import login_required
 from app.utils.logger import get_logger
 
@@ -446,6 +446,61 @@ def get_report_pdf(run_id: str):
     symbol = re.sub(r"[^A-Za-z0-9._-]+", "_", str(request_json.get("symbol") or "report")).strip("_")
     date_text = re.sub(r"[^0-9]", "", str(request_json.get("analysis_date") or ""))[:8] or _today_vietnam().replace("-", "")
     filename = f"DataVest_TradingAgents_{symbol or 'report'}_{date_text}.pdf"
+    return Response(
+        pdf_bytes,
+        mimetype="application/pdf",
+        headers={
+            "Content-Disposition": f'inline; filename="{filename}"',
+            "Content-Length": str(len(pdf_bytes)),
+        },
+    )
+
+
+@trading_agents_blp.route("/runs/<string:run_id>/summary.pdf", methods=["GET"])
+@login_required
+def get_summary_pdf(run_id: str):
+    """Export selected sections from the verified native report as a shorter PDF."""
+    record = get_repository().get_owned_run(user_id=_user_id(), run_id=run_id)
+    if record is None:
+        return _fail("trading_agents_run_not_found", 404)
+    artifact = next(
+        (item for item in record.get("artifacts") or [] if item.get("artifact_name") == "complete_report.md"),
+        None,
+    )
+    if artifact is None:
+        return _fail("trading_agents_artifact_not_found", 404)
+    try:
+        content, _content_type = fetch_artifact_from_service(
+            user_id=int(record["user_id"]),
+            run_id=run_id,
+            artifact_name="complete_report.md",
+        )
+    except TradingAgentsServiceUnavailable:
+        return _fail("trading_agents_artifact_unavailable", 503)
+    expected_sha256 = str(artifact.get("sha256") or "").lower()
+    if len(expected_sha256) != 64 or hashlib.sha256(content).hexdigest() != expected_sha256:
+        return _fail("trading_agents_artifact_unavailable", 503)
+    try:
+        request_json = record.get("request_json") or {}
+        if isinstance(request_json, str):
+            request_json = json.loads(request_json)
+        language = _normalize_language(request_json.get("language"))
+        pdf_bytes = build_trading_agents_summary_pdf(
+            content=content.decode("utf-8", errors="replace"),
+            market=str(request_json.get("market") or ""),
+            symbol=str(request_json.get("symbol") or ""),
+            analysis_date=str(request_json.get("analysis_date") or ""),
+            language=language,
+            run_id=run_id,
+        )
+    except ImportError:
+        return _fail("trading_agents_pdf_dependency_missing", 500)
+    except Exception:
+        logger.exception("TradingAgents summary PDF rendering failed")
+        return _fail("trading_agents_pdf_unavailable", 503)
+    symbol = re.sub(r"[^A-Za-z0-9._-]+", "_", str(request_json.get("symbol") or "report")).strip("_")
+    date_text = re.sub(r"[^0-9]", "", str(request_json.get("analysis_date") or ""))[:8] or _today_vietnam().replace("-", "")
+    filename = f"DataVest_TradingAgents_Summary_{symbol or 'report'}_{date_text}.pdf"
     return Response(
         pdf_bytes,
         mimetype="application/pdf",
