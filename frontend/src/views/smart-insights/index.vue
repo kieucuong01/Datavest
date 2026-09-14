@@ -78,7 +78,7 @@
     <a-modal
       :visible="analysisModalVisible"
       :title="analysisModalTitle"
-      :width="1440"
+      :width="1152"
       centered
       :footer="null"
       :destroy-on-close="false"
@@ -1161,7 +1161,7 @@ export default {
 </script>
 
 <style lang="less" scoped>
-.asset-analysis-modal-body { --page-bg: #f7f9fc; --ink: #17253d; --muted: #7b8798; --line: #e4eaf3; --card: #fff; --blue: var(--primary-color, #174ca8); --soft-blue: var(--primary-color-soft, rgba(24,144,255,.1)); max-height: 86vh; padding-right: 4px; overflow-y: auto; color: var(--ink); }
+.asset-analysis-modal-body { --page-bg: #f7f9fc; --ink: #17253d; --muted: #7b8798; --line: #e4eaf3; --card: #fff; --blue: var(--primary-color, #174ca8); --soft-blue: var(--primary-color-soft, rgba(24,144,255,.1)); max-height: 78vh; padding-right: 4px; overflow-y: auto; color: var(--ink); }
 .asset-analysis-modal-body.theme-dark { --page-bg: #111827; --ink: #eef4ff; --muted: #9aa8bc; --line: #2a3547; --card: #182235; --soft-blue: rgba(24,144,255,.16); }
 .asset-analysis-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-bottom: 12px; border-bottom: 1px solid var(--line); }.asset-analysis-header > div { display: grid; gap: 3px; }.asset-analysis-header strong { color: var(--ink); font-size: 18px; }.asset-analysis-header span { color: var(--muted); font-size: 12px; }
 .asset-analysis-meta { display: flex; flex-wrap: wrap; gap: 12px; padding: 10px 0; color: var(--muted); font-size: 12px; }
@@ -1228,7 +1228,7 @@ export default {
 .asset-analysis-modal .ant-modal { max-width: calc(100vw - 24px); }
 .asset-analysis-modal .ant-modal-content { overflow: hidden; border-radius: 14px; box-shadow: 0 20px 60px rgba(12, 28, 52, .22); }
 .asset-analysis-modal .ant-modal-header { padding: 16px 20px; border-bottom-color: #e4eaf3; }
-.asset-analysis-modal .ant-modal-body { max-height: calc(100vh - 88px); padding: 16px 18px 18px; }
+.asset-analysis-modal .ant-modal-body { max-height: calc(100vh - 140px); padding: 16px 18px 18px; }
 .asset-analysis-modal--hub .trading-agents-modal--embedded.ant-modal-wrap { position: static !important; z-index: auto; height: auto; overflow: visible; }
 .asset-analysis-modal--hub .trading-agents-modal--embedded .ant-modal { top: 0; width: 100% !important; max-width: none; padding-bottom: 0; }
 .asset-analysis-modal--hub .trading-agents-modal--embedded .ant-modal-content { border: 0; border-radius: 0; box-shadow: none; background: transparent; }

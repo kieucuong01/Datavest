@@ -92,7 +92,7 @@ export default {
 .pdf-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 12px 0; }
 .pdf-toolbar span { font-size: 12px; flex: 1 1 220px; }
 .pdf-toolbar button { min-height: 40px; }
-.pdf-frame { display: block; width: 100%; height: 78vh; min-height: 520px; border: 1px solid #d8e1ee; border-radius: 8px; background: #f1f5f9; }
+.pdf-frame { display: block; width: 100%; height: 68vh; min-height: 460px; border: 1px solid #d8e1ee; border-radius: 8px; background: #f1f5f9; }
 .pdf-status { min-height: 240px; display: flex; align-items: center; justify-content: center; gap: 16px; flex-direction: column; padding: 24px; text-align: center; }
 @media (max-width: 600px) { .pdf-frame { height: 65vh; min-height: 320px; } .pdf-toolbar button { width: 100%; min-height: 44px; } }
 </style>
