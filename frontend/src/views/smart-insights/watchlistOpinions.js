@@ -52,6 +52,15 @@ function textOrEmpty (value) {
   return typeof value === 'string' ? value.trim().slice(0, 2000) : ''
 }
 
+function reportBodyPreview (value) {
+  const line = String(value || '')
+    .replace(/\r/g, '')
+    .split('\n')
+    .map(item => item.trim())
+    .find(item => item && !/^#{1,6}\s+/u.test(item))
+  return textOrEmpty(line)
+}
+
 function normalizeSharedDecision (value) {
   const text = cleanSymbol(value).replace(/[ -]+/gu, '_')
   if (['BUY', 'STRONG_BUY', 'POSITIVE', 'BULLISH'].includes(text)) return 'BUY'
@@ -239,10 +248,14 @@ function publicDeepReport (item) {
     status: 'completed',
     decision: normalizeSharedDecision(source.decision),
     confidence: Number.isFinite(confidence) ? confidence : null,
-    summary: textOrEmpty(source.summary),
+    title: textOrEmpty(source.title),
+    body: textOrEmpty(source.body),
+    summary: textOrEmpty(source.summary) || reportBodyPreview(source.body) || textOrEmpty(source.title),
     reasons: sectionItems('luận điểm'),
     risks: sectionItems('rủi ro'),
     analysisDate: source.effectiveDate || source.effective_date || null,
+    effectiveDate: source.effectiveDate || source.effective_date || null,
+    generatedAt: source.generatedAt || source.generated_at || null,
     createdAt: source.generatedAt || source.generated_at || null,
     updatedAt: source.generatedAt || source.generated_at || null,
     inputData: { capturedAt: source.generatedAt || source.generated_at || null, components: [] }

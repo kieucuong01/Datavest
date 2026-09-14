@@ -54,12 +54,12 @@
               <a-tag class="stance-neutral">{{ $t('smartInsights.researchInDevelopment') }}</a-tag>
             </template>
             <template v-else-if="researchReport(row)">
-              <a-tag :class="decisionTone(researchReport(row).decision)">{{ decisionLabel(researchReport(row).decision) }}</a-tag>
+              <a-tag :class="decisionTone(researchReport(row).decision)">{{ reportDecisionLabel(row) }}</a-tag>
             </template>
             <a-tag v-else class="stance-neutral">{{ $t('smartInsights.reportUnavailable') }}</a-tag>
           </div>
           <p v-if="row.researchInDevelopment" class="muted-line">{{ $t('smartInsights.researchInDevelopmentDesc') }}</p>
-          <p v-else-if="researchReport(row)" class="muted-line">{{ researchReport(row).summary || $t('smartInsights.aiReportUnavailable') }}</p>
+          <p v-else-if="researchReport(row)" class="muted-line">{{ reportPreview(row) }}</p>
           <p v-else class="muted-line">{{ $t('smartInsights.deepAnalysisDesc') }}</p>
           <div class="opinion-meta">
             <span class="engine-line"><a-icon :type="row.researchInDevelopment ? 'tool' : 'apartment'" /> {{ row.researchInDevelopment ? $t('smartInsights.researchInDevelopment') : $t('smartInsights.deepEngine') }}</span>
@@ -77,6 +77,7 @@
 
         <div class="opinion-actions" :data-label="$t('smartInsights.actions')">
           <a-button v-if="row.researchInDevelopment" size="small" icon="tool" disabled class="deep-analysis-action">{{ $t('smartInsights.researchInDevelopment') }}</a-button>
+          <a-button v-else-if="researchReport(row)" size="small" icon="file-text" class="deep-analysis-action" @click="$emit('open-deep-analysis', row)">{{ $t('smartInsights.viewDeepReport') }}</a-button>
           <a-button
             v-else-if="!guest && row.deepState && row.deepState.canCreate"
             size="small"
@@ -84,8 +85,8 @@
             icon="apartment"
             class="deep-analysis-action"
             @click="$emit('create-deep-analysis', row)"
-          >{{ $t('smartInsights.deepAnalysis') }}</a-button>
-          <a-button v-else size="small" icon="apartment" class="deep-analysis-action" @click="$emit('open-deep-analysis', row)">{{ $t('smartInsights.deepAnalysis') }}</a-button>
+          >{{ $t('smartInsights.createDeepReport') }}</a-button>
+          <a-button v-else size="small" icon="file-text" class="deep-analysis-action" disabled>{{ $t('smartInsights.reportUnavailable') }}</a-button>
         </div>
       </article>
     </div>
@@ -132,7 +133,16 @@ export default {
       return this.$t('smartInsights.notAvailable')
     },
     researchReport (row) { return row && row.deepState && row.deepState.report ? row.deepState.report : null },
+    reportDecisionLabel (row) {
+      const report = this.researchReport(row)
+      return report && report.decision ? this.decisionLabel(report.decision) : this.$t('smartInsights.reportAvailable')
+    },
+    reportPreview (row) {
+      const report = this.researchReport(row)
+      return (report && (report.summary || report.title)) || this.$t('smartInsights.deepReportReady')
+    },
     presentation (row) {
+      if (this.researchReport(row)) return { status: 'AVAILABLE', capturedAt: null, nextRunAt: null }
       const state = row && row.deepState && row.deepState.status ? String(row.deepState.status).toUpperCase() : 'UNAVAILABLE'
       return { status: state, capturedAt: null, nextRunAt: null }
     },

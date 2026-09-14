@@ -162,6 +162,22 @@ test('attaches the latest tenant-free TradingAgents report for the fixed guest a
   assert.equal(rows[1].deepState, undefined)
 })
 
+test('keeps a readable preview and creation time when a latest deep report has no separate summary', () => {
+  const [row] = applyPublicDeepReports(buildSharedOpinionRows([], [], null), [{
+    assetKey: 'crypto:BTC/USDT',
+    reportKind: 'deep',
+    effectiveDate: '2026-09-14',
+    generatedAt: '2026-09-14T01:12:00Z',
+    title: 'Báo cáo chuyên sâu BTC',
+    body: '# Báo cáo chuyên sâu BTC\n\nKết luận danh mục và các điều kiện cần theo dõi.',
+    sections: []
+  }])
+
+  assert.equal(row.deepState.report.title, 'Báo cáo chuyên sâu BTC')
+  assert.equal(row.deepState.report.createdAt, '2026-09-14T01:12:00Z')
+  assert.match(row.deepState.report.summary, /Kết luận danh mục/u)
+})
+
 test('keeps an account monitor separate from the shared public TradingAgents report', () => {
   const rows = applyPublicDeepReports(
     buildAccountOpinionRows(

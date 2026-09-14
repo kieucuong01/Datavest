@@ -59,7 +59,7 @@ test('MVP hides the Indicator Community route and keeps evidence provenance for 
 
 test('Asset Opinions only renders a TradingAgents report pinned to its row', () => {
   assert.match(opinionsSource, /row\.deepState\.report/u)
-  assert.match(opinionsSource, /researchReport\(row\)\.summary/u)
+  assert.match(opinionsSource, /reportPreview\(row\)/u)
   assert.doesNotMatch(opinionsSource, /row\.opinion/u)
 })
 
@@ -71,6 +71,14 @@ test('Asset Opinions does not show the retired Smart Insights quantitative score
 test('Asset Opinions identifies the TradingAgents decision and report timestamp', () => {
   assert.match(opinionsSource, /decisionTone\(researchReport\(row\)\.decision\)/u)
   assert.match(opinionsSource, /formatDateTime\(researchReport\(row\)\.generatedAt \|\| researchReport\(row\)\.createdAt\)/u)
+})
+
+test('Asset Opinions treats the latest TradingAgents report as available even without a directional rating', () => {
+  assert.match(opinionsSource, /reportDecisionLabel\(row\)/u)
+  assert.match(opinionsSource, /reportPreview\(row\)/u)
+  assert.match(opinionsSource, /if \(this\.researchReport\(row\)\) return \{ status: 'AVAILABLE'/u)
+  assert.match(opinionsSource, /smartInsights\.viewDeepReport/u)
+  assert.match(opinionsSource, /smartInsights\.createDeepReport/u)
 })
 
 test('Asset Opinions presents a clear decision hierarchy instead of a dense text row', () => {
