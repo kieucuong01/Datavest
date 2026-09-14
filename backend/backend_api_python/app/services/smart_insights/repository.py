@@ -39,17 +39,17 @@ def _pulse_stage_filter(stage: str, as_of: str | None) -> tuple[str, tuple[Any, 
                     'crypto.chain.block_height',
                     'crypto.market.price_usd'
                 )
-                OR COALESCE(o.value_json->>'metric', '') LIKE 'crypto.derivatives.%'
-                OR COALESCE(o.value_json->>'metric', '') LIKE 'crypto.cycle.%'
+                OR COALESCE(o.value_json->>'metric', '') LIKE ?
+                OR COALESCE(o.value_json->>'metric', '') LIKE ?
             )
-        """, ()
+        """, ("crypto.derivatives.%", "crypto.cycle.%")
     if stage == "onchain":
         return """
             AND (
-                COALESCE(o.value_json->>'metric', '') LIKE 'crypto.onchain.%'
-                OR COALESCE(o.value_json->>'metric', '') LIKE 'crypto.large_address.%'
+                COALESCE(o.value_json->>'metric', '') LIKE ?
+                OR COALESCE(o.value_json->>'metric', '') LIKE ?
             )
-        """, ()
+        """, ("crypto.onchain.%", "crypto.large_address.%")
     return "", ()
 
 
@@ -169,6 +169,10 @@ class SmartInsightsRepository:
             params.append(as_of)
         stage_filter, stage_params = _pulse_stage_filter(normalized_stage, as_of)
         params.extend(stage_params)
+        if normalized_stage == "summary":
+            return self._list_summary_pulse_observations(
+                params=tuple(params), as_of_filter=as_of_filter, stage_filter=stage_filter
+            )
         if compact:
             return self._list_compact_pulse_observations(
                 params=tuple(params), as_of_filter=as_of_filter, stage_filter=stage_filter
@@ -203,6 +207,33 @@ class SmartInsightsRepository:
             rows = cur.fetchall() or []
             cur.close()
         return [self._evidence_row(row) for row in rows]
+
+    def _list_summary_pulse_observations(
+        self, *, params: tuple[Any, ...], as_of_filter: str, stage_filter: str
+    ) -> list[dict[str, Any]]:
+        """Return only enough recent evidence to render the first pulse frame."""
+        with get_db_connection() as db:
+            cur = db.cursor()
+            cur.execute(
+                f"""
+                SELECT o.id, o.market, o.symbol, o.effective_at, o.published_at,
+                       o.observed_at, o.source_url, o.methodology_version,
+                       o.value_json, o.warnings_json, o.checksum, o.data_class,
+                       s.code AS source_code
+                FROM observations o
+                JOIN data_sources s ON s.id = o.data_source_id
+                WHERE o.data_class = ?
+                  {as_of_filter}
+                  {stage_filter}
+                  AND (o.market = 'crypto' OR s.code = 'cryptocraft')
+                ORDER BY o.effective_at DESC, o.observed_at DESC, o.id DESC
+                LIMIT 1000
+                """,
+                params,
+            )
+            rows = cur.fetchall() or []
+            cur.close()
+        return [self._evidence_row(row) for row in reversed(rows)]
 
     def _list_compact_pulse_observations(
         self, *, params: tuple[Any, ...], as_of_filter: str, stage_filter: str

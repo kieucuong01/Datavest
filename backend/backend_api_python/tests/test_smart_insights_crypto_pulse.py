@@ -513,3 +513,45 @@ def test_crypto_pulse_route_requires_jwt_and_passes_validated_inputs(client, mon
 
     assert response.status_code == 200
     assert captured == {"user_id": 41, "as_of": "2026-08-24", "mode": "live"}
+
+
+def test_compact_pulse_stage_binds_like_wildcards_for_the_postgres_adapter(monkeypatch):
+    from app.services.smart_insights import repository as repository_module
+    from app.services.smart_insights.repository import SmartInsightsRepository
+    from app.utils.db_postgres import PostgresCursor
+
+    class NativeCursor:
+        query = ""
+        args = ()
+
+        def execute(self, query, args):
+            self.query = query
+            self.args = tuple(args or ())
+
+        def fetchall(self):
+            return []
+
+        def close(self):
+            return None
+
+    native_cursor = NativeCursor()
+
+    class Connection:
+        def cursor(self):
+            return PostgresCursor(native_cursor)
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+    monkeypatch.setattr(repository_module, "get_db_connection", Connection)
+
+    SmartInsightsRepository().list_pulse_observations(
+        data_class="LIVE", as_of=None, compact=True, stage="core"
+    )
+
+    assert "LIKE %s" in native_cursor.query
+    assert "LIKE 'crypto.derivatives.%'" not in native_cursor.query
+    assert "crypto.derivatives.%" in native_cursor.args
