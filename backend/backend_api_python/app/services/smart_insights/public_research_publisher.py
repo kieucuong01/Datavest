@@ -128,6 +128,60 @@ class PublicResearchPublisher:
         )
         return self._enqueue_deep_reports(assets=assets, effective_date=effective_date)
 
+    def publish_claimed_quick_report(self, *, asset_key: str, effective_date: date | None = None) -> dict[str, Any]:
+        """Finish a public quick report whose period was atomically claimed by an API request."""
+        asset = self._asset_for_key(asset_key)
+        run_date = _effective_date(effective_date)
+        try:
+            result = self._analysis_service().analyze(
+                market=asset["market"], symbol=asset["symbol"], language=PUBLIC_RESEARCH_LOCALE,
+                timeframe="1D", user_id=None, persist_history=False,
+            )
+            if result.get("error"):
+                raise RuntimeError("analysis_failed")
+            self.reports.mark_complete(
+                asset_key=asset_key, report_kind="quick", locale=PUBLIC_RESEARCH_LOCALE,
+                effective_date=run_date, payload=self._quick_payload(asset["displaySymbol"], result),
+            )
+            return {"published": True, "assetKey": asset_key}
+        except Exception:
+            logger.exception("Public quick report failed for %s", asset_key)
+            self.reports.mark_failed(
+                asset_key=asset_key, report_kind="quick", locale=PUBLIC_RESEARCH_LOCALE,
+                effective_date=run_date, failure_code="analysis_failed",
+            )
+            return {"published": False, "assetKey": asset_key}
+
+    def enqueue_claimed_deep_report(self, *, asset_key: str, effective_date: date | None = None) -> dict[str, Any]:
+        """Create one system-owned deep run after an API request claimed its period."""
+        asset = self._asset_for_key(asset_key)
+        run_date = _effective_date(effective_date)
+        run_id = uuid.uuid4().hex
+        try:
+            request = {
+                "market": _DEEP_MARKET_BY_PUBLIC_MARKET[asset["market"]],
+                "symbol": asset["symbol"], "analysis_date": run_date.isoformat(),
+                "language": PUBLIC_RESEARCH_LOCALE, "evidence_ref": "public-guest-research",
+            }
+            config = {"native_config": {"checkpoint_enabled": True}, "selected_analysts": ["market", "social", "news", "fundamentals"]}
+            self._trading_agents_repository().create_run(
+                user_id=self._system_user_id(), request=request, config=config,
+                source_pin=_UPSTREAM_SOURCE_PIN, run_id=run_id,
+            )
+            self.reports.mark_pending(
+                asset_key=asset_key, report_kind="deep", locale=PUBLIC_RESEARCH_LOCALE,
+                effective_date=run_date, source_run_id=run_id,
+            )
+            self._trading_enqueue()(run_id)
+            return {"queued": True, "assetKey": asset_key}
+        except Exception:
+            logger.exception("Public deep report enqueue failed for %s", asset_key)
+            self.reports.mark_failed(
+                asset_key=asset_key, report_kind="deep", locale=PUBLIC_RESEARCH_LOCALE,
+                effective_date=run_date, failure_code="enqueue_failed", source_run_id=run_id,
+            )
+            return {"queued": False, "assetKey": asset_key}
+
     def _enqueue_deep_reports(
         self,
         *,
@@ -290,6 +344,14 @@ class PublicResearchPublisher:
 
             self._fetch_artifact = fetch_artifact_from_service
         return self._fetch_artifact
+
+    @staticmethod
+    def _asset_for_key(asset_key: str) -> Mapping[str, str]:
+        key = str(asset_key or "").strip()
+        asset = next((item for item in PUBLIC_RESEARCH_ASSET_SCOPE if public_asset_key(item) == key), None)
+        if asset is None:
+            raise ValueError("unsupported_public_asset")
+        return asset
 
 
 __all__ = ["PUBLIC_RESEARCH_SYSTEM_USERNAME", "PublicResearchPublisher"]

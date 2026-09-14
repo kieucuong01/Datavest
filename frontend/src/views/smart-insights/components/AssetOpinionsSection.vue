@@ -85,8 +85,10 @@
           <template v-else-if="row.report">
             <a-button size="small" type="primary" icon="search" class="quick-analysis-action" @click="$emit('open-analysis', row)">{{ guest && row.shared ? $t('smartInsights.viewLatestOpinion') : $t('smartInsights.quickAnalysis') }}</a-button>
           </template>
+          <a-button v-else-if="!guest && row.quickState && row.quickState.canCreate" size="small" type="primary" icon="robot" class="quick-analysis-action" @click="$emit('create-analysis', row, 'quick')">{{ $t('smartInsights.quickAnalysis') }}</a-button>
           <a-button v-else size="small" icon="robot" class="quick-analysis-action" @click="$emit('open-ai-assistant', row)">{{ guest ? $t('smartInsights.loginToAnalyze') : $t('smartInsights.openAiAssistant') }}</a-button>
-          <a-button size="small" icon="apartment" class="deep-analysis-action" @click="$emit('open-deep-analysis', row)">{{ $t('smartInsights.deepAnalysis') }}</a-button>
+          <a-button v-if="!guest && row.deepState && row.deepState.canCreate" size="small" icon="apartment" class="deep-analysis-action" @click="$emit('create-analysis', row, 'deep')">{{ $t('smartInsights.deepAnalysis') }}</a-button>
+          <a-button v-else size="small" icon="apartment" class="deep-analysis-action" @click="$emit('open-deep-analysis', row)">{{ $t('smartInsights.deepAnalysis') }}</a-button>
         </div>
       </article>
     </div>

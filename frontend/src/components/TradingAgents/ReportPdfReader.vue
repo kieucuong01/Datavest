@@ -19,13 +19,14 @@
 
 <script>
 import { getTradingAgentsReportPdf, getTradingAgentsSummaryPdf } from '@/api/trading-agents'
-import { getPublicResearchReportPdf, getPublicResearchReportSummaryPdf } from '@/api/smart-insights'
+import { getPublicResearchReportPdf, getPublicResearchReportSummaryPdf, getSharedResearchReportPdf } from '@/api/smart-insights'
 
 export default {
   name: 'ReportPdfReader',
   props: {
     runId: { type: String, default: '' },
     publicAssetKey: { type: String, default: '' },
+    sharedAssetKey: { type: String, default: '' },
     variant: { type: String, default: 'full' },
     pdfRevision: { type: [Number, String], default: 0 },
     active: { type: Boolean, default: true }
@@ -36,7 +37,7 @@ export default {
     active (value) { if (value) { this.reset(); this.loadPdf() } else this.reset() }
   },
   computed: {
-    pdfSource () { return `${this.publicAssetKey || this.runId}:${this.variant}:${this.pdfRevision}` }
+    pdfSource () { return `${this.sharedAssetKey || this.publicAssetKey || this.runId}:${this.variant}:${this.pdfRevision}` }
   },
   beforeDestroy () { this.reset() },
   methods: {
@@ -49,13 +50,15 @@ export default {
       this.error = false
     },
     async loadPdf () {
-      if ((!this.runId && !this.publicAssetKey) || !this.active || this.loading || this.pdfUrl) return
+      if ((!this.runId && !this.publicAssetKey && !this.sharedAssetKey) || !this.active || this.loading || this.pdfUrl) return
       const generation = ++this.generation
       const revision = this.pdfRevision || Date.now()
       this.loading = true
       this.error = false
       try {
-        const response = this.publicAssetKey
+        const response = this.sharedAssetKey
+          ? await getSharedResearchReportPdf(this.sharedAssetKey, revision, this.variant)
+          : this.publicAssetKey
           ? this.variant === 'summary'
             ? await getPublicResearchReportSummaryPdf(this.publicAssetKey, revision)
             : await getPublicResearchReportPdf(this.publicAssetKey, revision)

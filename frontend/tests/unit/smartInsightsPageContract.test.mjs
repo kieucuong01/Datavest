@@ -19,11 +19,13 @@ test('Smart Insights viewport matches the Mock Portfolio workspace treatment', (
   assert.doesNotMatch(source, /@media[^{]*\{[^}]*\.legacy-main\s*\{\s*width:\s*calc\(100%\s*-\s*24px\)/isu)
 })
 
-test('Asset Opinions keeps account watchlists private and uses shared rows for guests', () => {
+test('Asset Opinions combines common assets with the account watchlist through safe shared report state', () => {
   assert.match(apiSource, /hasAccessToken/u)
   assert.match(apiSource, /\/api\/smart-insights\/overview/u)
   assert.match(source, /response\.data\.assets/u)
-  assert.match(source, /buildWatchlistOpinionRows/u)
+  assert.match(source, /buildAccountOpinionRows/u)
+  assert.match(source, /getSharedResearchReports/u)
+  assert.match(source, /applySharedResearchStates/u)
   assert.match(source, /buildSharedOpinionRows/u)
   assert.match(opinionsSource, /guest/u)
 })
@@ -35,7 +37,8 @@ test('Guest Asset Opinions reads public quick and deep reports without a login r
   assert.match(source, /getPublicResearchReport\(row\.publicAssetKey, 'deep'\)/u)
   assert.doesNotMatch(source, /isGuest && mode === 'deep'[\s\S]{0,180}openAuthModal/u)
   assert.match(source, /public-deep-report/u)
-  assert.match(source, /<report-pdf-reader[\s\S]*:public-asset-key="selectedOpinionRow\.publicAssetKey"/u)
+  assert.match(source, /<report-pdf-reader[\s\S]*:public-asset-key="isGuest \? selectedOpinionRow\.publicAssetKey : ''"/u)
+  assert.match(source, /:shared-asset-key="!isGuest \? selectedOpinionRow\.sharedResearchAssetKey : ''"/u)
   assert.match(source, /publicDeepReportView:\s*'summary'/u)
   assert.match(source, /v-model="publicDeepReportView"/u)
   assert.match(source, /:variant="publicDeepReportView"/u)

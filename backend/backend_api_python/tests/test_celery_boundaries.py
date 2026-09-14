@@ -55,15 +55,15 @@ def test_bulk_smart_insights_refresh_leaves_browser_snapshot_sources_to_callback
     )) == ("defillama-chains", "mempool-space")
 
 
-def test_celery_beat_runs_watchlist_ai_analysis_at_7am_vietnam_time():
-    """Every watched asset receives the system daily analysis independently of user schedules."""
+def test_celery_beat_does_not_run_llm_analysis_for_every_account_watchlist():
     from app.celery_app import celery_app
 
-    schedule = celery_app.conf.beat_schedule["daily-watchlist-ai-analysis"]
+    schedule = celery_app.conf.beat_schedule
+    routes = celery_app.conf.task_routes
 
-    assert schedule["task"] == "datavest.tasks.run_daily_watchlist_ai_analysis"
-    assert schedule["schedule"].hour == {7}
-    assert schedule["schedule"].minute == {0}
+    assert "daily-watchlist-ai-analysis" not in schedule
+    assert "datavest.tasks.run_daily_watchlist_ai_analysis" not in routes
+    assert routes["datavest.tasks.enqueue_shared_research_report"]["queue"] == "ai"
 
 
 def test_celery_beat_publishes_fixed_guest_research_on_daily_and_weekly_cadence():
@@ -74,6 +74,7 @@ def test_celery_beat_publishes_fixed_guest_research_on_daily_and_weekly_cadence(
     quick = schedule["public-research-daily-quick"]
     deep = schedule["public-research-weekly-deep"]
     sync = schedule["public-research-deep-sync"]
+    shared_sync = schedule["shared-research-deep-sync"]
     assert quick["task"] == "datavest.tasks.publish_public_quick_reports"
     assert quick["schedule"].hour == {7}
     assert quick["schedule"].minute == {15}
@@ -81,6 +82,8 @@ def test_celery_beat_publishes_fixed_guest_research_on_daily_and_weekly_cadence(
     assert deep["schedule"].day_of_week == {1}
     assert sync["task"] == "datavest.tasks.sync_public_deep_reports"
     assert sync["schedule"] == 900
+    assert shared_sync["task"] == "datavest.tasks.sync_shared_deep_reports"
+    assert shared_sync["schedule"] == 900
 
 
 def test_fast_analysis_dispatches_to_celery(monkeypatch):

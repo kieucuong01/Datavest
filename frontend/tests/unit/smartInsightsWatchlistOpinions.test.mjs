@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { applyPublicQuickReports, buildSharedOpinionRows, buildWatchlistOpinionRows } from '../../src/views/smart-insights/watchlistOpinions.js'
+import { applyPublicQuickReports, buildAccountOpinionRows, buildSharedOpinionRows, buildWatchlistOpinionRows } from '../../src/views/smart-insights/watchlistOpinions.js'
 
 test('uses BTC, SOL, LINK and XAU as the guest default assets', () => {
   const rows = buildSharedOpinionRows([], [], null)
@@ -31,6 +31,24 @@ test('renders only watchlist assets in watchlist order', () => {
   assert.deepEqual(rows.map(row => row.symbol), ['ETH/USDT', 'FPT'])
   assert.equal(rows[0].report.decision, 'HOLD')
   assert.equal(rows[1].report.decision, 'BUY')
+})
+
+test('shows the shared guest assets first and appends account watchlist assets', () => {
+  const rows = buildAccountOpinionRows(
+    [
+      { market: 'Crypto', symbol: 'ETH/USDT', name: 'Ethereum' },
+      { market: 'Crypto', symbol: 'BTC/USDT', name: 'Bitcoin from watchlist' }
+    ],
+    [
+      { market: 'crypto', symbol: 'ETH', report: { id: 2, decision: 'HOLD' } },
+      { market: 'crypto', symbol: 'BTC', report: { id: 3, decision: 'BUY' } }
+    ]
+  )
+
+  assert.deepEqual(rows.map(row => row.displaySymbol), ['BTC', 'SOL', 'LINK', 'XAU', 'ETH'])
+  assert.equal(rows[0].watchlistItem.name, 'Bitcoin from watchlist')
+  assert.equal(rows[0].report.id, 3)
+  assert.equal(rows[4].watchlistItem.name, 'Ethereum')
 })
 
 test('keeps a watchlist row when analysis is unavailable', () => {
@@ -142,4 +160,25 @@ test('prioritizes the latest tenant-free quick report for the fixed guest asset 
   assert.equal(rows[0].report.summary, 'BTC public daily report')
   assert.deepEqual(rows[0].report.reasons, ['Public evidence'])
   assert.equal(rows[1].report, null)
+})
+
+test('does not replace an account-owned report with the shared public quick report', () => {
+  const rows = applyPublicQuickReports(
+    buildAccountOpinionRows(
+      [{ market: 'Crypto', symbol: 'BTC/USDT', name: 'Bitcoin' }],
+      [{ market: 'crypto', symbol: 'BTC', report: { id: 'account-btc', decision: 'SELL' } }]
+    ),
+    [{
+      assetKey: 'crypto:BTC/USDT',
+      reportKind: 'quick',
+      effectiveDate: '2026-09-13',
+      summary: 'Public BTC daily report',
+      decision: 'BUY',
+      sections: []
+    }]
+  )
+
+  assert.equal(rows[0].report.id, 'account-btc')
+  assert.equal(rows[0].report.decision, 'SELL')
+  assert.equal(rows[0].publicResearch, undefined)
 })

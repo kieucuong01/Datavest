@@ -14,6 +14,7 @@ from app.services.smart_insights.public_reports import (
     PUBLIC_RESEARCH_LOCALE,
     public_asset_key,
 )
+from app.services.smart_insights.shared_research_access import SharedResearchAccessService
 from app.services.ai_report_pdf import (
     build_trading_agents_report_pdf,
     build_trading_agents_summary_pdf,
@@ -48,6 +49,10 @@ def _compact_requested() -> bool:
 
 def _locale() -> str:
     return str(request.args.get("lang") or request.headers.get("Accept-Language") or "vi-VN").split(",", 1)[0]
+
+
+def _shared_research() -> SharedResearchAccessService:
+    return SharedResearchAccessService()
 
 
 @smart_insights_blp.route("/public/overview", methods=["GET"])
@@ -228,6 +233,108 @@ def public_report(asset_key: str, report_kind: str):
         return _fail("public_report_not_found", 404)
     except Exception:
         logger.exception("public smart insights report failed")
+        return _fail("smart_insights_unavailable", 503)
+
+
+@smart_insights_blp.route("/research/reports", methods=["GET"])
+@login_required
+def shared_research_reports():
+    """List safe reusable report states for common assets and this user's watchlist."""
+    try:
+        return _ok(_shared_research().list_states(user_id=_user_id()))
+    except Exception:
+        logger.exception("shared smart insights reports list failed")
+        return _fail("smart_insights_unavailable", 503)
+
+
+@smart_insights_blp.route("/research/reports/<path:asset_key>/deep.pdf", methods=["GET"])
+@login_required
+def shared_deep_report_pdf(asset_key: str):
+    """Render a viewer-safe PDF after checking current watchlist membership."""
+    try:
+        service = _shared_research()
+        _scope, asset = service.resolve_asset(_user_id(), asset_key)
+        state = service.state(user_id=_user_id(), asset_key=asset_key, report_kind="deep")
+        report = state.get("report") or {}
+        body = str(report.get("body") or "").strip()
+        if not body:
+            return _fail("shared_report_not_found", 404)
+        pdf_bytes = build_trading_agents_report_pdf(
+            content=body, market=str(asset["market"]), symbol=str(asset["symbol"]),
+            analysis_date=str(report.get("effectiveDate") or ""), language=PUBLIC_RESEARCH_LOCALE,
+            run_id="shared-report",
+        )
+    except ValueError:
+        return _fail("shared_report_not_found", 404)
+    except ImportError:
+        return _fail("smart_insights_pdf_dependency_missing", 500)
+    except Exception:
+        logger.exception("shared smart insights deep report PDF failed")
+        return _fail("smart_insights_pdf_unavailable", 503)
+    filename = f"DataVest_TradingAgents_{str(asset.get('displaySymbol') or 'report')}_{str(report.get('effectiveDate') or 'latest').replace('-', '')}.pdf"
+    return Response(pdf_bytes, mimetype="application/pdf", headers={
+        "Content-Disposition": f'inline; filename="{filename}"',
+        "Content-Length": str(len(pdf_bytes)), "Cache-Control": "no-store, max-age=0",
+    })
+
+
+@smart_insights_blp.route("/research/reports/<path:asset_key>/deep-summary.pdf", methods=["GET"])
+@login_required
+def shared_deep_summary_pdf(asset_key: str):
+    try:
+        service = _shared_research()
+        _scope, asset = service.resolve_asset(_user_id(), asset_key)
+        state = service.state(user_id=_user_id(), asset_key=asset_key, report_kind="deep")
+        report = state.get("report") or {}
+        body = str(report.get("body") or "").strip()
+        if not body:
+            return _fail("shared_report_not_found", 404)
+        pdf_bytes = build_trading_agents_summary_pdf(
+            content=body, market=str(asset["market"]), symbol=str(asset["symbol"]),
+            analysis_date=str(report.get("effectiveDate") or ""), language=PUBLIC_RESEARCH_LOCALE,
+            run_id="shared-report",
+        )
+    except ValueError:
+        return _fail("shared_report_not_found", 404)
+    except ImportError:
+        return _fail("smart_insights_pdf_dependency_missing", 500)
+    except Exception:
+        logger.exception("shared smart insights deep summary PDF failed")
+        return _fail("smart_insights_pdf_unavailable", 503)
+    filename = f"DataVest_TradingAgents_Summary_{str(asset.get('displaySymbol') or 'report')}_{str(report.get('effectiveDate') or 'latest').replace('-', '')}.pdf"
+    return Response(pdf_bytes, mimetype="application/pdf", headers={
+        "Content-Disposition": f'inline; filename="{filename}"',
+        "Content-Length": str(len(pdf_bytes)), "Cache-Control": "no-store, max-age=0",
+    })
+
+
+@smart_insights_blp.route("/research/reports/<path:asset_key>/<string:report_kind>", methods=["GET"])
+@login_required
+def shared_research_report(asset_key: str, report_kind: str):
+    try:
+        return _ok(_shared_research().state(
+            user_id=_user_id(), asset_key=asset_key, report_kind=report_kind,
+        ))
+    except ValueError:
+        return _fail("shared_report_not_found", 404)
+    except Exception:
+        logger.exception("shared smart insights report read failed")
+        return _fail("smart_insights_unavailable", 503)
+
+
+@smart_insights_blp.route("/research/reports/<path:asset_key>/<string:report_kind>", methods=["POST"])
+@login_required
+def request_shared_research_report(asset_key: str, report_kind: str):
+    """Claim the current period once, then queue reusable analysis off-request."""
+    try:
+        result = _shared_research().request(
+            user_id=_user_id(), asset_key=asset_key, report_kind=report_kind,
+        )
+        return _ok(result, status=202 if result.get("claimed") else 200)
+    except ValueError:
+        return _fail("shared_report_not_found", 404)
+    except Exception:
+        logger.exception("shared smart insights report request failed")
         return _fail("smart_insights_unavailable", 503)
 
 

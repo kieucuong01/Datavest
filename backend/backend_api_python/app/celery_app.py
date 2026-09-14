@@ -64,10 +64,11 @@ celery_app.conf.update(
         "datavest.tasks.smart_insights_refresh": {"queue": "maintenance"},
         "datavest.tasks.enqueue_smart_insights_refresh": {"queue": "maintenance"},
         "datavest.tasks.enqueue_smart_insights_refresh_for_sources": {"queue": "maintenance"},
-        "datavest.tasks.run_daily_watchlist_ai_analysis": {"queue": "ai"},
+        "datavest.tasks.enqueue_shared_research_report": {"queue": "ai"},
         "datavest.tasks.publish_public_quick_reports": {"queue": "ai"},
         "datavest.tasks.enqueue_public_deep_reports": {"queue": "trading-agents"},
         "datavest.tasks.sync_public_deep_reports": {"queue": "maintenance"},
+        "datavest.tasks.sync_shared_deep_reports": {"queue": "maintenance"},
         "datavest.tasks.trading_agents_run": {"queue": "trading-agents"},
         "datavest.tasks.trading_agents_control": {"queue": "trading-agents"},
     },
@@ -111,10 +112,6 @@ celery_app.conf.update(
             "schedule": crontab(minute=20, hour="*/6"),
             "args": (("datavest-market-bars",),),
         },
-        "daily-watchlist-ai-analysis": {
-            "task": "datavest.tasks.run_daily_watchlist_ai_analysis",
-            "schedule": crontab(hour=7, minute=0),
-        },
         "public-research-daily-quick": {
             "task": "datavest.tasks.publish_public_quick_reports",
             "schedule": crontab(hour=7, minute=15),
@@ -125,6 +122,10 @@ celery_app.conf.update(
         },
         "public-research-deep-sync": {
             "task": "datavest.tasks.sync_public_deep_reports",
+            "schedule": 900,
+        },
+        "shared-research-deep-sync": {
+            "task": "datavest.tasks.sync_shared_deep_reports",
             "schedule": 900,
         },
         "crypto-derivatives-daily-import": {

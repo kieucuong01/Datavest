@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+from datetime import date
 
 from app.celery_app import celery_app
 
@@ -110,20 +111,23 @@ def enqueue_smart_insights_refresh_for_sources(source_codes: tuple[str, ...]) ->
     return {"queued": True, "runId": run_id, "sourceCount": len(normalized)}
 
 
-@celery_app.task(
-    bind=True,
-    name="datavest.tasks.run_daily_watchlist_ai_analysis",
-    autoretry_for=(Exception,),
-    retry_backoff=True,
-    retry_jitter=True,
-    max_retries=2,
-)
-def run_daily_watchlist_ai_analysis_task(self) -> dict:
-    """Persist one AI Assistant report per watched asset at 07:00 Vietnam time."""
-    del self
-    from app.services.portfolio_monitor import run_daily_watchlist_ai_analysis
+@celery_app.task(name="datavest.tasks.enqueue_shared_research_report", acks_late=True)
+def enqueue_shared_research_report(*, scope: str, report_kind: str, asset: dict, period_key: str) -> dict:
+    """Run one previously claimed reusable report; never iterate every watchlist."""
+    from app.services.smart_insights.public_research_publisher import PublicResearchPublisher
+    from app.services.smart_insights.shared_research_publisher import SharedResearchPublisher
+    from app.services.smart_insights.public_reports import public_asset_key
 
-    return run_daily_watchlist_ai_analysis()
+    key = public_asset_key(asset)
+    if scope == "public_common":
+        publisher = PublicResearchPublisher()
+        if report_kind == "quick":
+            return publisher.publish_claimed_quick_report(asset_key=key, effective_date=date.fromisoformat(period_key))
+        return publisher.enqueue_claimed_deep_report(asset_key=key, effective_date=date.fromisoformat(period_key))
+    publisher = SharedResearchPublisher()
+    if report_kind == "quick":
+        return publisher.publish_claimed_quick(asset=asset, period_key=period_key)
+    return publisher.enqueue_claimed_deep(asset=asset, period_key=period_key)
 
 
 @celery_app.task(name="datavest.tasks.publish_public_quick_reports", acks_late=True)
@@ -147,12 +151,20 @@ def sync_public_deep_reports() -> dict:
     return PublicResearchPublisher().sync_pending_deep_reports()
 
 
+@celery_app.task(name="datavest.tasks.sync_shared_deep_reports", acks_late=True)
+def sync_shared_deep_reports() -> dict:
+    from app.services.smart_insights.shared_research_publisher import SharedResearchPublisher
+
+    return SharedResearchPublisher().sync_pending_deep_reports()
+
+
 __all__ = [
     "enqueue_smart_insights_refresh",
     "enqueue_smart_insights_refresh_for_sources",
-    "run_daily_watchlist_ai_analysis_task",
+    "enqueue_shared_research_report",
     "publish_public_quick_reports",
     "enqueue_public_deep_reports",
     "sync_public_deep_reports",
+    "sync_shared_deep_reports",
     "run_smart_insights_refresh",
 ]

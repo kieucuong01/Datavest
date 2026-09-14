@@ -61,6 +61,45 @@ class PublicResearchReportsRepository:
     def latest_status(self, *, asset_key: str, report_kind: str, locale: str) -> dict[str, Any] | None:
         return self._latest(asset_key=asset_key, report_kind=report_kind, locale=locale, completed_only=False)
 
+    def current(self, *, asset_key: str, report_kind: str, locale: str, effective_date: date | str) -> dict[str, Any] | None:
+        with get_db_connection() as db:
+            cur = db.cursor()
+            try:
+                cur.execute(
+                    """
+                    SELECT asset_key, report_kind, locale, effective_date, status,
+                           payload_json, generated_at
+                    FROM public_research_reports
+                    WHERE asset_key = ? AND report_kind = ? AND locale = ? AND effective_date = ?
+                    LIMIT 1
+                    """,
+                    (asset_key, report_kind, locale, _iso_date(effective_date)),
+                )
+                row = cur.fetchone()
+                return dict(row) if row else None
+            finally:
+                cur.close()
+
+    def claim_pending(self, *, asset_key: str, report_kind: str, locale: str, effective_date: date | str) -> bool:
+        with get_db_connection() as db:
+            cur = db.cursor()
+            try:
+                cur.execute(
+                    """
+                    INSERT INTO public_research_reports
+                    (asset_key, report_kind, locale, effective_date, status, payload_json)
+                    VALUES (?, ?, ?, ?, 'pending', '{}'::jsonb)
+                    ON CONFLICT (asset_key, report_kind, locale, effective_date) DO NOTHING
+                    RETURNING id
+                    """,
+                    (asset_key, report_kind, locale, _iso_date(effective_date)),
+                )
+                claimed = cur.fetchone() is not None
+                db.commit()
+                return claimed
+            finally:
+                cur.close()
+
     def mark_pending(
         self,
         *,
@@ -268,6 +307,44 @@ class PublicResearchReportsService:
             )
         )
         return self.public_projection(latest_completed, is_fallback=is_fallback)
+
+    def get_state(
+        self,
+        asset_key: str,
+        report_kind: str,
+        *,
+        effective_date: date | str,
+        locale: str = PUBLIC_RESEARCH_LOCALE,
+    ) -> dict[str, Any]:
+        clean_key, clean_kind, clean_locale = self._validate(asset_key, report_kind, locale)
+        current = self.repository.current(
+            asset_key=clean_key, report_kind=clean_kind, locale=clean_locale,
+            effective_date=effective_date,
+        )
+        latest = self.repository.latest_completed(
+            asset_key=clean_key, report_kind=clean_kind, locale=clean_locale,
+        )
+        if current:
+            status = str(current.get("status") or "pending")
+            report = self.public_projection(current) if status == "complete" else (
+                self.public_projection(latest, is_fallback=True) if latest else None
+            )
+            return {
+                "assetKey": clean_key,
+                "reportKind": clean_kind,
+                "periodKey": _iso_date(effective_date),
+                "status": status,
+                "canCreate": False,
+                "report": report,
+            }
+        return {
+            "assetKey": clean_key,
+            "reportKind": clean_kind,
+            "periodKey": _iso_date(effective_date),
+            "status": "missing",
+            "canCreate": True,
+            "report": self.public_projection(latest, is_fallback=True) if latest else None,
+        }
 
 
 __all__ = [

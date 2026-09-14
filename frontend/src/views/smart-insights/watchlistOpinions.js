@@ -134,6 +134,7 @@ export function buildWatchlistOpinionRows (watchlist = [], analyses = [], asOf =
       market: item.market,
       name: item.name || item.symbol || item.sym,
       watchlistItem: item,
+      publicCommon: false,
       report,
       shared: Boolean(sharedReport && !analysis.report),
       monitor: analysis && analysis.monitor ? analysis.monitor : null,
@@ -170,12 +171,78 @@ export function buildSharedOpinionRows (assets = [], analyses = [], asOf = null)
       market: item.market,
       name: item.name || item.displaySymbol || item.symbol || item.sym,
       watchlistItem: null,
+      publicCommon: true,
       report,
       shared: Boolean(report),
       researchInDevelopment: guestResearchInDevelopment(item),
       monitor: null,
       dataFreshness: report ? 'UNKNOWN' : 'UNAVAILABLE',
       analysisStatus: report ? 'AVAILABLE' : 'UNAVAILABLE'
+    }
+  })
+}
+
+export function buildAccountOpinionRows (watchlist = [], analyses = [], asOf = null) {
+  const rows = buildSharedOpinionRows([], analyses, asOf)
+  const index = new Map(rows.map(row => [row.id, row]))
+
+  for (const row of buildWatchlistOpinionRows(watchlist, analyses, asOf)) {
+    const existing = index.get(row.id)
+    if (existing) {
+      rows[rows.indexOf(existing)] = { ...row, publicCommon: true }
+    } else {
+      rows.push(row)
+    }
+    index.set(row.id, row)
+  }
+
+  return rows
+}
+
+function sharedStateReport (item) {
+  const source = objectOrEmpty(item)
+  const report = objectOrEmpty(source.report)
+  if (!Object.keys(report).length) return null
+  return {
+    id: `shared:${source.assetKey || ''}:${source.reportKind || ''}:${report.effectiveDate || ''}`,
+    source: 'SHARED_RESEARCH_REPORT',
+    scope: source.scope || 'SHARED_WATCHLIST',
+    status: 'completed',
+    decision: normalizeSharedDecision(report.decision),
+    confidence: Number.isFinite(Number(report.confidence)) ? Number(report.confidence) : null,
+    summary: textOrEmpty(report.summary),
+    reasons: (Array.isArray(report.sections) ? report.sections : []).flatMap(section => Array.isArray(section && section.items) ? section.items : []).map(textOrEmpty).filter(Boolean).slice(0, 8),
+    analysisDate: report.effectiveDate || null,
+    createdAt: report.generatedAt || null,
+    updatedAt: report.generatedAt || null,
+    inputData: { capturedAt: report.generatedAt || null, components: [] }
+  }
+}
+
+export function applySharedResearchStates (rows = [], states = []) {
+  const indexed = new Map()
+  for (const state of Array.isArray(states) ? states : []) {
+    const key = String(state && state.assetKey || '')
+    const kind = String(state && state.reportKind || '').toLowerCase()
+    if (key && kind) indexed.set(`${key}:${kind}`, state)
+  }
+  return (Array.isArray(rows) ? rows : []).map(row => {
+    const assetKey = row.publicAssetKey || publicResearchAssetKey(row) || ''
+    const quickState = indexed.get(`${assetKey}:quick`) || null
+    const deepState = indexed.get(`${assetKey}:deep`) || null
+    const sharedReport = sharedStateReport(quickState)
+    return {
+      ...row,
+      publicAssetKey: assetKey,
+      sharedResearchAssetKey: assetKey,
+      publicCommon: Boolean((quickState || deepState || {}).scope === 'public_common') || Boolean(row.publicCommon),
+      quickState,
+      deepState,
+      report: quickState ? sharedReport : row.report,
+      shared: Boolean(sharedReport) || row.shared,
+      publicResearch: Boolean(sharedReport && quickState && quickState.scope === 'public_common') || row.publicResearch,
+      dataFreshness: quickState && quickState.status === 'pending' ? 'PENDING' : row.dataFreshness,
+      analysisStatus: quickState && quickState.status ? String(quickState.status).toUpperCase() : row.analysisStatus
     }
   })
 }
@@ -217,7 +284,7 @@ export function applyPublicQuickReports (rows = [], reports = []) {
   }
   return (Array.isArray(rows) ? rows : []).map(row => {
     const publicReport = indexed.get(row.publicAssetKey)
-    if (!publicReport) return row
+    if (!publicReport || (row && row.report && row.watchlistItem)) return row
     return {
       ...row,
       report: publicReport.report,

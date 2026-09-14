@@ -74,3 +74,25 @@ export function getPublicResearchReportSummaryPdf (assetKey, revision) {
     timeout: 120000
   })
 }
+
+export function getSharedResearchReports () {
+  return request({ url: '/api/smart-insights/research/reports', method: 'get' })
+}
+
+export function requestSharedResearchReport (assetKey, reportKind) {
+  return request({
+    url: `/api/smart-insights/research/reports/${encodeURIComponent(String(assetKey || ''))}/${encodeURIComponent(String(reportKind || ''))}`,
+    method: 'post'
+  })
+}
+
+export function getSharedResearchReportPdf (assetKey, revision, variant = 'full') {
+  const suffix = variant === 'summary' ? 'deep-summary.pdf' : 'deep.pdf'
+  return request({
+    url: `/api/smart-insights/research/reports/${encodeURIComponent(String(assetKey || ''))}/${suffix}`,
+    method: 'get',
+    params: { lang: 'vi-VN', r: revision },
+    responseType: 'blob',
+    timeout: 120000
+  })
+}

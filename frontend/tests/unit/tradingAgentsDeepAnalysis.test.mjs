@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url'
 const root = fileURLToPath(new URL('../..', import.meta.url))
 const read = (relative) => readFileSync(new URL(`../../${relative}`, import.meta.url), 'utf8')
 
-test('deep analysis is a shared, owner-scoped TradingAgents panel', () => {
+test('private TradingAgents stays available elsewhere while Smart Insights uses shared safe PDFs', () => {
   const panelPath = new URL('../../src/components/TradingAgents/DeepAnalysisPanel.vue', import.meta.url)
   assert.ok(existsSync(panelPath), 'the reusable deep analysis panel must exist')
 
@@ -51,7 +51,9 @@ test('deep analysis is a shared, owner-scoped TradingAgents panel', () => {
   assert.match(panel, /analysisDate/u)
   assert.match(panel, /@media \(max-width: 640px\)/u)
   assert.match(opinions, /open-deep-analysis/u)
-  assert.match(smartInsights, /DeepAnalysisPanel/u)
+  assert.doesNotMatch(smartInsights, /DeepAnalysisPanel/u)
+  assert.match(smartInsights, /shared-asset-key/u)
+  assert.match(smartInsights, /requestSharedResearchReport/u)
   assert.match(copilot, /openDeepAnalysis/u)
   assert.match(copilot, /deepAnalysisVisible/u)
   assert.match(copilot, /tradingAgents\.trigger/u)
