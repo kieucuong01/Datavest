@@ -311,6 +311,47 @@ def test_public_deep_report_pdf_does_not_render_an_empty_report(client, monkeypa
     assert response.get_json()["msg"] == "public_report_not_found"
 
 
+def test_public_deep_summary_pdf_renders_the_sanitized_published_payload(
+    client, monkeypatch
+):
+    from app.routes import smart_insights as routes
+
+    rendered = []
+
+    class PublicService:
+        def get_public_report(self, *, asset_key, report_kind, locale):
+            assert (asset_key, report_kind, locale) == (
+                "crypto:BTC/USDT",
+                "deep",
+                "vi-VN",
+            )
+            return {
+                "assetKey": asset_key,
+                "reportKind": report_kind,
+                "effectiveDate": "2026-09-13",
+                "body": "# BTC\n\nNội dung công khai đã lọc.",
+            }
+
+    monkeypatch.setattr(
+        routes, "get_public_smart_insights_service", lambda: PublicService()
+    )
+    monkeypatch.setattr(
+        routes,
+        "build_trading_agents_summary_pdf",
+        lambda **kwargs: rendered.append(kwargs) or b"%PDF-1.4 public summary",
+    )
+
+    response = client.get(
+        "/api/smart-insights/public/reports/crypto:BTC%2FUSDT/deep-summary.pdf"
+    )
+
+    assert response.status_code == 200
+    assert response.mimetype == "application/pdf"
+    assert response.data == b"%PDF-1.4 public summary"
+    assert rendered[0]["content"] == "# BTC\n\nNội dung công khai đã lọc."
+    assert rendered[0]["run_id"] == "public-report"
+
+
 def test_public_calendar_is_anonymous_but_cannot_force_refresh(client, monkeypatch):
     from app.routes import global_market as routes
 

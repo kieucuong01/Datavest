@@ -55,11 +55,21 @@ export function getPublicResearchReport (assetKey, reportKind) {
   })
 }
 
-export function getPublicResearchReportPdf (assetKey) {
+export function getPublicResearchReportPdf (assetKey, revision) {
   return request({
     url: `/api/smart-insights/public/reports/${encodeURIComponent(String(assetKey || ''))}/deep.pdf`,
     method: 'get',
-    params: { lang: 'vi-VN' },
+    params: { lang: 'vi-VN', r: revision },
+    responseType: 'blob',
+    timeout: 120000
+  })
+}
+
+export function getPublicResearchReportSummaryPdf (assetKey, revision) {
+  return request({
+    url: `/api/smart-insights/public/reports/${encodeURIComponent(String(assetKey || ''))}/deep-summary.pdf`,
+    method: 'get',
+    params: { lang: 'vi-VN', r: revision },
     responseType: 'blob',
     timeout: 120000
   })

@@ -14,7 +14,10 @@ from app.services.smart_insights.public_reports import (
     PUBLIC_RESEARCH_LOCALE,
     public_asset_key,
 )
-from app.services.ai_report_pdf import build_trading_agents_report_pdf
+from app.services.ai_report_pdf import (
+    build_trading_agents_report_pdf,
+    build_trading_agents_summary_pdf,
+)
 from app.services.smart_insights.response_compaction import (
     compact_overview_response,
     compact_pulse_response,
@@ -154,6 +157,59 @@ def public_deep_report_pdf(asset_key: str):
         headers={
             "Content-Disposition": f'inline; filename="{filename}"',
             "Content-Length": str(len(pdf_bytes)),
+            "Cache-Control": "no-store, max-age=0",
+        },
+    )
+
+
+@smart_insights_blp.route(
+    "/public/reports/<path:asset_key>/deep-summary.pdf", methods=["GET"]
+)
+def public_deep_summary_pdf(asset_key: str):
+    """Render the safe guest digest from the published deep-report payload."""
+    try:
+        data = get_public_smart_insights_service().get_public_report(
+            asset_key=asset_key, report_kind="deep", locale=_locale()
+        )
+        body = str((data or {}).get("body") or "").strip()
+        asset = next(
+            (
+                item
+                for item in PUBLIC_RESEARCH_ASSET_SCOPE
+                if public_asset_key(item) == str(asset_key or "").strip()
+            ),
+            None,
+        )
+        if not body or asset is None:
+            return _fail("public_report_not_found", 404)
+        analysis_date = str((data or {}).get("effectiveDate") or "")
+        pdf_bytes = build_trading_agents_summary_pdf(
+            content=body,
+            market=str(asset["market"]),
+            symbol=str(asset["symbol"]),
+            analysis_date=analysis_date,
+            language=PUBLIC_RESEARCH_LOCALE,
+            # Public reports never reveal account-owned TradingAgents runs.
+            run_id="public-report",
+        )
+    except ValueError:
+        return _fail("public_report_not_found", 404)
+    except ImportError:
+        return _fail("smart_insights_pdf_dependency_missing", 500)
+    except Exception:
+        logger.exception("public smart insights deep summary PDF failed")
+        return _fail("smart_insights_pdf_unavailable", 503)
+
+    symbol = str(asset["displaySymbol"]).strip() or "report"
+    date_text = str((data or {}).get("effectiveDate") or "").replace("-", "") or "latest"
+    filename = f"DataVest_TradingAgents_Summary_{symbol}_{date_text}.pdf"
+    return Response(
+        pdf_bytes,
+        mimetype="application/pdf",
+        headers={
+            "Content-Disposition": f'inline; filename="{filename}"',
+            "Content-Length": str(len(pdf_bytes)),
+            "Cache-Control": "no-store, max-age=0",
         },
     )
 

@@ -13,13 +13,13 @@
       <span>{{ $t('tradingAgents.pdfExportFailed') }}</span>
       <a-button @click="loadPdf">{{ $t('tradingAgents.retryReport') }}</a-button>
     </div>
-    <iframe v-else-if="pdfUrl" :src="pdfUrl + '#view=FitH'" :title="$t('tradingAgents.reportTitle')" class="pdf-frame" />
+    <iframe v-else-if="pdfUrl" :src="pdfUrl + '#view=FitH&navpanes=0'" :title="$t('tradingAgents.reportTitle')" class="pdf-frame" />
   </section>
 </template>
 
 <script>
 import { getTradingAgentsReportPdf, getTradingAgentsSummaryPdf } from '@/api/trading-agents'
-import { getPublicResearchReportPdf } from '@/api/smart-insights'
+import { getPublicResearchReportPdf, getPublicResearchReportSummaryPdf } from '@/api/smart-insights'
 
 export default {
   name: 'ReportPdfReader',
@@ -27,15 +27,16 @@ export default {
     runId: { type: String, default: '' },
     publicAssetKey: { type: String, default: '' },
     variant: { type: String, default: 'full' },
+    pdfRevision: { type: [Number, String], default: 0 },
     active: { type: Boolean, default: true }
   },
   data: () => ({ pdfUrl: '', pdfBlob: null, loading: false, error: false, generation: 0 }),
   watch: {
     pdfSource: { immediate: true, handler () { this.reset(); if (this.active) this.loadPdf() } },
-    active (value) { if (value) this.loadPdf(); else this.reset() }
+    active (value) { if (value) { this.reset(); this.loadPdf() } else this.reset() }
   },
   computed: {
-    pdfSource () { return `${this.publicAssetKey || this.runId}:${this.variant}` }
+    pdfSource () { return `${this.publicAssetKey || this.runId}:${this.variant}:${this.pdfRevision}` }
   },
   beforeDestroy () { this.reset() },
   methods: {
@@ -50,14 +51,17 @@ export default {
     async loadPdf () {
       if ((!this.runId && !this.publicAssetKey) || !this.active || this.loading || this.pdfUrl) return
       const generation = ++this.generation
+      const revision = this.pdfRevision || Date.now()
       this.loading = true
       this.error = false
       try {
         const response = this.publicAssetKey
-          ? await getPublicResearchReportPdf(this.publicAssetKey)
+          ? this.variant === 'summary'
+            ? await getPublicResearchReportSummaryPdf(this.publicAssetKey, revision)
+            : await getPublicResearchReportPdf(this.publicAssetKey, revision)
           : this.variant === 'summary'
-            ? await getTradingAgentsSummaryPdf(this.runId)
-            : await getTradingAgentsReportPdf(this.runId)
+            ? await getTradingAgentsSummaryPdf(this.runId, revision)
+            : await getTradingAgentsReportPdf(this.runId, revision)
         if (generation !== this.generation) return
         const blob = response instanceof Blob ? response : response.data
         if (!(blob instanceof Blob) || !blob.size) throw new Error('Empty PDF')

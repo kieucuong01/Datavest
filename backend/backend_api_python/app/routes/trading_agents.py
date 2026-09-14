@@ -452,6 +452,7 @@ def get_report_pdf(run_id: str):
         headers={
             "Content-Disposition": f'inline; filename="{filename}"',
             "Content-Length": str(len(pdf_bytes)),
+            "Cache-Control": "no-store, max-age=0",
         },
     )
 
@@ -507,6 +508,7 @@ def get_summary_pdf(run_id: str):
         headers={
             "Content-Disposition": f'inline; filename="{filename}"',
             "Content-Length": str(len(pdf_bytes)),
+            "Cache-Control": "no-store, max-age=0",
         },
     )
 

@@ -287,8 +287,17 @@
               <section v-if="publicDeepReport && publicDeepReport.body" class="analysis-drawer-section public-deep-report">
                 <div class="analysis-drawer-section-title"><a-icon type="file-text" /><h3>{{ publicDeepReport.title || $t('smartInsights.deepAnalysis') }}</h3></div>
                 <small>{{ publicDeepReport.effectiveDate ? formatDate(publicDeepReport.effectiveDate) : $t('smartInsights.notAvailable') }}</small>
+                <div class="public-report-view-switcher">
+                  <a-radio-group v-model="publicDeepReportView" button-style="solid" size="small" :aria-label="$t('tradingAgents.reportViewLabel')">
+                    <a-radio-button value="summary">{{ $t('tradingAgents.summaryView') }}</a-radio-button>
+                    <a-radio-button value="full">{{ $t('tradingAgents.fullView') }}</a-radio-button>
+                  </a-radio-group>
+                  <span>{{ $t(publicDeepReportView === 'summary' ? 'tradingAgents.summaryViewHint' : 'tradingAgents.fullViewHint') }}</span>
+                </div>
                 <report-pdf-reader
                   :public-asset-key="selectedOpinionRow.publicAssetKey"
+                  :variant="publicDeepReportView"
+                  :pdf-revision="publicDeepPdfRevision"
                   :active="analysisModalVisible && analysisMode === 'deep'"
                 />
               </section>
@@ -394,6 +403,8 @@ export default {
       selectedOpinionRow: null,
       publicQuickReports: [],
       publicDeepReport: null,
+      publicDeepReportView: 'summary',
+      publicDeepPdfRevision: 0,
       publicDeepLoading: false,
       publicDeepError: '',
       publicDeepRequestId: 0,
@@ -920,6 +931,8 @@ export default {
       this.quickAnalysisHistory = []
       this.quickHistoryError = ''
       this.publicDeepReport = null
+      this.publicDeepReportView = 'summary'
+      this.publicDeepPdfRevision++
       this.publicDeepError = ''
       this.deepAnalysisTarget = {
         market: row && row.market,
@@ -1118,6 +1131,7 @@ export default {
 .quick-history-state { display: flex; align-items: center; justify-content: center; gap: 7px; min-height: 46px; color: var(--muted); font-size: 12px; text-align: center; }
 .quick-history-state--error { justify-content: space-between; gap: 10px; color: #c2413b; }
 .analysis-mode-switcher { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin: 14px 0 2px; padding: 4px; border: 1px solid var(--line); border-radius: 12px; background: var(--page-bg); }.analysis-mode-option { display: flex; align-items: center; gap: 9px; min-width: 0; padding: 10px 12px; border: 1px solid transparent; border-radius: 9px; color: var(--muted); text-align: left; background: transparent; cursor: pointer; transition: border-color .18s ease, background .18s ease, color .18s ease, transform .18s ease; }.analysis-mode-option:hover, .analysis-mode-option:focus-visible { color: var(--ink); background: var(--card); outline: 0; }.analysis-mode-option:active { transform: translateY(1px) scale(.99); }.analysis-mode-option.active { border-color: var(--blue-ring); color: var(--blue); background: var(--card); box-shadow: 0 3px 10px var(--blue-ring); }.analysis-mode-option > .anticon { flex: 0 0 auto; font-size: 16px; }.analysis-mode-option span { display: grid; min-width: 0; gap: 2px; }.analysis-mode-option strong { color: inherit; font-size: 13px; }.analysis-mode-option small { overflow: hidden; color: var(--muted); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }.analysis-deep-intro { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-top: 14px; padding: 12px 13px; border: 1px solid var(--line); border-radius: 10px; background: var(--soft-blue); }.analysis-deep-intro > div { display: grid; gap: 3px; min-width: 0; }.analysis-deep-intro strong { color: var(--ink); font-size: 14px; }.analysis-deep-intro span { color: var(--muted); font-size: 12px; line-height: 1.45; }.analysis-deep-intro .ant-tag { flex: 0 0 auto; margin: 0; }
+.public-report-view-switcher { display: grid; gap: 7px; margin-top: 12px; }.public-report-view-switcher > span { color: var(--muted); font-size: 12px; line-height: 1.45; }
 .analysis-drawer-section { margin-top: 16px; padding: 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--card); }.analysis-drawer-section-title { display: flex; align-items: center; gap: 7px; }.analysis-drawer-section-title .anticon { color: var(--blue); }.analysis-drawer-section-title h3 { margin: 0; color: var(--ink); font-size: 15px; }.analysis-result-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 12px; }.analysis-result-grid > div { display: grid; gap: 4px; padding: 9px 10px; border-radius: 8px; background: var(--soft-blue); }.analysis-result-grid small { color: var(--muted); font-size: 11px; }.analysis-result-grid strong { color: var(--ink); font-size: 16px; }.analysis-copy { margin-top: 13px; }.analysis-copy h4 { margin: 0 0 5px; color: var(--ink); font-size: 13px; }.analysis-copy p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.65; white-space: pre-wrap; }.analysis-report { margin-top: 13px; overflow: auto; color: var(--ink); font-size: 13px; line-height: 1.6; }.analysis-report :deep(.qd-report) { max-width: 100%; }
 .analysis-evidence-desc { margin: 5px 0 10px; color: var(--muted); font-size: 12px; }.analysis-evidence-list { display: grid; gap: 8px; }.analysis-evidence-item { padding: 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--page-bg); }.analysis-evidence-item-head, .analysis-evidence-item-meta { display: flex; justify-content: space-between; gap: 10px; }.analysis-evidence-item-head strong { color: var(--ink); font-size: 13px; }.analysis-evidence-item-head span, .analysis-evidence-item-meta { color: var(--muted); font-size: 11px; }.analysis-evidence-item-meta { margin-top: 4px; flex-wrap: wrap; }.analysis-evidence-item-copy { margin: 8px 0 0; color: var(--ink); font-size: 13px; line-height: 1.55; white-space: pre-wrap; overflow-wrap: anywhere; }.analysis-evidence-item a { display: block; overflow: hidden; margin-top: 7px; color: var(--blue); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }.analysis-evidence-item pre { max-height: 150px; margin: 8px 0 0; padding: 8px; overflow: auto; border-radius: 6px; color: var(--ink); background: var(--card); font-size: 11px; white-space: pre-wrap; word-break: break-word; }.analysis-empty { display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 7px; min-height: 90px; color: var(--muted); text-align: center; }.analysis-empty p { margin: 0; font-size: 13px; }.analysis-empty a { color: var(--blue); font-size: 13px; }.analysis-empty--compact { min-height: 48px; }
 .legacy-page { --page-bg: #f7f9fc; --ink: #17253d; --muted: #7b8798; --line: #e4eaf3; --card: #fff; --blue: var(--primary-color, #174ca8); --blue-hover: var(--primary-color-hover, #40a9ff); --blue-active: var(--primary-color-active, #096dd9); --blue-ring: var(--primary-color-ring, rgba(24,144,255,.22)); --soft-blue: var(--primary-color-soft, rgba(24,144,255,.1)); --soft-blue-strong: var(--primary-color-soft-strong, rgba(24,144,255,.18)); position: relative; min-height: calc(100vh - 64px); overflow: hidden; color: var(--ink); background: var(--page-bg); font-size: 15px; }

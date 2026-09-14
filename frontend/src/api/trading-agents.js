@@ -33,19 +33,21 @@ export function getTradingAgentsArtifact (runId, artifactName) {
   })
 }
 
-export function getTradingAgentsReportPdf (runId) {
+export function getTradingAgentsReportPdf (runId, revision) {
   return request({
     url: `/api/trading-agents/runs/${encodeURIComponent(runId)}/report.pdf`,
     method: 'get',
+    params: { r: revision },
     responseType: 'blob',
     timeout: 120000
   })
 }
 
-export function getTradingAgentsSummaryPdf (runId) {
+export function getTradingAgentsSummaryPdf (runId, revision) {
   return request({
     url: `/api/trading-agents/runs/${encodeURIComponent(runId)}/summary.pdf`,
     method: 'get',
+    params: { r: revision },
     responseType: 'blob',
     timeout: 120000
   })
