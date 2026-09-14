@@ -643,9 +643,10 @@ def _select_trading_agents_summary_blocks(blocks: list[dict[str, Any]]) -> list[
         return str(value or "").strip()
 
     def trim_blocks(source: list[dict[str, Any]], budget: int) -> list[dict[str, Any]]:
-        """Fit a native excerpt on one digest page while preserving its original wording."""
+        """Keep a substantive native section without silently discarding its detail."""
         result: list[dict[str, Any]] = []
         remaining = budget
+        has_substantive_content = False
         for source_block in source:
             block = dict(source_block)
             block_type = block.get("type")
@@ -657,14 +658,14 @@ def _select_trading_agents_summary_blocks(blocks: list[dict[str, Any]]) -> list[
             if block_type == "table":
                 headers = [whole_text(cell) for cell in block.get("headers", [])]
                 header_cost = sum(len(cell) for cell in headers)
-                if header_cost > remaining:
+                if header_cost > remaining and has_substantive_content:
                     continue
                 rows: list[list[str]] = []
                 table_cost = header_cost
-                for row in block.get("rows", [])[:4]:
+                for row in block.get("rows", [])[:12]:
                     row_values = [whole_text(cell) for cell in row]
                     row_cost = sum(len(cell) for cell in row_values)
-                    if table_cost + row_cost > remaining:
+                    if table_cost + row_cost > remaining and rows:
                         break
                     rows.append(row_values)
                     table_cost += row_cost
@@ -672,32 +673,36 @@ def _select_trading_agents_summary_blocks(blocks: list[dict[str, Any]]) -> list[
                     continue
                 block["headers"] = headers
                 block["rows"] = rows
-                remaining -= table_cost
+                remaining = max(0, remaining - table_cost)
+                has_substantive_content = True
             elif block_type == "list":
                 items: list[str] = []
-                for item in block.get("items", [])[:5]:
+                for item in block.get("items", [])[:12]:
                     if remaining <= 0:
                         break
                     item_text = whole_text(item)
-                    if not item_text or len(item_text) > min(260, remaining):
+                    if not item_text or (len(item_text) > min(420, remaining) and items):
                         continue
                     items.append(item_text)
-                    remaining -= len(item_text)
+                    remaining = max(0, remaining - len(item_text))
                 block["items"] = items
                 if not items:
                     continue
+                has_substantive_content = True
             elif block_type == "callout":
                 value = whole_text(block.get("value", ""))
-                if not value or len(value) > min(remaining, 520):
+                if not value or (len(value) > remaining and has_substantive_content):
                     continue
                 block["value"] = value
-                remaining -= len(value)
+                remaining = max(0, remaining - len(value))
+                has_substantive_content = True
             else:
                 text = whole_text(block.get("text", ""))
-                if not text or len(text) > min(remaining, 620):
+                if not text or (len(text) > remaining and has_substantive_content):
                     continue
                 block["text"] = text
-                remaining -= len(text)
+                remaining = max(0, remaining - len(text))
+                has_substantive_content = True
             result.append(block)
         return result
 
@@ -734,8 +739,10 @@ def _select_trading_agents_summary_blocks(blocks: list[dict[str, Any]]) -> list[
                     used.add(section_index)
                     break
 
-        intro_budget = 180 if role_key in {"bear researcher", "nhà nghiên cứu xu hướng giảm"} else 280
-        section_budget = 420 if role_key in {"bear researcher", "nhà nghiên cứu xu hướng giảm"} else 520
+        # A digest is still source-native, but each requested role needs enough evidence
+        # (signals, table rows, strategy and conclusion) to make a useful full page.
+        intro_budget = 650
+        section_budget = 1_100
         result = trim_blocks(intro, intro_budget) if role_key in intro_roles else []
         for section in chosen:
             result.extend(trim_blocks(section, section_budget))

@@ -67,7 +67,7 @@ def test_summary_pdf_starts_with_portfolio_decision_and_keeps_requested_native_s
     assert "..." not in extracted
 
 
-def test_summary_pdf_caps_long_native_sections_to_the_target_page_range() -> None:
+def test_summary_pdf_keeps_substantive_native_sections_when_they_need_more_than_the_target_page_range() -> None:
     long_native_paragraph = "NATIVE-EVIDENCE Giá và khối lượng được đối chiếu từ báo cáo gốc. " * 80
     table_rows = "\n".join(f"| {index} | Tín hiệu gốc {index} |" for index in range(1, 13))
     content = (
@@ -104,9 +104,42 @@ def test_summary_pdf_caps_long_native_sections_to_the_target_page_range() -> Non
 
     pages = PdfReader(BytesIO(pdf)).pages
     extracted = " ".join((page.extract_text() or "") for page in pages)
-    assert 7 <= len(pages) <= 10
+    assert len(pages) >= 7
+    assert "NATIVE-EVIDENCE" in extracted
+    assert "Tín hiệu gốc 12" in extracted
     assert "…" not in extracted
     assert "..." not in extracted
+
+
+def test_summary_pdf_keeps_the_deeper_source_rows_and_signals_for_a_full_section_page() -> None:
+    list_items = "\n".join(f"- TECH-SIGNAL-{index}" for index in range(1, 9))
+    table_rows = "\n".join(f"| {index} | TECH-ROW-{index} |" for index in range(1, 9))
+    content = (
+        "# Trading Analysis Report: BTC-USD\n"
+        "## I. Analyst Team Reports\n"
+        "### Market Analyst\n"
+        "## Overall picture\n" + list_items + "\n"
+        "## Key points table\n"
+        "| STT | Signal |\n| --- | --- |\n" + table_rows + "\n"
+        "## Conclusion\nTECHNICAL-CONCLUSION-DETAIL\n"
+        "## V. Portfolio Manager Decision\n"
+        "### Portfolio Manager\nPortfolio Manager Rating: Hold\n"
+        "Executive Summary: PORTFOLIO-FINAL-NATIVE\n"
+    )
+
+    pdf = build_trading_agents_summary_pdf(
+        content=content,
+        market="Crypto",
+        symbol="BTC-USD",
+        analysis_date="2026-09-14",
+        language="vi-VN",
+        run_id="summary-full-section-source",
+    )
+
+    extracted = " ".join((page.extract_text() or "") for page in PdfReader(BytesIO(pdf)).pages)
+    assert "TECH-SIGNAL-8" in extracted
+    assert "TECH-ROW-8" in extracted
+    assert "TECHNICAL-CONCLUSION-DETAIL" in extracted
 
 
 def test_pdf_heading_depth_is_relative_to_each_agent_and_numbered_path() -> None:
