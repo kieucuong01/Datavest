@@ -679,19 +679,19 @@ export default {
           singleAsItem: true
         },
         {
-          name: 'MenuGroupAI',
-          path: '/ai-asset-analysis',
-          title: 'menu.group.aiAssistant',
-          icon: 'thunderbolt',
-          paths: ['/ai-asset-analysis'],
-          singleAsItem: true
-        },
-        {
           name: 'MenuGroupChart',
           path: '/indicator-ide',
           title: 'menu.group.chartIndicator',
           icon: 'line-chart',
           paths: ['/indicator-ide'],
+          singleAsItem: true
+        },
+        {
+          name: 'MenuGroupAI',
+          path: '/ai-asset-analysis',
+          title: 'menu.group.aiAssistant',
+          icon: 'thunderbolt',
+          paths: ['/ai-asset-analysis'],
           singleAsItem: true
         },
         {

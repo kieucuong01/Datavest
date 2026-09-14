@@ -73,7 +73,7 @@
     <a-modal
       :visible="analysisModalVisible"
       :title="analysisModalTitle"
-      :width="860"
+      :width="1180"
       centered
       :footer="null"
       :destroy-on-close="false"

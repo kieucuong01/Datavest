@@ -9,6 +9,11 @@ const localeSource = fs.readFileSync(new URL('../../src/locales/product-locale-o
 
 test('header exposes Smart Insights, AI Assistant, Chart and one Quant Lab group in order', () => {
   assert.equal((layoutSource.match(/name: 'MenuGroup/g) || []).length, 4)
+  const smartIndex = layoutSource.indexOf("name: 'MenuGroupSmartInsights'")
+  const chartIndex = layoutSource.indexOf("name: 'MenuGroupChart'")
+  const aiIndex = layoutSource.indexOf("name: 'MenuGroupAI'")
+  const quantIndex = layoutSource.indexOf("name: 'MenuGroupQuantLab'")
+  assert.ok(smartIndex < chartIndex && chartIndex < aiIndex && aiIndex < quantIndex, 'header order must be Smart Insights, Chart, AI Assistant, Quant Lab')
   assert.match(layoutSource, /paths: \[\s*'\/smart-insights'\s*\][\s\S]+?singleAsItem: true/u)
   assert.match(layoutSource, /paths: \[\s*'\/ai-asset-analysis'\s*\][\s\S]+?singleAsItem: true/u)
   assert.match(layoutSource, /paths: \[\s*'\/indicator-ide'\s*\][\s\S]+?singleAsItem: true/u)

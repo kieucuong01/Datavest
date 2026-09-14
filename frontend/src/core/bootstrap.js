@@ -11,7 +11,9 @@ import {
 } from '@/store/mutation-types'
 import { printANSI } from '@/utils/screenLog'
 import defaultSettings from '@/config/defaultSettings'
-import { defaultLang, supportedLocales } from '@/locales'
+import { defaultLang } from '@/locales'
+import { normalizeAccessToken } from '@/utils/guestAccess'
+import { resolveInitialPreferences } from '@/utils/guestPreferences'
 
 export default function Initializer () {
   printANSI() // 请自行移除该行.  please remove this line
@@ -21,10 +23,16 @@ export default function Initializer () {
   const nextLayout = defaultSettings.layout === 'topmenu' && savedLayout === 'sidemenu'
     ? defaultSettings.layout
     : savedLayout
+  const token = normalizeAccessToken(storage.get(ACCESS_TOKEN))
   const savedTheme = storage.get(TOGGLE_NAV_THEME)
   const savedColor = storage.get(TOGGLE_COLOR)
-  const validThemes = ['light', 'dark', 'realdark']
-  const nextTheme = validThemes.includes(savedTheme) ? savedTheme : defaultSettings.navTheme
+  const { theme: nextTheme, language: nextLanguage } = resolveInitialPreferences({
+    token,
+    savedTheme,
+    savedLanguage: storage.get(APP_LANGUAGE),
+    theme: defaultSettings.navTheme,
+    language: defaultLang
+  })
   const nextColor = !savedColor || String(savedColor).toUpperCase() === legacyDefaultColor ? defaultSettings.primaryColor : savedColor
   store.commit(TOGGLE_LAYOUT, nextLayout)
   store.commit(TOGGLE_FIXED_HEADER, storage.get(TOGGLE_FIXED_HEADER, defaultSettings.fixedHeader))
@@ -36,15 +44,8 @@ export default function Initializer () {
   store.commit(TOGGLE_WEAK, storage.get(TOGGLE_WEAK, defaultSettings.colorWeak))
   store.commit(TOGGLE_COLOR, nextColor)
   store.commit(TOGGLE_MULTI_TAB, storage.get(TOGGLE_MULTI_TAB, defaultSettings.multiTab))
-  let token = storage.get(ACCESS_TOKEN)
-  if (token && typeof token !== 'string') {
-    token = token.token || token.value || (typeof token === 'object' ? null : token)
-  }
-  token = typeof token === 'string' ? token : null
   store.commit('SET_TOKEN', token)
 
-  const savedLanguage = storage.get(APP_LANGUAGE, defaultLang)
-  const nextLanguage = supportedLocales.includes(savedLanguage) ? savedLanguage : defaultLang
   store.dispatch('setLang', nextLanguage)
 
   // Fire-and-forget: pull brand / legal / contact config from backend so the

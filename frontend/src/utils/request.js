@@ -5,6 +5,7 @@ import notification from 'ant-design-vue/es/notification'
 import { VueAxios } from './axios'
 import { ACCESS_TOKEN, USER_INFO, USER_ROLES } from '@/store/mutation-types'
 import i18n from '@/locales'
+import { GUEST_DEFAULT_LANGUAGE } from './guestPreferences'
 
 const PHPSESSID_KEY = 'PHPSESSID'
 // Locale storage key used by vue-i18n (see src/locales/index.js)
@@ -216,7 +217,7 @@ request.interceptors.request.use(config => {
   }
 
   const token = getToken()
-  const lang = storage.get(LOCALE_KEY) || 'en-US'
+  const lang = storage.get(LOCALE_KEY) || (token ? 'en-US' : GUEST_DEFAULT_LANGUAGE)
 
   // Tell backend which UI language user is using, so AI reports can match it.
   // We keep both a custom header and the standard Accept-Language for compatibility.
