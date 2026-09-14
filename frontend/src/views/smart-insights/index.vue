@@ -784,7 +784,7 @@ export default {
       this.watchlist = Array.isArray(response.data && response.data.assets) ? response.data.assets : []
     },
     async loadPublicQuickReports (requestId) {
-      const assetKeys = ['crypto:BTC/USDT', 'forex:XAUUSD']
+      const assetKeys = ['crypto:BTC/USDT', 'crypto:SOL/USDT', 'crypto:LINK/USDT', 'forex:XAUUSD']
       const responses = await Promise.allSettled(assetKeys.map(assetKey => getPublicResearchReport(assetKey, 'quick')))
       if (!this.isCurrentRequest(requestId) || !this.isGuest) return
       this.publicQuickReports = responses

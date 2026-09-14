@@ -17,6 +17,8 @@ class PublicRepositoryDouble:
             "asOf": kwargs.get("as_of") or "2026-09-12",
             "opinions": [
                 {"market": "crypto", "symbol": "BTC", "stance": "neutral"},
+                {"market": "crypto", "symbol": "SOL", "stance": "neutral"},
+                {"market": "crypto", "symbol": "LINK", "stance": "neutral"},
                 {"market": "vn", "symbol": "VNINDEX", "stance": "positive"},
                 {"market": "gold", "symbol": "XAU", "stance": "neutral"},
                 {"market": "us", "symbol": "AAPL", "stance": "positive"},
@@ -96,17 +98,20 @@ def test_public_service_uses_only_fixed_shared_assets_and_never_tenant_imports()
 
     assert [item["displaySymbol"] for item in PUBLIC_ASSET_SCOPE] == [
         "BTC",
-        "VNINDEX",
+        "SOL",
+        "LINK",
         "XAU",
     ]
     assert [item["displaySymbol"] for item in result["assets"]] == [
         "BTC",
-        "VNINDEX",
+        "SOL",
+        "LINK",
         "XAU",
     ]
     assert [item["symbol"] for item in result["opinions"]] == [
         "BTC",
-        "VNINDEX",
+        "SOL",
+        "LINK",
         "XAU",
     ]
     assert repository.production_import_calls == []
@@ -255,7 +260,7 @@ def test_public_deep_report_pdf_renders_only_the_sanitized_published_payload(
             assert (asset_key, report_kind, locale) == (
                 "crypto:BTC/USDT",
                 "deep",
-                "vi-VN",
+                "en-US",
             )
             return {
                 "assetKey": asset_key,

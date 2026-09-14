@@ -11,14 +11,13 @@ from app.utils.db import get_db_connection
 
 PUBLIC_GUEST_ASSET_SCOPE: tuple[dict[str, str], ...] = (
     {"market": "Crypto", "symbol": "BTC/USDT", "displaySymbol": "BTC"},
-    {"market": "VNStock", "symbol": "VNINDEX", "displaySymbol": "VNINDEX"},
+    {"market": "Crypto", "symbol": "SOL/USDT", "displaySymbol": "SOL"},
+    {"market": "Crypto", "symbol": "LINK/USDT", "displaySymbol": "LINK"},
     {"market": "Forex", "symbol": "XAUUSD", "displaySymbol": "XAU"},
 )
-# VNINDEX stays visible in the public market view, but report generation waits
-# for the Vietnamese-equity research pipeline rather than using Yahoo-only data.
-PUBLIC_RESEARCH_ASSET_SCOPE: tuple[dict[str, str], ...] = tuple(
-    asset for asset in PUBLIC_GUEST_ASSET_SCOPE if asset["market"] != "VNStock"
-)
+# Keep the guest market and guest research scopes aligned. Vietnamese equities
+# can be added later when their dedicated research pipeline is ready.
+PUBLIC_RESEARCH_ASSET_SCOPE: tuple[dict[str, str], ...] = PUBLIC_GUEST_ASSET_SCOPE
 PUBLIC_RESEARCH_REPORT_KINDS = frozenset({"quick", "deep"})
 PUBLIC_RESEARCH_LOCALE = "vi-VN"
 _PAYLOAD_FIELDS = frozenset(

@@ -29,7 +29,8 @@ function guestResearchInDevelopment (item) {
 
 const GUEST_PUBLIC_ASSETS = Object.freeze([
   { market: 'Crypto', symbol: 'BTC/USDT', name: 'Bitcoin' },
-  { market: 'VNStock', symbol: 'VNINDEX', name: 'VNINDEX', researchInDevelopment: true },
+  { market: 'Crypto', symbol: 'SOL/USDT', name: 'Solana' },
+  { market: 'Crypto', symbol: 'LINK/USDT', name: 'Chainlink' },
   { market: 'Forex', symbol: 'XAUUSD', name: 'Gold' }
 ])
 
@@ -37,6 +38,8 @@ export function publicResearchAssetKey (item) {
   const market = cleanSymbol(item && item.market)
   const symbol = cleanSymbol(item && (item.symbol || item.sym))
   if (market === 'CRYPTO' && canonicalOpinionSymbol(symbol) === 'BTC') return 'crypto:BTC/USDT'
+  if (market === 'CRYPTO' && canonicalOpinionSymbol(symbol) === 'SOL') return 'crypto:SOL/USDT'
+  if (market === 'CRYPTO' && canonicalOpinionSymbol(symbol) === 'LINK') return 'crypto:LINK/USDT'
   if ((market === 'FOREX' || market === 'GOLD') && canonicalOpinionSymbol(symbol) === 'XAU') return 'forex:XAUUSD'
   return ''
 }

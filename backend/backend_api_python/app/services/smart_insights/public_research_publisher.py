@@ -109,12 +109,37 @@ class PublicResearchPublisher:
         return {"published": published, "failed": failed}
 
     def enqueue_weekly_deep_reports(self, *, effective_date: date | None = None) -> dict[str, int]:
+        return self._enqueue_deep_reports(
+            assets=PUBLIC_RESEARCH_ASSET_SCOPE,
+            effective_date=effective_date,
+        )
+
+    def enqueue_initial_deep_reports(
+        self,
+        *,
+        asset_keys: tuple[str, ...],
+        effective_date: date | None = None,
+    ) -> dict[str, int]:
+        """Queue the first public deep run for an explicit, bounded asset set."""
+        requested = {str(asset_key or "").strip() for asset_key in asset_keys}
+        assets = tuple(
+            asset for asset in PUBLIC_RESEARCH_ASSET_SCOPE
+            if public_asset_key(asset) in requested
+        )
+        return self._enqueue_deep_reports(assets=assets, effective_date=effective_date)
+
+    def _enqueue_deep_reports(
+        self,
+        *,
+        assets: tuple[Mapping[str, str], ...],
+        effective_date: date | None = None,
+    ) -> dict[str, int]:
         run_date = _effective_date(effective_date)
         principal_id = self._system_user_id()
         repository = self._trading_agents_repository()
         enqueue = self._trading_enqueue()
         queued = failed = 0
-        for asset in PUBLIC_RESEARCH_ASSET_SCOPE:
+        for asset in assets:
             key = public_asset_key(asset)
             run_id = uuid.uuid4().hex
             try:
