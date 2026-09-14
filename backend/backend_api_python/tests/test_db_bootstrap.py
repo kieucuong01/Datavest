@@ -28,8 +28,10 @@ class _FakeCursor:
 
     def __init__(self, deny_tables=()):
         self._deny = set(deny_tables)
+        self.executed_sql = []
 
     def execute(self, sql, *args, **kwargs):
+        self.executed_sql.append(sql)
         for name in self._deny:
             if name in sql:
                 raise RuntimeError(f"permission denied for table {name}")
@@ -44,9 +46,12 @@ class _FakeConn:
         self._deny_tables = deny_tables
         self.committed = False
         self.rolled_back = 0
+        self.cursors = []
 
     def cursor(self):
-        return _FakeCursor(self._deny_tables)
+        cursor = _FakeCursor(self._deny_tables)
+        self.cursors.append(cursor)
+        return cursor
 
     def commit(self):
         self.committed = True
@@ -113,6 +118,31 @@ def test_apply_init_sql_commits_on_success(tmp_path, monkeypatch):
         db_module._apply_init_sql(logging.getLogger('test'))
 
     assert conn.committed, "_apply_init_sql must commit on success"
+
+
+def test_apply_init_sql_includes_shared_watchlist_report_schema(tmp_path, monkeypatch):
+    """A production boot must create the shared-report table before workers use it."""
+    init_sql = tmp_path / 'init.sql'
+    init_sql.write_text("SELECT 1;", encoding='utf-8')
+    shared_reports_sql = tmp_path / 'shared_watchlist_reports.sql'
+    shared_reports_sql.write_text(
+        "CREATE TABLE IF NOT EXISTS shared_watchlist_research_reports (id BIGINT);",
+        encoding='utf-8',
+    )
+    monkeypatch.setattr(db_module, '_resolve_init_sql_path', lambda: init_sql)
+    monkeypatch.setattr(
+        db_module,
+        '_resolve_shared_watchlist_research_reports_sql_path',
+        lambda: shared_reports_sql,
+        raising=False,
+    )
+
+    conn = _FakeConn()
+    with patch.object(db_module, 'get_db_connection', return_value=_FakeConnCtx(conn)):
+        db_module._apply_init_sql(logging.getLogger('test'))
+
+    applied_sql = '\n'.join(sql for cursor in conn.cursors for sql in cursor.executed_sql)
+    assert 'shared_watchlist_research_reports' in applied_sql
 
 
 def test_verify_table_access_logs_ok_when_all_tables_readable(caplog):

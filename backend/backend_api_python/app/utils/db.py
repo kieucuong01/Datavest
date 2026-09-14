@@ -152,6 +152,10 @@ def _resolve_public_research_reports_sql_path() -> Path:
     return Path(__file__).resolve().parent.parent.parent / 'migrations' / '20260913_public_research_reports.sql'
 
 
+def _resolve_shared_watchlist_research_reports_sql_path() -> Path:
+    return Path(__file__).resolve().parent.parent.parent / 'migrations' / '20260914_shared_watchlist_research_reports.sql'
+
+
 def _apply_init_sql(logger, *, strict: bool = False):
     """Run ``migrations/init.sql`` idempotently.
 
@@ -215,6 +219,9 @@ def _apply_init_sql(logger, *, strict: bool = False):
         public_research_reports_sql = _resolve_public_research_reports_sql_path()
         if public_research_reports_sql.exists():
             sql_parts.append(public_research_reports_sql.read_text(encoding='utf-8'))
+        shared_watchlist_research_reports_sql = _resolve_shared_watchlist_research_reports_sql_path()
+        if shared_watchlist_research_reports_sql.exists():
+            sql_parts.append(shared_watchlist_research_reports_sql.read_text(encoding='utf-8'))
         sql_text = "\n\n".join(sql_parts)
         bitview_sql = init_sql.parent / '20260911_bitview_onchain.sql'
         if bitview_sql.exists():
@@ -255,6 +262,8 @@ def _apply_init_sql(logger, *, strict: bool = False):
             total_size += trading_agents_sql.stat().st_size
         if public_research_reports_sql.exists():
             total_size += public_research_reports_sql.stat().st_size
+        if shared_watchlist_research_reports_sql.exists():
+            total_size += shared_watchlist_research_reports_sql.stat().st_size
         logger.info("Applied migrations seed SQL (%d bytes)", total_size)
     except Exception as exc:
         if strict:
