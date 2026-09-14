@@ -835,7 +835,7 @@ export default {
         if (this.isCurrentRequest(requestId)) this.cryptoPulse = this.smartInsightsCache.pulse.get(cacheKey)
         return
       }
-      const response = await getSmartInsightsCryptoPulse({ as_of: this.asOf, compact: 1, stage: 'summary' })
+      const response = await getSmartInsightsCryptoPulse({ compact: 1, stage: 'summary' })
       if (!this.isCurrentRequest(requestId)) return
       this.smartInsightsCache.pulse.set(cacheKey, response.data)
       this.cryptoPulse = response.data
@@ -871,7 +871,7 @@ export default {
         }
         return
       }
-      const response = await getSmartInsightsCryptoPulse({ as_of: this.asOf, compact: 1, stage })
+      const response = await getSmartInsightsCryptoPulse({ compact: 1, stage })
       if (!this.isCurrentRequest(requestId)) return
       cache.set(cacheKey, response.data)
       if (stage === 'core') this.cryptoPulse = response.data

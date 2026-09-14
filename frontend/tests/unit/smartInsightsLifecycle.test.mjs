@@ -132,6 +132,22 @@ test('market pulse shows a small summary before requesting core and on-chain det
   assert.equal(p.cryptoOnchainPulse.loadStage, 'onchain')
 })
 
+test('market pulse stays current when the overview snapshot is stale', async () => {
+  const pulseDates = []
+  const { instance: p } = page({
+    getSmartInsightsCryptoPulse: async args => {
+      pulseDates.push(args.as_of)
+      return { data: { status: 'AVAILABLE', loadStage: args.stage, tabs: {} } }
+    }
+  })
+
+  p.asOf = '2026-09-02'
+  await p.loadPulse(p.requestSequence, true)
+  await p.loadPulseStage('core', p.requestSequence, true)
+
+  assert.deepEqual(pulseDates, [undefined, undefined])
+})
+
 test('market pulse requests heavy terminals only when it nears the viewport', () => {
   let observer
   class FakeIntersectionObserver {
