@@ -39,7 +39,7 @@ test('Guest Asset Opinions reads public quick and deep reports without a login r
   assert.match(source, /public-deep-report/u)
   assert.match(source, /<report-pdf-reader[\s\S]*:public-asset-key="isGuest \? selectedOpinionRow\.publicAssetKey : ''"/u)
   assert.match(source, /:shared-asset-key="!isGuest \? selectedOpinionRow\.sharedResearchAssetKey : ''"/u)
-  assert.match(source, /publicDeepReportView:\s*'summary'/u)
+  assert.match(source, /publicDeepReportView:\s*'full'/u)
   assert.match(source, /v-model="publicDeepReportView"/u)
   assert.match(source, /:variant="publicDeepReportView"/u)
   assert.match(apiSource, /getPublicResearchReportSummaryPdf/u)
