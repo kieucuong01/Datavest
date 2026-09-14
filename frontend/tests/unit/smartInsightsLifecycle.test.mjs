@@ -256,6 +256,53 @@ test('navigation cancels speech and invalidates pending requests', () => {
   assert.equal(p.isCurrentRequest(old), false)
 })
 
+test('shared report polling refreshes pending work once and stops after a terminal state', async () => {
+  const intervals = []
+  const cleared = []
+  const browser = {
+    setInterval: (callback, delay) => {
+      intervals.push({ callback, delay })
+      return 42
+    },
+    clearInterval: timer => cleared.push(timer)
+  }
+  const { instance: p } = page({ window: browser })
+  p.isGuest = false
+  p.sharedResearchStates = [{ assetKey: 'crypto:BTC/USDT', reportKind: 'deep', status: 'pending' }]
+  p.loadSharedResearchReports = async () => {
+    p.sharedResearchStates = [{ assetKey: 'crypto:BTC/USDT', reportKind: 'deep', status: 'complete' }]
+  }
+
+  assert.equal(typeof p.startSharedReportPolling, 'function')
+  p.startSharedReportPolling()
+  assert.equal(intervals.length, 1)
+  assert.equal(intervals[0].delay, 15000)
+
+  await intervals[0].callback()
+  assert.deepEqual(cleared, [42])
+})
+
+test('shared report polling keeps the pending timer alive after a transient refresh failure', async () => {
+  const intervals = []
+  const cleared = []
+  const browser = {
+    setInterval: (callback, delay) => {
+      intervals.push({ callback, delay })
+      return 99
+    },
+    clearInterval: timer => cleared.push(timer)
+  }
+  const { instance: p } = page({ window: browser })
+  p.isGuest = false
+  p.sharedResearchStates = [{ assetKey: 'crypto:BTC/USDT', reportKind: 'quick', status: 'pending' }]
+  p.loadSharedResearchReports = async () => { throw new Error('temporary network failure') }
+
+  p.startSharedReportPolling()
+  await intervals[0].callback()
+  assert.deepEqual(cleared, [])
+  assert.equal(p.sharedReportPollingTimer, 99)
+})
+
 test('unknown and failed data states cannot be labelled ready', () => {
   for (const status of ['ERROR', 'FAILED', '', 'UNKNOWN', 'PARTIAL']) {
     assert.notEqual(summarizeReadiness([{ status }]).status, 'READY')

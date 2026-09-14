@@ -398,6 +398,8 @@ export default {
       publicDeepLoading: false,
       publicDeepError: '',
       publicDeepRequestId: 0,
+      sharedReportPollingTimer: null,
+      sharedReportPollingInFlight: false,
       quickAnalysisHistory: [],
       quickHistoryLoading: false,
       quickHistoryError: '',
@@ -644,6 +646,7 @@ export default {
       this.watchlist = []
       this.publicQuickReports = []
       this.sharedResearchStates = []
+      this.stopSharedReportPolling()
       this.overview = null
       this.smartInsightsCache.dates = null
       this.smartInsightsCache.overview.clear()
@@ -658,6 +661,7 @@ export default {
   },
   beforeDestroy () {
     window.clearInterval(this.calendarRefreshTimer)
+    this.stopSharedReportPolling()
     this.requestSequence++
     this.closeEvidence()
     this.stopHeroSpeech()
@@ -795,6 +799,8 @@ export default {
       const response = await getSharedResearchReports()
       if (!this.isCurrentRequest(requestId) || this.isGuest) return
       this.sharedResearchStates = response && response.code === 1 && Array.isArray(response.data) ? response.data : []
+      this.refreshSelectedSharedResearchRow()
+      this.syncSharedReportPolling()
     },
     async loadDates (requestId, force = false) {
       if (!force && Array.isArray(this.smartInsightsCache.dates)) {
@@ -955,6 +961,53 @@ export default {
         if (requestId === this.quickHistoryRequestId && this.analysisModalVisible && this.selectedOpinionRow === row) this.quickHistoryError = this.$t('smartInsights.quickHistoryLoadFailed')
       } finally {
         if (requestId === this.quickHistoryRequestId) this.quickHistoryLoading = false
+      }
+    },
+    hasPendingSharedReports () {
+      return !this.isGuest && this.sharedResearchStates.some(report => String(report && report.status || '').toLowerCase() === 'pending')
+    },
+    startSharedReportPolling () {
+      if (!this.hasPendingSharedReports()) {
+        this.stopSharedReportPolling()
+        return
+      }
+      if (this.sharedReportPollingTimer !== null || typeof window === 'undefined') return
+      this.sharedReportPollingTimer = window.setInterval(() => this.refreshPendingSharedReports(), 15000)
+    },
+    stopSharedReportPolling () {
+      if (this.sharedReportPollingTimer !== null && typeof window !== 'undefined') window.clearInterval(this.sharedReportPollingTimer)
+      this.sharedReportPollingTimer = null
+      this.sharedReportPollingInFlight = false
+    },
+    syncSharedReportPolling () {
+      if (this.hasPendingSharedReports()) this.startSharedReportPolling()
+      else this.stopSharedReportPolling()
+    },
+    async refreshPendingSharedReports () {
+      if (this.sharedReportPollingInFlight) return
+      if (!this.hasPendingSharedReports()) {
+        this.stopSharedReportPolling()
+        return
+      }
+      this.sharedReportPollingInFlight = true
+      try {
+        await this.loadSharedResearchReports(this.requestSequence)
+      } catch (_) {
+        // Keep polling while the last known report state is pending; a brief
+        // network failure must not turn an in-progress analysis into a stuck UI.
+      } finally {
+        this.sharedReportPollingInFlight = false
+        this.syncSharedReportPolling()
+      }
+    },
+    refreshSelectedSharedResearchRow () {
+      if (!this.selectedOpinionRow) return
+      const refreshed = this.opinionRows.find(row => row.id === this.selectedOpinionRow.id)
+      if (!refreshed) return
+      this.selectedOpinionRow = refreshed
+      if (this.analysisMode === 'deep') {
+        this.publicDeepReport = (refreshed.deepState && refreshed.deepState.report) || null
+        if (this.publicDeepReport) this.publicDeepPdfRevision++
       }
     },
     selectQuickAnalysisHistory (report) {
