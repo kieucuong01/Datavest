@@ -83,6 +83,7 @@
       :footer="null"
       :destroy-on-close="false"
       :mask-closable="true"
+      :z-index="1300"
       :wrap-class-name="isDarkTheme ? 'asset-analysis-modal asset-analysis-modal--hub theme-dark' : 'asset-analysis-modal asset-analysis-modal--hub'"
       @cancel="closeAssetAnalysis"
     >
