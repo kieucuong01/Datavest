@@ -13,7 +13,7 @@
       <span>{{ $t('tradingAgents.pdfExportFailed') }}</span>
       <a-button @click="loadPdf">{{ $t('tradingAgents.retryReport') }}</a-button>
     </div>
-    <iframe v-else-if="pdfUrl" :src="pdfUrl + '#view=FitH&navpanes=0'" :title="$t('tradingAgents.reportTitle')" class="pdf-frame" />
+    <iframe v-else-if="pdfUrl" :src="pdfUrl + '#zoom=100&navpanes=0'" :title="$t('tradingAgents.reportTitle')" class="pdf-frame" />
   </section>
 </template>
 
