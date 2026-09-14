@@ -342,9 +342,14 @@ def request_shared_research_report(asset_key: str, report_kind: str):
 @observe_feature_operation("smart_insights", "crypto_market_pulse")
 def public_crypto_market_pulse():
     try:
-        data = get_public_smart_insights_service().get_crypto_market_pulse(
-            as_of=request.args.get("as_of"), compact=_compact_requested()
-        )
+        service_kwargs = {
+            "as_of": request.args.get("as_of"),
+            "compact": _compact_requested(),
+        }
+        stage = request.args.get("stage")
+        if stage:
+            service_kwargs["stage"] = stage
+        data = get_public_smart_insights_service().get_crypto_market_pulse(**service_kwargs)
         if _compact_requested():
             data = compact_pulse_response(data)
         return _ok(data)
@@ -449,6 +454,9 @@ def crypto_market_pulse():
         }
         if compact:
             service_kwargs["compact"] = True
+        stage = request.args.get("stage")
+        if stage:
+            service_kwargs["stage"] = stage
         data = get_smart_insights_service().get_crypto_market_pulse(**service_kwargs)
         if compact:
             data = compact_pulse_response(data)

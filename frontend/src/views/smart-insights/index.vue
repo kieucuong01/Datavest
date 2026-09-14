@@ -55,10 +55,14 @@
 
       <market-pulse-section
         :pulse="cryptoPulse || {}"
+        :onchain-pulse="cryptoOnchainPulse || {}"
         :overview="overview || {}"
         :calendar-events="calendarEvents"
         :locale="$i18n && $i18n.locale"
         :loading="pulseLoading"
+        :detail-loading="pulseDetailsLoading"
+        :onchain-loading="pulseOnchainLoading"
+        :core-ready="pulseCoreReady"
         :crypto-ready="cryptoTerminalsReady"
         @near-viewport="scheduleCryptoTerminals"
         @open-evidence="openEvidence"
@@ -370,6 +374,7 @@ export default {
       dates: [],
       overview: null,
       cryptoPulse: null,
+      cryptoOnchainPulse: null,
       calendarEvents: [],
       calendarMeta: {},
       calendarFilter: {
@@ -402,6 +407,8 @@ export default {
       overviewLoading: false,
       opinionsLoading: false,
       pulseLoading: false,
+      pulseDetailsLoading: false,
+      pulseOnchainLoading: false,
       healthLoading: false,
       evidenceLoading: false,
       evidenceVisible: false,
@@ -420,7 +427,9 @@ export default {
         health: null,
         calendar: null,
         overview: new Map(),
-        pulse: new Map()
+        pulse: new Map(),
+        pulseCore: new Map(),
+        pulseOnchain: new Map()
       },
       cryptoTerminalsReady: false,
       cryptoIdleHandle: null,
@@ -435,6 +444,7 @@ export default {
     ...mapState({ navTheme: state => state.app.theme, authToken: state => state.user && state.user.token }),
     isGuest () { return !hasAccessToken(this.authToken || storage.get(ACCESS_TOKEN)) },
     isDarkTheme () { return this.navTheme === 'dark' || this.navTheme === 'realdark' },
+    pulseCoreReady () { return Boolean(this.cryptoPulse && this.cryptoPulse.loadStage && this.cryptoPulse.loadStage !== 'summary') },
     hasOverview () { return Boolean(this.overview && this.overview.status !== 'UNAVAILABLE') },
     dailyBrief () { return (this.overview && this.overview.dailyBrief) || { status: 'UNAVAILABLE', content: '', assetCount: 0 } },
     opinionRows () {
@@ -694,6 +704,7 @@ export default {
         this.cryptoIdleHandle = null
         this.cryptoReadyTimer = null
         this.cryptoTerminalsReady = true
+        this.loadPulseDetails(this.requestSequence).catch(() => {})
       }
       if (typeof window.requestIdleCallback === 'function') {
         this.cryptoIdleHandle = window.requestIdleCallback(markReady, { timeout: 1200 })
@@ -710,6 +721,9 @@ export default {
       this.retryingSection = ''
       this.overview = null
       this.cryptoPulse = null
+      this.cryptoOnchainPulse = null
+      this.pulseDetailsLoading = false
+      this.pulseOnchainLoading = false
       this.calendarEvents = []
       this.calendarMeta = {}
       this.calendarError = ''
@@ -814,10 +828,47 @@ export default {
         if (this.isCurrentRequest(requestId)) this.cryptoPulse = this.smartInsightsCache.pulse.get(cacheKey)
         return
       }
-      const response = await getSmartInsightsCryptoPulse({ as_of: this.asOf, compact: 1 })
+      const response = await getSmartInsightsCryptoPulse({ as_of: this.asOf, compact: 1, stage: 'summary' })
       if (!this.isCurrentRequest(requestId)) return
       this.smartInsightsCache.pulse.set(cacheKey, response.data)
       this.cryptoPulse = response.data
+      if (this.cryptoTerminalsReady) this.loadPulseDetails(requestId, force).catch(() => {})
+    },
+    async loadPulseDetails (requestId, force = false) {
+      if (!this.isCurrentRequest(requestId) || this.pulseDetailsLoading) return
+      this.pulseDetailsLoading = true
+      try {
+        await this.loadPulseStage('core', requestId, force)
+      } catch (error) {
+        if (this.isCurrentRequest(requestId)) this.sectionErrors.pulse = true
+      } finally {
+        if (this.isCurrentRequest(requestId)) this.pulseDetailsLoading = false
+      }
+      if (!this.isCurrentRequest(requestId)) return
+      this.pulseOnchainLoading = true
+      try {
+        await this.loadPulseStage('onchain', requestId, force)
+      } catch (error) {
+        if (this.isCurrentRequest(requestId)) this.sectionErrors.pulse = true
+      } finally {
+        if (this.isCurrentRequest(requestId)) this.pulseOnchainLoading = false
+      }
+    },
+    async loadPulseStage (stage, requestId, force = false) {
+      const cache = stage === 'core' ? this.smartInsightsCache.pulseCore : this.smartInsightsCache.pulseOnchain
+      const cacheKey = this.cacheKey()
+      if (!force && cache.has(cacheKey)) {
+        if (this.isCurrentRequest(requestId)) {
+          if (stage === 'core') this.cryptoPulse = cache.get(cacheKey)
+          else this.cryptoOnchainPulse = cache.get(cacheKey)
+        }
+        return
+      }
+      const response = await getSmartInsightsCryptoPulse({ as_of: this.asOf, compact: 1, stage })
+      if (!this.isCurrentRequest(requestId)) return
+      cache.set(cacheKey, response.data)
+      if (stage === 'core') this.cryptoPulse = response.data
+      else this.cryptoOnchainPulse = response.data
     },
     async loadCalendar (force = false, requestId) {
       if (this.isCurrentRequest(requestId)) { this.calendarError = ''; this.calendarMeta = {} }

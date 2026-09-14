@@ -8,7 +8,7 @@ from functools import lru_cache
 from app.utils.request_guard import cache_key, guarded_cached
 from app.utils.timeutil import vietnam_calendar_date
 
-from .repository import SmartInsightsRepository
+from .repository import SmartInsightsRepository, normalize_pulse_load_stage
 from .data_contract import attach_data_contract, freshness_for_status
 
 
@@ -154,19 +154,21 @@ class SmartInsightsService:
 
     def get_crypto_market_pulse(
         self, *, user_id: int, as_of: str | None, mode: str | None,
-        compact: bool = False,
+        compact: bool = False, stage: str = "full",
     ) -> dict:
         normalized_mode, data_class = _mode(mode)
         normalized_as_of = _as_of(as_of)
+        normalized_stage = normalize_pulse_load_stage(stage)
         if compact:
             return guarded_cached(
                 cache_key(
                     "smart-insights",
                     "crypto-pulse",
-                    "compact-v1",
+                    "compact-v2",
                     int(user_id),
                     normalized_mode,
                     normalized_as_of or "latest",
+                    normalized_stage,
                 ),
                 lambda: self._build_crypto_market_pulse(
                     user_id=int(user_id),
@@ -174,6 +176,7 @@ class SmartInsightsService:
                     data_class=data_class,
                     as_of=normalized_as_of,
                     compact=True,
+                    stage=normalized_stage,
                 ),
                 ttl_sec=300,
                 stale_ttl_sec=1800,
@@ -187,6 +190,7 @@ class SmartInsightsService:
             data_class=data_class,
             as_of=normalized_as_of,
             compact=False,
+            stage=normalized_stage,
         )
 
     def _build_crypto_market_pulse(
@@ -197,6 +201,7 @@ class SmartInsightsService:
         data_class: str,
         as_of: str | None,
         compact: bool,
+        stage: str,
     ) -> dict:
         if data_class == "LIVE":
             imported_pulse = self._production_import(int(user_id), "crypto_pulse")
@@ -220,14 +225,16 @@ class SmartInsightsService:
                 }
                 if compact:
                     repository_kwargs["compact"] = True
+                if stage != "full":
+                    repository_kwargs["stage"] = stage
                 runtime = build_crypto_market_pulse(
                     self.repository.list_pulse_observations(**repository_kwargs),
                     mode=normalized_mode,
                 )
-                return self._attach_pulse_contract(
+                return self._with_pulse_stage(self._attach_pulse_contract(
                     merge_imported_crypto_market_pulse(imported, runtime),
                     requested_as_of=as_of,
-                )
+                ), stage)
         from .crypto_pulse import build_crypto_market_pulse
 
         repository_kwargs = {
@@ -236,13 +243,20 @@ class SmartInsightsService:
         }
         if compact:
             repository_kwargs["compact"] = True
-        return self._attach_pulse_contract(
+        if stage != "full":
+            repository_kwargs["stage"] = stage
+        return self._with_pulse_stage(self._attach_pulse_contract(
             build_crypto_market_pulse(
                 self.repository.list_pulse_observations(**repository_kwargs),
                 mode=normalized_mode,
             ),
             requested_as_of=as_of,
-        )
+        ), stage)
+
+    @staticmethod
+    def _with_pulse_stage(payload: dict, stage: str) -> dict:
+        payload["loadStage"] = stage
+        return payload
 
     @staticmethod
     def _attach_pulse_contract(payload: dict, *, requested_as_of: str | None) -> dict:

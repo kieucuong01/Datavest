@@ -14,6 +14,45 @@ from app.services.smart_insights.health import classify_freshness
 from app.utils.db import get_db_connection
 
 
+PULSE_LOAD_STAGES = frozenset({"full", "summary", "core", "onchain"})
+
+
+def normalize_pulse_load_stage(value: Any) -> str:
+    stage = str(value or "full").strip().lower() or "full"
+    if stage not in PULSE_LOAD_STAGES:
+        raise ValueError("invalid_pulse_stage")
+    return stage
+
+
+def _pulse_stage_filter(stage: str, as_of: str | None) -> tuple[str, tuple[Any, ...]]:
+    if stage == "summary":
+        if as_of:
+            return "AND o.effective_at >= (?::date - INTERVAL '21 days')", (as_of,)
+        return "AND o.effective_at >= NOW() - INTERVAL '21 days'", ()
+    if stage == "core":
+        return """
+            AND (
+                COALESCE(o.value_json->>'metric', '') IN (
+                    'crypto.fear_greed.index',
+                    'crypto.etf.net_flow_usd',
+                    'crypto.coinshares.net_flow_usd',
+                    'crypto.chain.block_height',
+                    'crypto.market.price_usd'
+                )
+                OR COALESCE(o.value_json->>'metric', '') LIKE 'crypto.derivatives.%'
+                OR COALESCE(o.value_json->>'metric', '') LIKE 'crypto.cycle.%'
+            )
+        """, ()
+    if stage == "onchain":
+        return """
+            AND (
+                COALESCE(o.value_json->>'metric', '') LIKE 'crypto.onchain.%'
+                OR COALESCE(o.value_json->>'metric', '') LIKE 'crypto.large_address.%'
+            )
+        """, ()
+    return "", ()
+
+
 def _json_value(value: Any, fallback: Any) -> Any:
     if value is None:
         return fallback
@@ -118,17 +157,21 @@ class SmartInsightsRepository:
         }
 
     def list_pulse_observations(
-        self, *, data_class: str, as_of: str | None, compact: bool = False
+        self, *, data_class: str, as_of: str | None, compact: bool = False,
+        stage: str = "full",
     ) -> list[dict[str, Any]]:
         """Return bounded, provenance-complete evidence for the pulse read model."""
+        normalized_stage = normalize_pulse_load_stage(stage)
         params: list[Any] = [data_class]
         as_of_filter = ""
         if as_of:
             as_of_filter = "AND o.effective_at < (?::date + INTERVAL '1 day')"
             params.append(as_of)
+        stage_filter, stage_params = _pulse_stage_filter(normalized_stage, as_of)
+        params.extend(stage_params)
         if compact:
             return self._list_compact_pulse_observations(
-                params=tuple(params), as_of_filter=as_of_filter
+                params=tuple(params), as_of_filter=as_of_filter, stage_filter=stage_filter
             )
         with get_db_connection() as db:
             cur = db.cursor()
@@ -150,6 +193,7 @@ class SmartInsightsRepository:
                     OR s.code = 'blockchaincenter-altcoin-season'
                   )
                   {as_of_filter}
+                  {stage_filter}
                   AND (o.market = 'crypto' OR s.code = 'cryptocraft')
                 ORDER BY o.effective_at ASC, o.observed_at ASC, o.id ASC
                 LIMIT 100000
@@ -161,7 +205,7 @@ class SmartInsightsRepository:
         return [self._evidence_row(row) for row in rows]
 
     def _list_compact_pulse_observations(
-        self, *, params: tuple[Any, ...], as_of_filter: str
+        self, *, params: tuple[Any, ...], as_of_filter: str, stage_filter: str
     ) -> list[dict[str, Any]]:
         """Deduplicate and sample chart history before JSON rows leave Postgres."""
         series_key = """
@@ -214,6 +258,7 @@ class SmartInsightsRepository:
                         OR s.code = 'blockchaincenter-altcoin-season'
                       )
                       {as_of_filter}
+                      {stage_filter}
                       AND (o.market = 'crypto' OR s.code = 'cryptocraft')
                 ),
                 deduplicated AS (

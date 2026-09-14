@@ -15,7 +15,7 @@ from .public_reports import (
     PUBLIC_GUEST_ASSET_SCOPE,
     PublicResearchReportsService,
 )
-from .repository import SmartInsightsRepository
+from .repository import SmartInsightsRepository, normalize_pulse_load_stage
 from .service import SmartInsightsService
 from .watchlist_scope import opinion_key
 
@@ -237,22 +237,28 @@ class PublicSmartInsightsService:
         return self.public_reports.get_latest(asset_key, report_kind, locale)
 
     def get_crypto_market_pulse(
-        self, *, as_of: str | None = None, compact: bool = False
+        self, *, as_of: str | None = None, compact: bool = False,
+        stage: str = "full",
     ) -> dict[str, Any]:
         normalized_as_of = _validated_as_of(as_of)
+        normalized_stage = normalize_pulse_load_stage(stage)
         repository_kwargs: dict[str, Any] = {
             "data_class": "LIVE",
             "as_of": normalized_as_of,
         }
         if compact:
             repository_kwargs["compact"] = True
+        if normalized_stage != "full":
+            repository_kwargs["stage"] = normalized_stage
         payload = build_crypto_market_pulse(
             self.repository.list_pulse_observations(**repository_kwargs),
             mode="live",
         )
-        return SmartInsightsService._attach_pulse_contract(
+        result = SmartInsightsService._attach_pulse_contract(
             payload, requested_as_of=normalized_as_of
         )
+        result["loadStage"] = normalized_stage
+        return result
 
 
 @lru_cache(maxsize=1)

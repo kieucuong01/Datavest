@@ -113,6 +113,25 @@ test('first visit starts latest overview and pulse without waiting for dates', a
   assert.deepEqual(p.watchlist.map(asset => asset.displaySymbol), ['BTC'])
 })
 
+test('market pulse shows a small summary before requesting core and on-chain detail', async () => {
+  const stages = []
+  const { instance: p } = page({
+    getSmartInsightsCryptoPulse: async args => {
+      stages.push(args.stage)
+      return { data: { status: 'AVAILABLE', loadStage: args.stage, tabs: {} } }
+    }
+  })
+
+  await p.loadAll()
+  assert.deepEqual(stages, ['summary'])
+  assert.equal(p.cryptoPulse.loadStage, 'summary')
+
+  await p.loadPulseDetails(p.requestSequence)
+  assert.deepEqual(stages, ['summary', 'core', 'onchain'])
+  assert.equal(p.cryptoPulse.loadStage, 'core')
+  assert.equal(p.cryptoOnchainPulse.loadStage, 'onchain')
+})
+
 test('market pulse requests heavy terminals only when it nears the viewport', () => {
   let observer
   class FakeIntersectionObserver {

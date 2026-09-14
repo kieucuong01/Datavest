@@ -25,7 +25,8 @@ test('Smart Insights defers crypto terminals until the first page render is read
   assert.match(pageSource, /requestIdleCallback|scheduleCryptoTerminals/u)
   assert.match(pageSource, /crypto-ready/u)
   assert.match(pulseSource, /cryptoReady/u)
-  assert.match(pulseSource, /activeKey === 'crypto' && !cryptoReady/u)
+  assert.match(pulseSource, /activeKey === 'crypto' && \(!cryptoReady \|\| !coreReady\)/u)
+  assert.match(pulseSource, /onchainLoading/u)
 })
 
 test('Global live ticker polls continuously only while Smart Insights is active', () => {

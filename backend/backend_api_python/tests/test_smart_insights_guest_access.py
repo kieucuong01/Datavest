@@ -9,6 +9,7 @@ class PublicRepositoryDouble:
     def __init__(self):
         self.overview_calls = []
         self.production_import_calls = []
+        self.pulse_calls = []
 
     def get_overview_all(self, **kwargs):
         self.overview_calls.append(deepcopy(kwargs))
@@ -82,6 +83,7 @@ class PublicRepositoryDouble:
         ]
 
     def list_pulse_observations(self, **kwargs):
+        self.pulse_calls.append(deepcopy(kwargs))
         return []
 
 
@@ -162,6 +164,20 @@ def test_public_evidence_rejects_non_live_rows_and_unbounded_ids():
         assert str(exc) == "invalid_evidence_id"
     else:
         raise AssertionError("oversized evidence id must be rejected")
+
+
+def test_public_pulse_uses_a_bounded_summary_stage_before_detail_stages():
+    from app.services.smart_insights.public_access import PublicSmartInsightsService
+
+    repository = PublicRepositoryDouble()
+    result = PublicSmartInsightsService(repository=repository).get_crypto_market_pulse(
+        compact=True, stage="summary"
+    )
+
+    assert result["loadStage"] == "summary"
+    assert repository.pulse_calls == [
+        {"data_class": "LIVE", "as_of": None, "compact": True, "stage": "summary"}
+    ]
 
 
 def test_public_routes_are_anonymous_while_private_routes_still_require_jwt(

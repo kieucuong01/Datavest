@@ -44,19 +44,27 @@
           <article class="pulse-tile"><span>{{ $t('smartInsights.analysisDate') }}</span><strong>{{ analysisDate }}</strong><small>{{ $t('smartInsights.equitiesSourceHint') }}</small></article>
         </div>
       </section>
-      <template v-else-if="activeKey === 'crypto' && !cryptoReady">
+      <template v-else-if="activeKey === 'crypto' && (!cryptoReady || !coreReady)">
         <div class="crypto-terminal-deferred" aria-live="polite">
-          <a-skeleton active :paragraph="{ rows: 8 }" />
+          <div class="pulse-progress">
+            <span class="complete">{{ $t('smartInsights.currentData') }}</span>
+            <span :class="{ active: detailLoading }">{{ $t('smartInsights.waitingForData') }}</span>
+            <span>{{ $t('smartInsights.waitingForData') }}</span>
+          </div>
+          <a-skeleton active :paragraph="{ rows: 5 }" />
         </div>
       </template>
       <template v-else>
         <fear-greed-panel v-if="fearGreed" :fear="fearGreed" />
         <div class="pulse-detail-grid">
           <flow-terminal v-if="panel.etfFlows" :flow="panel.etfFlows" :is-current="pulseIsCurrent" />
-          <whale-flow-monitor v-if="panel.whaleFlows" :whale-flow="panel.whaleFlows" />
           <derivatives-terminal :derivatives="panel" />
           <cycle-terminal :cycle="panel" :is-current="pulseIsCurrent" />
-          <onchain-terminal :onchain="panel" />
+          <div v-if="onchainLoading" class="onchain-terminal-deferred" aria-live="polite"><a-skeleton active :paragraph="{ rows: 4 }" /></div>
+          <template v-else>
+            <whale-flow-monitor v-if="onchainPanel.whaleFlows" :whale-flow="onchainPanel.whaleFlows" />
+            <onchain-terminal :onchain="onchainPanel" />
+          </template>
         </div>
       </template>
     </template>
@@ -78,9 +86,13 @@ export default {
   props: {
     pulse: { type: Object, default: () => ({}) },
     overview: { type: Object, default: () => ({}) },
+    onchainPulse: { type: Object, default: () => ({}) },
     calendarEvents: { type: Array, default: () => [] },
     locale: { type: String, default: 'vi' },
     loading: { type: Boolean, default: false },
+    detailLoading: { type: Boolean, default: false },
+    onchainLoading: { type: Boolean, default: false },
+    coreReady: { type: Boolean, default: false },
     cryptoReady: { type: Boolean, default: false }
   },
   data () { return { tabs: MARKET_PULSE_TABS, activeKey: 'crypto', viewportObserver: null } },
@@ -89,6 +101,7 @@ export default {
   computed: {
     activeTab () { return this.tabs.find(tab => tab.key === this.activeKey) || this.tabs[0] },
     panel () { return buildPulsePanel(this.pulse, this.activeKey) },
+    onchainPanel () { return buildPulsePanel(this.onchainPulse, this.activeKey) },
     pulseIsCurrent () { return String(this.pulse && this.pulse.freshness || '').toUpperCase() === 'FRESH' },
     fearGreed () {
       if (this.activeKey !== 'crypto') return null
@@ -166,6 +179,7 @@ export default {
 .pulse-tile span, .pulse-tile small { color: var(--muted); font-size: 13px; }
 .pulse-tile strong { color: var(--ink); font-size: 21px; }
 .pulse-detail-grid { display: grid; gap: 12px; margin-top: 12px; }
-.crypto-terminal-deferred { min-height: 520px; margin-top: 12px; padding: 22px; border: 1px solid var(--line); border-radius: 12px; background: var(--card); }
+.crypto-terminal-deferred { min-height: 300px; margin-top: 12px; padding: 22px; border: 1px solid var(--line); border-radius: 12px; background: var(--card); }
+.pulse-progress { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }.pulse-progress span { padding: 5px 9px; border: 1px solid var(--line); border-radius: 999px; color: var(--muted); font-size: 12px; }.pulse-progress .complete { color: #168354; border-color: #b7ead6; background: #ecfbf4; }.pulse-progress .active { color: var(--blue); border-color: var(--primary-color-ring, var(--blue-ring)); background: var(--soft-blue); }.onchain-terminal-deferred { min-height: 250px; padding: 20px; border: 1px solid var(--line); border-radius: 12px; background: var(--card); }
 @media (max-width: 680px) { .pulse-tiles { grid-template-columns: 1fr; } }
 </style>
