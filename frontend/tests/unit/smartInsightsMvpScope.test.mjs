@@ -9,7 +9,7 @@ const marketPulse = fs.readFileSync(new URL('../../src/views/smart-insights/comp
 test('Smart Insights uses shared public assets and keeps the data readiness surface', () => {
   assert.doesNotMatch(page, /getWatchlist/u)
   assert.match(page, /response\.data\.assets/u)
-  assert.match(page, /buildWatchlistOpinionRows/u)
+  assert.match(page, /buildAccountOpinionRows/u)
   assert.doesNotMatch(page, /<section class="daily-hero"/u)
   assert.match(page, /data-readiness/u)
   assert.match(page, /cryptoPulse/u)

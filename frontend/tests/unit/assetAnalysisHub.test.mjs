@@ -4,24 +4,18 @@ import test from 'node:test'
 
 const read = relative => readFileSync(new URL(`../../${relative}`, import.meta.url), 'utf8')
 
-test('Smart Insights presents quick and deep analysis in one asset-analysis hub', () => {
+test('Smart Insights presents TradingAgents research without AI Assistant quick analysis', () => {
   const page = read('src/views/smart-insights/index.vue')
   const opinions = read('src/views/smart-insights/components/AssetOpinionsSection.vue')
   const tradingAgents = read('src/components/TradingAgents/DeepAnalysisPanel.vue')
 
-  assert.match(page, /analysis-mode-switcher/u)
-  assert.match(page, /analysisMode/u)
-  assert.match(page, /@click="switchAnalysisMode\('quick'\)"/u)
-  assert.match(page, /@click="switchAnalysisMode\('deep'\)"/u)
-  assert.match(page, /:embedded="true"/u)
-  assert.match(page, /openAssetAnalysis \(row, mode = 'quick'\)/u)
-  assert.match(page, /this\.analysisMode = mode === 'deep' \? 'deep' : 'quick'/u)
-  assert.match(page, /this\.isGuest && mode !== 'deep' && !row\.report/u)
-  assert.match(page, /const current = row\.report && !row\.shared/u)
-  assert.match(opinions, /quick-analysis-action/u)
+  assert.match(page, /analysisMode: 'deep'/u)
+  assert.doesNotMatch(page, /@open-analysis=/u)
+  assert.doesNotMatch(page, /@create-analysis=/u)
+  assert.match(page, /<report-pdf-reader/u)
+  assert.match(page, /openAssetAnalysis \(row\)/u)
+  assert.doesNotMatch(opinions, /quick-analysis-action/u)
   assert.match(opinions, /deep-analysis-action/u)
-  assert.match(opinions, /viewLatestOpinion/u)
-  assert.match(opinions, /row\.shared/u)
+  assert.match(opinions, /create-deep-analysis/u)
   assert.match(tradingAgents, /embedded: \{ type: Boolean, default: false \}/u)
-  assert.match(tradingAgents, /get-container="embedded \? false : undefined"/u)
 })

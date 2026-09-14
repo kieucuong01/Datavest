@@ -30,10 +30,10 @@ test('Asset Opinions combines common assets with the account watchlist through s
   assert.match(opinionsSource, /guest/u)
 })
 
-test('Guest Asset Opinions reads public quick and deep reports without a login redirect', () => {
+test('Guest Asset Opinions reads only public TradingAgents reports without a login redirect', () => {
   assert.match(apiSource, /getPublicResearchReport/u)
   assert.match(apiSource, /params:\s*\{\s*lang:\s*'vi-VN'\s*\}/u)
-  assert.match(source, /loadPublicQuickReports/u)
+  assert.match(source, /loadPublicDeepReports/u)
   assert.match(source, /getPublicResearchReport\(row\.publicAssetKey, 'deep'\)/u)
   assert.doesNotMatch(source, /isGuest && mode === 'deep'[\s\S]{0,180}openAuthModal/u)
   assert.match(source, /public-deep-report/u)
@@ -57,9 +57,9 @@ test('MVP hides the Indicator Community route and keeps evidence provenance for 
   assert.match(source, /evidence\.reliability/u)
 })
 
-test('Asset Opinions only renders an AI Assistant report pinned to its row', () => {
-  assert.match(opinionsSource, /row\.report/u)
-  assert.match(opinionsSource, /row\.report\.summary/u)
+test('Asset Opinions only renders a TradingAgents report pinned to its row', () => {
+  assert.match(opinionsSource, /row\.deepState\.report/u)
+  assert.match(opinionsSource, /researchReport\(row\)\.summary/u)
   assert.doesNotMatch(opinionsSource, /row\.opinion/u)
 })
 
@@ -68,9 +68,9 @@ test('Asset Opinions does not show the retired Smart Insights quantitative score
   assert.doesNotMatch(opinionsSource, /displayScore/u)
 })
 
-test('Asset Opinions identifies the AI Assistant decision and report timestamp', () => {
-  assert.match(opinionsSource, /decisionTone\(row\.report\.decision\)/u)
-  assert.match(opinionsSource, /formatDateTime\(row\.report\.createdAt\)/u)
+test('Asset Opinions identifies the TradingAgents decision and report timestamp', () => {
+  assert.match(opinionsSource, /decisionTone\(researchReport\(row\)\.decision\)/u)
+  assert.match(opinionsSource, /formatDateTime\(researchReport\(row\)\.generatedAt \|\| researchReport\(row\)\.createdAt\)/u)
 })
 
 test('Asset Opinions presents a clear decision hierarchy instead of a dense text row', () => {
@@ -79,12 +79,12 @@ test('Asset Opinions presents a clear decision hierarchy instead of a dense text
   assert.match(opinionsSource, /class="opinion-meta"/u)
   assert.match(opinionsSource, /class="status-label"/u)
   assert.match(opinionsSource, /class="status-indicator"/u)
-  assert.match(opinionsSource, /class="opinion-actions"[\s\S]*?quick-analysis-action[\s\S]*?deep-analysis-action/u)
+  assert.match(opinionsSource, /class="opinion-actions"[\s\S]*?deep-analysis-action/u)
+  assert.doesNotMatch(opinionsSource, /quick-analysis-action/u)
 })
 
-test('Asset Opinions uses two touch actions on phones and stacks them on narrow screens', () => {
-  assert.match(opinionsSource, /@media \(max-width: 680px\)[\s\S]*?\.opinion-actions\s*\{[\s\S]*?display:\s*grid[\s\S]*?grid-template-columns:\s*repeat\(2/u)
-  assert.match(opinionsSource, /@media \(max-width: 380px\)[\s\S]*?\.opinion-actions\s*\{[\s\S]*?grid-template-columns:\s*1fr/u)
+test('Asset Opinions keeps its single TradingAgents action usable on phones', () => {
+  assert.match(opinionsSource, /@media \(max-width: 680px\)[\s\S]*?\.opinion-actions\s*\{[\s\S]*?grid-template-columns:\s*1fr/u)
   assert.match(opinionsSource, /\.opinion-actions \.ant-btn\s*\{[\s\S]*?min-height:\s*44px/u)
 })
 

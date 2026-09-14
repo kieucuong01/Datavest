@@ -81,12 +81,12 @@ test('Smart Insights binds the source-backed crypto pulse contract to the seven-
   assert.doesNotMatch(component, /btcBottom|Kronos/u)
 })
 
-test('Smart Insights renders AI Assistant reports and real chart primitives', async () => {
+test('Smart Insights renders TradingAgents reports and real chart primitives', async () => {
   const component = readFileSync(pagePath, 'utf8')
   const opinions = readFileSync(path.join(repositoryRoot, 'src/views/smart-insights/components/AssetOpinionsSection.vue'), 'utf8')
   const chart = readFileSync(path.join(repositoryRoot, 'src/views/smart-insights/components/PulseTrendChart.vue'), 'utf8')
-  assert.match(component, /selectedOpinionReport/u)
-  assert.match(opinions, /row\.report\.decision/u)
+  assert.match(component, /publicDeepReport/u)
+  assert.match(opinions, /row\.deepState\.report/u)
   assert.doesNotMatch(opinions, /evidenceValidated/u)
   assert.doesNotMatch(opinions, /portfolioWeightPct/u)
   assert.match(chart, /from 'echarts'/u)

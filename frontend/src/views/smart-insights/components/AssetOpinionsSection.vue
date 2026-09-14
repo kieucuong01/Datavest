@@ -21,7 +21,7 @@
     <div v-else-if="rows.length" class="opinion-table">
       <div class="opinion-table-head" role="row">
         <span>{{ $t('smartInsights.asset') }}</span>
-        <span>{{ $t('smartInsights.todayOpinion') }}</span>
+        <span>{{ $t('smartInsights.deepAnalysis') }}</span>
         <span>{{ $t('smartInsights.dataStatus') }}</span>
         <span>{{ $t('smartInsights.actions') }}</span>
       </div>
@@ -47,24 +47,23 @@
           </span>
         </div>
 
-        <div class="opinion-main" :data-label="$t('smartInsights.todayOpinion')">
+        <div class="opinion-main" :data-label="$t('smartInsights.deepAnalysis')">
           <div class="opinion-main-head">
-            <span class="opinion-column-label">{{ $t('smartInsights.todayOpinion') }}</span>
+            <span class="opinion-column-label">{{ $t('smartInsights.deepAnalysis') }}</span>
             <template v-if="row.researchInDevelopment">
               <a-tag class="stance-neutral">{{ $t('smartInsights.researchInDevelopment') }}</a-tag>
             </template>
-            <template v-else-if="row.report">
-              <a-tag :class="decisionTone(row.report.decision)">{{ decisionLabel(row.report.decision) }}</a-tag>
+            <template v-else-if="researchReport(row)">
+              <a-tag :class="decisionTone(researchReport(row).decision)">{{ decisionLabel(researchReport(row).decision) }}</a-tag>
             </template>
-            <a-tag v-else class="stance-neutral">{{ $t('smartInsights.dataUnavailableShort') }}</a-tag>
+            <a-tag v-else class="stance-neutral">{{ $t('smartInsights.reportUnavailable') }}</a-tag>
           </div>
           <p v-if="row.researchInDevelopment" class="muted-line">{{ $t('smartInsights.researchInDevelopmentDesc') }}</p>
-          <p v-else-if="row.report" class="muted-line">{{ row.report.summary || $t('smartInsights.aiReportUnavailable') }}</p>
-          <p v-else class="muted-line">{{ $t('smartInsights.aiNoResult') }}</p>
+          <p v-else-if="researchReport(row)" class="muted-line">{{ researchReport(row).summary || $t('smartInsights.aiReportUnavailable') }}</p>
+          <p v-else class="muted-line">{{ $t('smartInsights.deepAnalysisDesc') }}</p>
           <div class="opinion-meta">
-            <span class="engine-line"><a-icon :type="row.researchInDevelopment ? 'tool' : 'robot'" /> {{ row.researchInDevelopment ? $t('smartInsights.researchInDevelopment') : row.publicResearch ? $t('smartInsights.quickEngine') : row.shared ? $t('smartInsights.sharedSnapshotEngine') : $t('smartInsights.quickEngine') }}</span>
-            <span v-if="row.report && row.report.createdAt" class="opinion-time"><a-icon type="clock-circle" /> {{ formatDateTime(row.report.createdAt) }}</span>
-            <span v-if="row.report && row.report.confidence != null" class="confidence-line">{{ $t('smartInsights.aiConfidence') }} {{ percent(row.report.confidence) }}</span>
+            <span class="engine-line"><a-icon :type="row.researchInDevelopment ? 'tool' : 'apartment'" /> {{ row.researchInDevelopment ? $t('smartInsights.researchInDevelopment') : $t('smartInsights.deepEngine') }}</span>
+            <span v-if="researchReport(row) && (researchReport(row).generatedAt || researchReport(row).createdAt)" class="opinion-time"><a-icon type="clock-circle" /> {{ formatDateTime(researchReport(row).generatedAt || researchReport(row).createdAt) }}</span>
           </div>
         </div>
 
@@ -73,21 +72,19 @@
             <span class="status-indicator" :class="statusIndicatorTone(row)" aria-hidden="true" />
             <a-tag :class="statusTone(row)">{{ statusLabel(row) }}</a-tag>
           </div>
-          <small v-if="presentation(row).capturedAt">{{ $t('smartInsights.inputCapturedAt') }}: {{ formatDateTime(presentation(row).capturedAt) }}</small>
-          <small v-else-if="row.report">{{ $t('smartInsights.inputCapturedAt') }}: {{ formatDateTime(row.report.createdAt) }}</small>
-          <small v-if="presentation(row).nextRunAt" class="next-run">{{ $t('smartInsights.nextAiRun') }}: {{ formatDateTime(presentation(row).nextRunAt) }}</small>
+          <small v-if="researchReport(row) && researchReport(row).effectiveDate">{{ $t('smartInsights.analysisDate') }}: {{ formatDateTime(researchReport(row).effectiveDate) }}</small>
         </div>
 
         <div class="opinion-actions" :data-label="$t('smartInsights.actions')">
-          <template v-if="row.researchInDevelopment">
-            <a-button size="small" icon="tool" disabled class="quick-analysis-action">{{ $t('smartInsights.researchInDevelopment') }}</a-button>
-          </template>
-          <template v-else-if="row.report">
-            <a-button size="small" type="primary" icon="search" class="quick-analysis-action" @click="$emit('open-analysis', row)">{{ guest && row.shared ? $t('smartInsights.viewLatestOpinion') : $t('smartInsights.quickAnalysis') }}</a-button>
-          </template>
-          <a-button v-else-if="!guest && row.quickState && row.quickState.canCreate" size="small" type="primary" icon="robot" class="quick-analysis-action" @click="$emit('create-analysis', row, 'quick')">{{ $t('smartInsights.quickAnalysis') }}</a-button>
-          <a-button v-else size="small" icon="robot" class="quick-analysis-action" @click="$emit('open-ai-assistant', row)">{{ guest ? $t('smartInsights.loginToAnalyze') : $t('smartInsights.openAiAssistant') }}</a-button>
-          <a-button v-if="!guest && row.deepState && row.deepState.canCreate" size="small" icon="apartment" class="deep-analysis-action" @click="$emit('create-analysis', row, 'deep')">{{ $t('smartInsights.deepAnalysis') }}</a-button>
+          <a-button v-if="row.researchInDevelopment" size="small" icon="tool" disabled class="deep-analysis-action">{{ $t('smartInsights.researchInDevelopment') }}</a-button>
+          <a-button
+            v-else-if="!guest && row.deepState && row.deepState.canCreate"
+            size="small"
+            type="primary"
+            icon="apartment"
+            class="deep-analysis-action"
+            @click="$emit('create-deep-analysis', row)"
+          >{{ $t('smartInsights.deepAnalysis') }}</a-button>
           <a-button v-else size="small" icon="apartment" class="deep-analysis-action" @click="$emit('open-deep-analysis', row)">{{ $t('smartInsights.deepAnalysis') }}</a-button>
         </div>
       </article>
@@ -104,7 +101,6 @@
 </template>
 
 <script>
-import { buildOpinionPresentation } from '../opinionStatus'
 import { formatVietnamDateTime } from '@/utils/vietnamTime'
 import CryptoAssetIcon from '@/components/CryptoAssetIcon'
 
@@ -135,7 +131,11 @@ export default {
       if (text === 'HOLD') return this.$t('smartInsights.neutral')
       return this.$t('smartInsights.notAvailable')
     },
-    presentation (row) { return buildOpinionPresentation(row) },
+    researchReport (row) { return row && row.deepState && row.deepState.report ? row.deepState.report : null },
+    presentation (row) {
+      const state = row && row.deepState && row.deepState.status ? String(row.deepState.status).toUpperCase() : 'UNAVAILABLE'
+      return { status: state, capturedAt: null, nextRunAt: null }
+    },
     statusTone (row) {
       const status = this.presentation(row).status
       return status === 'AVAILABLE' ? 'stance-positive' : status === 'STALE' || status === 'FAILED' || status === 'OVERDUE' ? 'stance-negative' : 'stance-neutral'
@@ -220,7 +220,7 @@ export default {
 .opinion-main .muted-line { display: -webkit-box; max-width: 100%; margin: 5px 0 0; overflow: hidden; color: var(--ink); font-size: 12px; line-height: 1.5; text-overflow: ellipsis; white-space: normal; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
 .opinion-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin-top: 7px; color: var(--muted); font-size: 10px; line-height: 1.35; }.engine-line, .opinion-time, .confidence-line { display: inline-flex; align-items: center; gap: 4px; }.engine-line .anticon { color: var(--blue); }.confidence-line { color: var(--blue); }
 .report-status { display: grid; align-content: center; gap: 5px; color: var(--muted); overflow-wrap: anywhere; font-size: 11px; line-height: 1.35; }.status-label { display: flex; align-items: center; gap: 6px; min-width: 0; }.status-indicator { width: 7px; height: 7px; flex: 0 0 auto; border-radius: 50%; background: var(--opinion-neutral); }.status-indicator--positive { background: var(--opinion-positive); }.status-indicator--negative { background: var(--opinion-negative); }.status-indicator--neutral { background: #9aa7b8; }.report-status small { color: var(--muted); }.next-run { color: var(--blue) !important; }
-.opinion-actions { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 8px; min-width: 0; }.opinion-actions .ant-btn { min-height: 36px; padding: 0 12px; overflow: hidden; border-radius: 8px; font-size: 11px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; transition: transform .18s ease, box-shadow .18s ease; }.opinion-actions .ant-btn:hover { transform: translateY(-1px); }.opinion-actions .ant-btn:active { transform: scale(.98); }.quick-analysis-action { border-color: var(--blue-active); background: var(--blue-active); }.deep-analysis-action { color: var(--blue); border-color: var(--blue-ring); background: transparent; }
+.opinion-actions { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 8px; min-width: 0; }.opinion-actions .ant-btn { min-height: 36px; padding: 0 12px; overflow: hidden; border-radius: 8px; font-size: 11px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; transition: transform .18s ease, box-shadow .18s ease; }.opinion-actions .ant-btn:hover { transform: translateY(-1px); }.opinion-actions .ant-btn:active { transform: scale(.98); }.deep-analysis-action { color: var(--blue); border-color: var(--blue-ring); background: transparent; }
 .legacy-empty { display: flex; align-items: center; justify-content: center; gap: 9px; min-height: 110px; padding: 20px; color: var(--muted); text-align: center; }.legacy-empty div { display: grid; gap: 5px; text-align: left; }.legacy-empty span, .legacy-empty strong { font-size: 13px; }
 .theme-dark & { --opinion-positive: #7bd99f; --opinion-positive-bg: rgba(82, 196, 26, .14); --opinion-positive-border: rgba(82, 196, 26, .38); --opinion-negative: #ff9c96; --opinion-negative-bg: rgba(255, 77, 79, .14); --opinion-negative-border: rgba(255, 77, 79, .38); --opinion-neutral: #b7c3d4; --opinion-neutral-bg: rgba(148, 163, 184, .14); --opinion-neutral-border: rgba(148, 163, 184, .38); }
 @media (max-width: 1100px) { .opinion-table-head, .opinion-row { grid-template-columns: minmax(135px, .85fr) minmax(0, 1.85fr) minmax(145px, .8fr) minmax(210px, 1fr); gap: 14px; padding-right: 16px; padding-left: 16px; }.opinion-actions { justify-content: flex-start; } }

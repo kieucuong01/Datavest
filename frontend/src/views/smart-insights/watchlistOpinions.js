@@ -199,26 +199,6 @@ export function buildAccountOpinionRows (watchlist = [], analyses = [], asOf = n
   return rows
 }
 
-function sharedStateReport (item) {
-  const source = objectOrEmpty(item)
-  const report = objectOrEmpty(source.report)
-  if (!Object.keys(report).length) return null
-  return {
-    id: `shared:${source.assetKey || ''}:${source.reportKind || ''}:${report.effectiveDate || ''}`,
-    source: 'SHARED_RESEARCH_REPORT',
-    scope: source.scope || 'SHARED_WATCHLIST',
-    status: 'completed',
-    decision: normalizeSharedDecision(report.decision),
-    confidence: Number.isFinite(Number(report.confidence)) ? Number(report.confidence) : null,
-    summary: textOrEmpty(report.summary),
-    reasons: (Array.isArray(report.sections) ? report.sections : []).flatMap(section => Array.isArray(section && section.items) ? section.items : []).map(textOrEmpty).filter(Boolean).slice(0, 8),
-    analysisDate: report.effectiveDate || null,
-    createdAt: report.generatedAt || null,
-    updatedAt: report.generatedAt || null,
-    inputData: { capturedAt: report.generatedAt || null, components: [] }
-  }
-}
-
 export function applySharedResearchStates (rows = [], states = []) {
   const indexed = new Map()
   for (const state of Array.isArray(states) ? states : []) {
@@ -228,28 +208,22 @@ export function applySharedResearchStates (rows = [], states = []) {
   }
   return (Array.isArray(rows) ? rows : []).map(row => {
     const assetKey = row.publicAssetKey || publicResearchAssetKey(row) || ''
-    const quickState = indexed.get(`${assetKey}:quick`) || null
     const deepState = indexed.get(`${assetKey}:deep`) || null
-    const sharedReport = sharedStateReport(quickState)
     return {
       ...row,
       publicAssetKey: assetKey,
       sharedResearchAssetKey: assetKey,
-      publicCommon: Boolean((quickState || deepState || {}).scope === 'public_common') || Boolean(row.publicCommon),
-      quickState,
+      publicCommon: Boolean((deepState || {}).scope === 'public_common') || Boolean(row.publicCommon),
       deepState,
-      report: quickState ? sharedReport : row.report,
-      shared: Boolean(sharedReport) || row.shared,
-      publicResearch: Boolean(sharedReport && quickState && quickState.scope === 'public_common') || row.publicResearch,
-      dataFreshness: quickState && quickState.status === 'pending' ? 'PENDING' : row.dataFreshness,
-      analysisStatus: quickState && quickState.status ? String(quickState.status).toUpperCase() : row.analysisStatus
+      dataFreshness: deepState && deepState.status === 'pending' ? 'PENDING' : row.dataFreshness,
+      analysisStatus: deepState && deepState.status ? String(deepState.status).toUpperCase() : 'UNAVAILABLE'
     }
   })
 }
 
-function publicQuickReport (item) {
+function publicDeepReport (item) {
   const source = objectOrEmpty(item)
-  if (String(source.reportKind || source.report_kind || '').toLowerCase() !== 'quick') return null
+  if (String(source.reportKind || source.report_kind || '').toLowerCase() !== 'deep') return null
   const sections = Array.isArray(source.sections) ? source.sections : []
   const sectionItems = title => sections
     .filter(section => String(section && section.title || '').toLowerCase() === title)
@@ -275,21 +249,19 @@ function publicQuickReport (item) {
   }
 }
 
-export function applyPublicQuickReports (rows = [], reports = []) {
+export function applyPublicDeepReports (rows = [], reports = []) {
   const indexed = new Map()
   for (const item of Array.isArray(reports) ? reports : []) {
     const key = String(item && (item.assetKey || item.asset_key) || '')
-    const report = publicQuickReport(item)
+    const report = publicDeepReport(item)
     if (key && report) indexed.set(key, { report, isFallback: Boolean(item && item.isFallback) })
   }
   return (Array.isArray(rows) ? rows : []).map(row => {
     const publicReport = indexed.get(row.publicAssetKey)
-    if (!publicReport || (row && row.report && row.watchlistItem)) return row
+    if (!publicReport) return row
     return {
       ...row,
-      report: publicReport.report,
-      shared: true,
-      publicResearch: true,
+      deepState: { status: 'completed', report: publicReport.report, scope: 'public_common', canCreate: false },
       dataFreshness: publicReport.isFallback ? 'STALE' : 'UNKNOWN',
       analysisStatus: publicReport.isFallback ? 'STALE' : 'AVAILABLE'
     }

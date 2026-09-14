@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { applyPublicQuickReports, buildAccountOpinionRows, buildSharedOpinionRows, buildWatchlistOpinionRows } from '../../src/views/smart-insights/watchlistOpinions.js'
+import { applyPublicDeepReports, buildAccountOpinionRows, buildSharedOpinionRows, buildWatchlistOpinionRows } from '../../src/views/smart-insights/watchlistOpinions.js'
 
 test('uses BTC, SOL, LINK and XAU as the guest default assets', () => {
   const rows = buildSharedOpinionRows([], [], null)
@@ -140,11 +140,11 @@ test('builds guest rows from the latest shared snapshot without a personal watch
   assert.equal(row.report.decision, 'BUY')
 })
 
-test('prioritizes the latest tenant-free quick report for the fixed guest asset set', () => {
-  const rows = applyPublicQuickReports(buildSharedOpinionRows([], [], null), [
+test('attaches the latest tenant-free TradingAgents report for the fixed guest asset set', () => {
+  const rows = applyPublicDeepReports(buildSharedOpinionRows([], [], null), [
     {
       assetKey: 'crypto:BTC/USDT',
-      reportKind: 'quick',
+      reportKind: 'deep',
       effectiveDate: '2026-09-13',
       generatedAt: '2026-09-13T00:15:00Z',
       summary: 'BTC public daily report',
@@ -155,22 +155,22 @@ test('prioritizes the latest tenant-free quick report for the fixed guest asset 
   ])
 
   assert.deepEqual(rows.map(row => row.displaySymbol), ['BTC', 'SOL', 'LINK', 'XAU'])
-  assert.equal(rows[0].publicResearch, true)
-  assert.equal(rows[0].report.source, 'PUBLIC_RESEARCH_REPORT')
-  assert.equal(rows[0].report.summary, 'BTC public daily report')
-  assert.deepEqual(rows[0].report.reasons, ['Public evidence'])
-  assert.equal(rows[1].report, null)
+  assert.equal(rows[0].publicCommon, true)
+  assert.equal(rows[0].deepState.report.source, 'PUBLIC_RESEARCH_REPORT')
+  assert.equal(rows[0].deepState.report.summary, 'BTC public daily report')
+  assert.deepEqual(rows[0].deepState.report.reasons, ['Public evidence'])
+  assert.equal(rows[1].deepState, undefined)
 })
 
-test('does not replace an account-owned report with the shared public quick report', () => {
-  const rows = applyPublicQuickReports(
+test('keeps an account monitor separate from the shared public TradingAgents report', () => {
+  const rows = applyPublicDeepReports(
     buildAccountOpinionRows(
       [{ market: 'Crypto', symbol: 'BTC/USDT', name: 'Bitcoin' }],
       [{ market: 'crypto', symbol: 'BTC', report: { id: 'account-btc', decision: 'SELL' } }]
     ),
     [{
       assetKey: 'crypto:BTC/USDT',
-      reportKind: 'quick',
+      reportKind: 'deep',
       effectiveDate: '2026-09-13',
       summary: 'Public BTC daily report',
       decision: 'BUY',
@@ -180,5 +180,5 @@ test('does not replace an account-owned report with the shared public quick repo
 
   assert.equal(rows[0].report.id, 'account-btc')
   assert.equal(rows[0].report.decision, 'SELL')
-  assert.equal(rows[0].publicResearch, undefined)
+  assert.equal(rows[0].deepState.report.source, 'PUBLIC_RESEARCH_REPORT')
 })
