@@ -22,11 +22,27 @@ test('uses light Vietnamese defaults for a guest without saved preferences', () 
   })
 })
 
+test('migrates unversioned guest dark English preferences to the product defaults', () => {
+  const preferences = resolveInitialPreferences({
+    token: null,
+    savedTheme: 'realdark',
+    savedLanguage: 'en-US',
+    guestPreferenceVersion: null,
+    ...applicationDefaults
+  })
+
+  assert.deepEqual(preferences, {
+    theme: 'light',
+    language: 'vi-VN'
+  })
+})
+
 test('keeps an explicit guest theme and language choice', () => {
   const preferences = resolveInitialPreferences({
     token: null,
     savedTheme: 'dark',
     savedLanguage: 'en-US',
+    guestPreferenceVersion: '1',
     ...applicationDefaults
   })
 

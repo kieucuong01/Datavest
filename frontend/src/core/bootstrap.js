@@ -13,7 +13,11 @@ import { printANSI } from '@/utils/screenLog'
 import defaultSettings from '@/config/defaultSettings'
 import { defaultLang } from '@/locales'
 import { normalizeAccessToken } from '@/utils/guestAccess'
-import { resolveInitialPreferences } from '@/utils/guestPreferences'
+import {
+  GUEST_PREFERENCE_VERSION,
+  GUEST_PREFERENCE_VERSION_STORAGE_KEY,
+  resolveInitialPreferences
+} from '@/utils/guestPreferences'
 
 export default function Initializer () {
   printANSI() // 请自行移除该行.  please remove this line
@@ -30,6 +34,7 @@ export default function Initializer () {
     token,
     savedTheme,
     savedLanguage: storage.get(APP_LANGUAGE),
+    guestPreferenceVersion: storage.get(GUEST_PREFERENCE_VERSION_STORAGE_KEY),
     theme: defaultSettings.navTheme,
     language: defaultLang
   })
@@ -45,6 +50,7 @@ export default function Initializer () {
   store.commit(TOGGLE_COLOR, nextColor)
   store.commit(TOGGLE_MULTI_TAB, storage.get(TOGGLE_MULTI_TAB, defaultSettings.multiTab))
   store.commit('SET_TOKEN', token)
+  if (!token) storage.set(GUEST_PREFERENCE_VERSION_STORAGE_KEY, GUEST_PREFERENCE_VERSION)
 
   store.dispatch('setLang', nextLanguage)
 

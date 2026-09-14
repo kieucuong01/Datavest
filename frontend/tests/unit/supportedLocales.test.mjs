@@ -27,7 +27,7 @@ test('runtime bundles only the Vietnamese lazy locale beside built-in English', 
   assert.deepEqual(loaders, ['vi-VN'])
 })
 
-test('static HTML metadata does not advertise a retired locale', () => {
-  assert.match(appHtml, /<html lang="en">/)
+test('static HTML metadata starts in the Vietnamese guest default', () => {
+  assert.match(appHtml, /<html lang="vi">/)
   assert.match(publicHtml, /<html lang="en">/)
 })
