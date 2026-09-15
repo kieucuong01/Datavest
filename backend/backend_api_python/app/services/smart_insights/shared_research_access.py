@@ -91,8 +91,7 @@ class SharedResearchAccessService:
         states: list[dict[str, Any]] = []
         for asset in self.assets_for_user(user_id):
             key = public_asset_key(asset)
-            for kind in ("quick", "deep"):
-                states.append({**self.state(user_id=user_id, asset_key=key, report_kind=kind, today=today), "asset": asset})
+            states.append({**self.state(user_id=user_id, asset_key=key, report_kind="deep", today=today), "asset": asset})
         return states
 
     def request(self, *, user_id: int, asset_key: str, report_kind: str, today: date | None = None) -> dict[str, Any]:

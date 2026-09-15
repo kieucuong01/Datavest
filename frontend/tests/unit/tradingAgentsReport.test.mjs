@@ -70,7 +70,9 @@ Generated: 2026-09-14 08:06:19
     rating: 'Hold',
     timeHorizon: '1–4 tuần, đánh giá lại sau phản ứng của Fed',
     actions: [
-      'Giữ nguyên vị thế lõi BTC-USD, không tăng và không xả trước FOMC. Không mua đuổi quanh 77k. Khung thời gian: 1–4 tuần, đánh giá lại sau phản ứng của Fed.'
+      'Giữ nguyên vị thế lõi BTC-USD, không tăng và không xả trước FOMC.',
+      'Không mua đuổi quanh 77k.',
+      'Khung thời gian: 1–4 tuần, đánh giá lại sau phản ứng của Fed.'
     ]
   })
 })

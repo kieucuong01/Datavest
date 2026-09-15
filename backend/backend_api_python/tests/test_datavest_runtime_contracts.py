@@ -101,16 +101,18 @@ def test_smart_insights_metrics_cover_required_operations(client, monkeypatch):
     from app.routes import smart_insights as routes
 
     class Service:
-        def get_overview(self, **_kwargs):
-            return {"opinions": []}
-
         def get_data_health(self, **_kwargs):
             return {"sources": []}
 
         def queue_refresh(self, **_kwargs):
             return {"status": "QUEUED", "runId": "private-refresh-id"}
 
+    class AssistantInsightsService:
+        def get_overview(self, **_kwargs):
+            return {"opinions": []}
+
     monkeypatch.setattr(routes, "get_smart_insights_service", lambda: Service())
+    monkeypatch.setattr(routes, "get_ai_assistant_insights_service", lambda: AssistantInsightsService())
 
     assert client.get("/api/smart-insights/overview").status_code == 401
     headers = _authenticate(monkeypatch, role="admin")

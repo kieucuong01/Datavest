@@ -23,6 +23,7 @@ from app.tasks.trading_agents import (
 )
 from app.services.trading_agents_progress import build_public_progress, public_event
 from app.services.ai_report_pdf import build_trading_agents_report_pdf, build_trading_agents_summary_pdf
+from app.services.pdf_delivery import trading_agents_pdf_response
 from app.utils.auth import login_required
 from app.utils.logger import get_logger
 
@@ -443,17 +444,12 @@ def get_report_pdf(run_id: str):
     except Exception:
         logger.exception("TradingAgents report PDF rendering failed")
         return _fail("trading_agents_pdf_unavailable", 503)
-    symbol = re.sub(r"[^A-Za-z0-9._-]+", "_", str(request_json.get("symbol") or "report")).strip("_")
-    date_text = re.sub(r"[^0-9]", "", str(request_json.get("analysis_date") or ""))[:8] or _today_vietnam().replace("-", "")
-    filename = f"DataVest_TradingAgents_{symbol or 'report'}_{date_text}.pdf"
-    return Response(
+    return trading_agents_pdf_response(
         pdf_bytes,
-        mimetype="application/pdf",
-        headers={
-            "Content-Disposition": f'inline; filename="{filename}"',
-            "Content-Length": str(len(pdf_bytes)),
-            "Cache-Control": "no-store, max-age=0",
-        },
+        symbol=str(request_json.get("symbol") or "report"),
+        analysis_date=str(request_json.get("analysis_date") or ""),
+        summary=False,
+        fallback_date=_today_vietnam(),
     )
 
 
@@ -499,17 +495,12 @@ def get_summary_pdf(run_id: str):
     except Exception:
         logger.exception("TradingAgents summary PDF rendering failed")
         return _fail("trading_agents_pdf_unavailable", 503)
-    symbol = re.sub(r"[^A-Za-z0-9._-]+", "_", str(request_json.get("symbol") or "report")).strip("_")
-    date_text = re.sub(r"[^0-9]", "", str(request_json.get("analysis_date") or ""))[:8] or _today_vietnam().replace("-", "")
-    filename = f"DataVest_TradingAgents_Summary_{symbol or 'report'}_{date_text}.pdf"
-    return Response(
+    return trading_agents_pdf_response(
         pdf_bytes,
-        mimetype="application/pdf",
-        headers={
-            "Content-Disposition": f'inline; filename="{filename}"',
-            "Content-Length": str(len(pdf_bytes)),
-            "Cache-Control": "no-store, max-age=0",
-        },
+        symbol=str(request_json.get("symbol") or "report"),
+        analysis_date=str(request_json.get("analysis_date") or ""),
+        summary=True,
+        fallback_date=_today_vietnam(),
     )
 
 

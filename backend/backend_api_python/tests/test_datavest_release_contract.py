@@ -23,8 +23,24 @@ APPROVED_SERVICES = {
     "celery-worker",
     "celery-beat",
     "frontend",
+    "trading-agents",
 }
 _INTERPOLATION = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)(?::-([^{}]*))?\}")
+
+
+class _ComposeLoader(yaml.SafeLoader):
+    """Understand Docker Compose tags while asserting static contracts."""
+
+
+def _construct_override(loader, node):
+    return loader.construct_sequence(node)
+
+
+_ComposeLoader.add_constructor("!override", _construct_override)
+
+
+def _load_compose(path: Path) -> dict:
+    return yaml.load(path.read_text(encoding="utf-8"), Loader=_ComposeLoader)
 
 
 def _environment_map(value) -> dict[str, str]:
@@ -38,7 +54,7 @@ def _environment_map(value) -> dict[str, str]:
 
 
 def _merge_compose_documents() -> dict:
-    documents = [yaml.safe_load(path.read_text(encoding="utf-8")) for path in COMPOSE_FILES]
+    documents = [_load_compose(path) for path in COMPOSE_FILES]
     merged = deepcopy(documents[0])
     services = merged.setdefault("services", {})
     for name, override in documents[1]["services"].items():
@@ -133,7 +149,7 @@ def test_release_manifest_pins_both_quantdinger_first_repositories():
 
 
 def test_datavest_compose_source_union_is_exactly_approved():
-    documents = [yaml.safe_load(path.read_text(encoding="utf-8")) for path in COMPOSE_FILES]
+    documents = [_load_compose(path) for path in COMPOSE_FILES]
     source_union = set().union(*(document["services"] for document in documents))
 
     assert source_union == APPROVED_SERVICES

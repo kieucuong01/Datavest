@@ -259,6 +259,10 @@ def _compose_services(path: Path) -> dict:
         "!reset",
         lambda loader, node: loader.construct_sequence(node),
     )
+    ComposeLoader.add_constructor(
+        "!override",
+        lambda loader, node: loader.construct_sequence(node),
+    )
     loaded = yaml.load(path.read_text(encoding="utf-8"), Loader=ComposeLoader) or {}
     return loaded.get("services") or {}
 

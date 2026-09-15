@@ -234,7 +234,7 @@ def test_public_report_route_is_anonymous_and_fixed_to_the_common_asset_scope(
         def get_public_report(self, *, asset_key, report_kind, locale):
             assert (asset_key, report_kind, locale) == (
                 "crypto:BTC/USDT",
-                "quick",
+                "deep",
                 "vi-VN",
             )
             return {
@@ -248,7 +248,7 @@ def test_public_report_route_is_anonymous_and_fixed_to_the_common_asset_scope(
     )
 
     response = client.get(
-        "/api/smart-insights/public/reports/crypto:BTC%2FUSDT/quick?lang=vi-VN"
+        "/api/smart-insights/public/reports/crypto:BTC%2FUSDT/deep?lang=vi-VN"
     )
 
     assert response.status_code == 200
@@ -257,7 +257,7 @@ def test_public_report_route_is_anonymous_and_fixed_to_the_common_asset_scope(
 
 def test_public_report_route_rejects_an_asset_outside_the_common_scope(client):
     response = client.get(
-        "/api/smart-insights/public/reports/crypto:ETH%2FUSDT/quick?runId=private"
+        "/api/smart-insights/public/reports/crypto:ETH%2FUSDT/deep?runId=private"
     )
 
     assert response.status_code == 404

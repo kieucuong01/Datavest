@@ -86,6 +86,9 @@ test('Asset Opinions treats the latest TradingAgents report as available even wi
 
 test('Asset Opinions presents a clear decision hierarchy instead of a dense text row', () => {
   assert.match(opinionsSource, /class="opinion-main"/u)
+  assert.match(opinionsSource, /class="decision-summary-topline"/u)
+  assert.match(opinionsSource, /decisionActionRows\(row\)/u)
+  assert.match(opinionsSource, /class="decision-summary-action"/u)
   assert.match(opinionsSource, /class="opinion-column-label"/u)
   assert.match(opinionsSource, /class="opinion-meta"/u)
   assert.match(opinionsSource, /class="status-label"/u)

@@ -65,7 +65,6 @@ celery_app.conf.update(
         "datavest.tasks.enqueue_smart_insights_refresh": {"queue": "maintenance"},
         "datavest.tasks.enqueue_smart_insights_refresh_for_sources": {"queue": "maintenance"},
         "datavest.tasks.enqueue_shared_research_report": {"queue": "ai"},
-        "datavest.tasks.publish_public_quick_reports": {"queue": "ai"},
         "datavest.tasks.enqueue_public_deep_reports": {"queue": "trading-agents"},
         "datavest.tasks.sync_public_deep_reports": {"queue": "maintenance"},
         "datavest.tasks.sync_shared_deep_reports": {"queue": "maintenance"},
@@ -111,10 +110,6 @@ celery_app.conf.update(
             "task": "datavest.tasks.enqueue_smart_insights_refresh_for_sources",
             "schedule": crontab(minute=20, hour="*/6"),
             "args": (("datavest-market-bars",),),
-        },
-        "public-research-daily-quick": {
-            "task": "datavest.tasks.publish_public_quick_reports",
-            "schedule": crontab(hour=7, minute=15),
         },
         "public-research-weekly-deep": {
             "task": "datavest.tasks.enqueue_public_deep_reports",

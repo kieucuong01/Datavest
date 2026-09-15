@@ -23,6 +23,22 @@ from typing import Any
 _TYPE_KEY = "__quantdinger_sandbox_type__"
 
 
+def _add_trusted_site_packages(arguments: list[str]) -> None:
+    """Restore only parent-verified scientific packages under Python isolated mode."""
+    for argument in arguments:
+        prefix = "--trusted-site-packages="
+        if not argument.startswith(prefix):
+            raise ValueError("sandbox worker received an unsupported argument")
+        candidate = Path(argument[len(prefix):]).resolve()
+        if candidate.name.lower() != "site-packages" or not candidate.is_dir():
+            raise ValueError("sandbox worker received an invalid package root")
+        if not (candidate / "numpy").is_dir() or not (candidate / "pandas").is_dir():
+            raise ValueError("sandbox worker package root is incomplete")
+        location = str(candidate)
+        if location not in sys.path:
+            sys.path.insert(0, location)
+
+
 class _NullWriter(io.TextIOBase):
     def write(self, value: str) -> int:
         return len(value)
@@ -239,6 +255,7 @@ def main() -> int:
     # Popen already supplies a clean environment. Clear it again before any
     # third-party import so a future caller cannot accidentally weaken that
     # contract by changing only the parent-side launcher.
+    _add_trusted_site_packages(sys.argv[1:])
     os.environ.clear()
     os.environ.update({
         "LANG": "C.UTF-8",

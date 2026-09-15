@@ -726,6 +726,16 @@ def safe_exec_isolated(
         }
 
     worker = Path(__file__).with_name("safe_exec_worker.py")
+    trusted_site_packages = []
+    for raw_path in sys.path:
+        candidate = Path(raw_path or "")
+        if candidate.name.lower() != "site-packages":
+            continue
+        if not (candidate / "numpy").is_dir() or not (candidate / "pandas").is_dir():
+            continue
+        resolved = str(candidate.resolve())
+        if resolved not in trusted_site_packages:
+            trusted_site_packages.append(resolved)
     clean_env = {
         "LANG": "C.UTF-8",
         "LC_ALL": "C.UTF-8",
@@ -739,7 +749,12 @@ def safe_exec_isolated(
     try:
         with tempfile.TemporaryDirectory(prefix="quantdinger-sandbox-") as temp_dir:
             proc = subprocess.Popen(
-                [sys.executable, "-I", str(worker)],
+                [
+                    sys.executable,
+                    "-I",
+                    str(worker),
+                    *[f"--trusted-site-packages={path}" for path in trusted_site_packages],
+                ],
                 stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,

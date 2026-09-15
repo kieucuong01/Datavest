@@ -17,6 +17,7 @@ from prometheus_client import (
 
 from app._version import APP_VERSION
 from app.runtime.roles import current_process_role
+from app.services.smart_insights.operations import get_smart_insights_operations_service
 from app.utils.db import get_db_connection
 
 
@@ -70,6 +71,16 @@ DATAVEST_FEATURE_OUTCOMES = Counter(
     "Outcomes from DataVest feature operations.",
     ("feature", "operation", "outcome"),
 )
+SMART_INSIGHTS_SOURCE_FRESHNESS = Gauge(
+    "datavest_smart_insights_source_freshness",
+    "Current freshness classification for each enabled Smart Insights source.",
+    ("source", "market", "status"),
+)
+SMART_INSIGHTS_SOURCE_LAST_RUN = Gauge(
+    "datavest_smart_insights_source_last_run",
+    "Latest collector-run status for each enabled Smart Insights source.",
+    ("source", "market", "status"),
+)
 BUILD_INFO.labels(version=APP_VERSION, role=current_process_role().value).set(1)
 
 
@@ -112,8 +123,32 @@ def _refresh_runtime_metrics() -> None:
         WORKER_STALE.labels(role=role).set(stale)
 
 
+def _refresh_smart_insights_metrics() -> None:
+    try:
+        sources = get_smart_insights_operations_service().source_statuses()
+    except Exception:
+        return
+
+    freshness_states = ("FRESH", "STALE", "UNAVAILABLE")
+    run_states = ("SUCCEEDED", "PARTIAL", "FAILED", "QUARANTINED", "QUEUED", "RUNNING", "")
+    for source in sources:
+        code = str(source.get("code") or "unknown")
+        market = str(source.get("market") or "unknown")
+        freshness = str(source.get("freshness") or "UNAVAILABLE").upper()
+        run_status = str((source.get("lastRun") or {}).get("status") or "").upper()
+        for status in freshness_states:
+            SMART_INSIGHTS_SOURCE_FRESHNESS.labels(
+                source=code, market=market, status=status
+            ).set(1 if status == freshness else 0)
+        for status in run_states:
+            SMART_INSIGHTS_SOURCE_LAST_RUN.labels(
+                source=code, market=market, status=status
+            ).set(1 if status == run_status else 0)
+
+
 def render_metrics() -> tuple[bytes, str]:
     _refresh_runtime_metrics()
+    _refresh_smart_insights_metrics()
     multiprocess_dir = os.getenv("PROMETHEUS_MULTIPROC_DIR", "").strip()
     if multiprocess_dir:
         registry = CollectorRegistry()

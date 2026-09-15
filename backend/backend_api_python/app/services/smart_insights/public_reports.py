@@ -18,7 +18,10 @@ PUBLIC_GUEST_ASSET_SCOPE: tuple[dict[str, str], ...] = (
 # Keep the guest market and guest research scopes aligned. Vietnamese equities
 # can be added later when their dedicated research pipeline is ready.
 PUBLIC_RESEARCH_ASSET_SCOPE: tuple[dict[str, str], ...] = PUBLIC_GUEST_ASSET_SCOPE
-PUBLIC_RESEARCH_REPORT_KINDS = frozenset({"quick", "deep"})
+# Smart Insights publishes one reusable TradingAgents report per period. Fast
+# Analysis remains available to the AI Assistant, but is not a second report
+# product or scheduled LLM cost centre here.
+PUBLIC_RESEARCH_REPORT_KINDS = frozenset({"deep"})
 PUBLIC_RESEARCH_LOCALE = "vi-VN"
 _PAYLOAD_FIELDS = frozenset(
     {"title", "summary", "body", "sections", "decision", "confidence", "provenance"}

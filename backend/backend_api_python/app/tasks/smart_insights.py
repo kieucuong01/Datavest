@@ -119,22 +119,15 @@ def enqueue_shared_research_report(*, scope: str, report_kind: str, asset: dict,
     from app.services.smart_insights.public_reports import public_asset_key
 
     key = public_asset_key(asset)
+    if report_kind != "deep":
+        # A stale queued message must never revive the retired daily Fast
+        # Analysis path after deployment.
+        return {"skipped": True, "reason": "retired_report_kind", "assetKey": key}
     if scope == "public_common":
         publisher = PublicResearchPublisher()
-        if report_kind == "quick":
-            return publisher.publish_claimed_quick_report(asset_key=key, effective_date=date.fromisoformat(period_key))
         return publisher.enqueue_claimed_deep_report(asset_key=key, effective_date=date.fromisoformat(period_key))
     publisher = SharedResearchPublisher()
-    if report_kind == "quick":
-        return publisher.publish_claimed_quick(asset=asset, period_key=period_key)
     return publisher.enqueue_claimed_deep(asset=asset, period_key=period_key)
-
-
-@celery_app.task(name="datavest.tasks.publish_public_quick_reports", acks_late=True)
-def publish_public_quick_reports() -> dict:
-    from app.services.smart_insights.public_research_publisher import PublicResearchPublisher
-
-    return PublicResearchPublisher().publish_daily_quick_reports()
 
 
 @celery_app.task(name="datavest.tasks.enqueue_public_deep_reports", acks_late=True)
@@ -162,7 +155,6 @@ __all__ = [
     "enqueue_smart_insights_refresh",
     "enqueue_smart_insights_refresh_for_sources",
     "enqueue_shared_research_report",
-    "publish_public_quick_reports",
     "enqueue_public_deep_reports",
     "sync_public_deep_reports",
     "sync_shared_deep_reports",

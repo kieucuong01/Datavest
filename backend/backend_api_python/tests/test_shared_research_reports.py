@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from datetime import date
 
+import pytest
+
 
 class FakeRepository:
     def __init__(self, rows=None):
@@ -54,7 +56,7 @@ class FakeRepository:
 def _row(*, period_key="2026-09-14", status="complete", payload=None):
     return {
         "asset_key": "crypto:ETH/USDT",
-        "report_kind": "quick",
+        "report_kind": "deep",
         "locale": "vi-VN",
         "period_key": period_key,
         "status": status,
@@ -63,13 +65,21 @@ def _row(*, period_key="2026-09-14", status="complete", payload=None):
     }
 
 
-def test_period_keys_use_vietnam_calendar_day_and_monday_week():
+def test_period_keys_use_monday_for_deep_reports():
     from app.services.smart_insights.shared_reports import reporting_period_key
 
     today = date(2026, 9, 16)  # Wednesday
 
-    assert reporting_period_key("quick", today=today) == "2026-09-16"
     assert reporting_period_key("deep", today=today) == "2026-09-14"
+
+
+def test_shared_research_rejects_retired_quick_reports():
+    from app.services.smart_insights.shared_reports import SharedResearchReportsService
+
+    service = SharedResearchReportsService(repository=FakeRepository())
+
+    with pytest.raises(ValueError, match="unsupported_shared_report_kind"):
+        service.state("crypto:ETH/USDT", "quick", today=date(2026, 9, 16))
 
 
 def test_private_shared_report_claims_only_once_for_same_asset_and_period():
@@ -78,8 +88,8 @@ def test_private_shared_report_claims_only_once_for_same_asset_and_period():
     repository = FakeRepository()
     service = SharedResearchReportsService(repository=repository)
 
-    first = service.claim("crypto:ETH/USDT", "quick", today=date(2026, 9, 16))
-    second = service.claim("crypto:ETH/USDT", "quick", today=date(2026, 9, 16))
+    first = service.claim("crypto:ETH/USDT", "deep", today=date(2026, 9, 16))
+    second = service.claim("crypto:ETH/USDT", "deep", today=date(2026, 9, 16))
 
     assert first["claimed"] is True
     assert second["claimed"] is False
@@ -97,7 +107,7 @@ def test_shared_projection_excludes_private_run_and_request_metadata():
         "artifactPath": "/private/report.md",
     })]))
 
-    state = service.state("crypto:ETH/USDT", "quick", today=date(2026, 9, 14))
+    state = service.state("crypto:ETH/USDT", "deep", today=date(2026, 9, 14))
 
     assert state["status"] == "complete"
     assert state["report"]["summary"] == "Sanitized report"
@@ -111,7 +121,7 @@ def test_current_period_missing_keeps_latest_report_but_allows_new_generation():
 
     service = SharedResearchReportsService(repository=FakeRepository([_row(period_key="2026-09-15")]))
 
-    state = service.state("crypto:ETH/USDT", "quick", today=date(2026, 9, 16))
+    state = service.state("crypto:ETH/USDT", "deep", today=date(2026, 9, 16))
 
     assert state["status"] == "missing"
     assert state["canCreate"] is True
@@ -141,15 +151,31 @@ def test_non_common_asset_is_visible_only_to_accounts_currently_watching_it():
     )
 
     result = service.request(
-        user_id=7, asset_key="crypto:ETH/USDT", report_kind="quick", today=date(2026, 9, 16)
+        user_id=7, asset_key="crypto:ETH/USDT", report_kind="deep", today=date(2026, 9, 16)
     )
 
     assert result["scope"] == "shared_watchlist"
     assert result["claimed"] is True
     assert dispatched[0][0] == "shared_watchlist"
     try:
-        service.state(user_id=8, asset_key="crypto:ETH/USDT", report_kind="quick", today=date(2026, 9, 16))
+        service.state(user_id=8, asset_key="crypto:ETH/USDT", report_kind="deep", today=date(2026, 9, 16))
     except ValueError as exc:
         assert str(exc) == "shared_report_not_found"
     else:
         raise AssertionError("a user without the asset must not read shared research")
+
+
+def test_shared_research_state_list_exposes_only_deep_reports():
+    from app.services.smart_insights.shared_research_access import SharedResearchAccessService
+
+    service = SharedResearchAccessService(
+        watchlist_loader=lambda _user_id: [],
+        public_repository=FakePublicRepository(),
+        shared_repository=FakeRepository(),
+        dispatch=lambda *_args: None,
+    )
+
+    states = service.list_states(user_id=7, today=date(2026, 9, 16))
+
+    assert states
+    assert {state["reportKind"] for state in states} == {"deep"}

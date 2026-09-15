@@ -30,7 +30,7 @@ class FakeRepository:
 def _row(*, effective_date, status="complete", payload=None):
     return {
         "asset_key": "crypto:BTC/USDT",
-        "report_kind": "quick",
+        "report_kind": "deep",
         "locale": "vi-VN",
         "effective_date": effective_date,
         "status": status,
@@ -45,7 +45,16 @@ def test_latest_rejects_assets_outside_the_fixed_public_scope():
     service = PublicResearchReportsService(repository=FakeRepository())
 
     with pytest.raises(ValueError, match="unsupported_public_asset"):
-        service.get_latest("crypto:ETH/USDT", "quick")
+        service.get_latest("crypto:ETH/USDT", "deep")
+
+
+def test_public_research_rejects_retired_quick_reports():
+    from app.services.smart_insights.public_reports import PublicResearchReportsService
+
+    service = PublicResearchReportsService(repository=FakeRepository())
+
+    with pytest.raises(ValueError, match="unsupported_public_report_kind"):
+        service.get_latest("crypto:BTC/USDT", "quick")
 
 
 def test_failed_current_period_returns_the_previous_completed_projection():
@@ -56,7 +65,7 @@ def test_failed_current_period_returns_the_previous_completed_projection():
         _row(effective_date="2026-09-13", status="failed"),
     ]))
 
-    result = service.get_latest("crypto:BTC/USDT", "quick")
+    result = service.get_latest("crypto:BTC/USDT", "deep")
 
     assert result["effectiveDate"] == "2026-09-12"
     assert result["isFallback"] is True
@@ -70,7 +79,7 @@ def test_latest_returns_the_public_report_when_the_ui_locale_is_not_vietnamese()
         _row(effective_date="2026-09-13"),
     ]))
 
-    result = service.get_latest("crypto:BTC/USDT", "quick", locale="en-US")
+    result = service.get_latest("crypto:BTC/USDT", "deep", locale="en-US")
 
     assert result["summary"] == "Công khai"
     assert result["locale"] == "vi-VN"
@@ -93,7 +102,7 @@ def test_public_projection_drops_internal_payload_fields():
 
     assert result == {
         "assetKey": "crypto:BTC/USDT",
-        "reportKind": "quick",
+        "reportKind": "deep",
         "locale": "vi-VN",
         "effectiveDate": "2026-09-13",
         "generatedAt": "2026-09-13T07:15:00+07:00",

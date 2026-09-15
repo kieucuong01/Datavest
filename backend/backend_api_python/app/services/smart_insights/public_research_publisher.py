@@ -52,61 +52,16 @@ class PublicResearchPublisher:
         self,
         *,
         reports: PublicResearchReportsRepository | None = None,
-        fast_analysis: Any | None = None,
         trading_repository: Any | None = None,
         enqueue_trading_run: Callable[[str], Any] | None = None,
         fetch_artifact: Callable[..., tuple[bytes, str]] | None = None,
         system_user_id: Callable[[], int] | None = None,
     ) -> None:
         self.reports = reports or PublicResearchReportsRepository()
-        self._fast_analysis = fast_analysis
         self._trading_repository = trading_repository
         self._enqueue_trading_run = enqueue_trading_run
         self._fetch_artifact = fetch_artifact
         self._system_user_id = system_user_id or _system_user_id
-
-    def publish_daily_quick_reports(self, *, effective_date: date | None = None) -> dict[str, int]:
-        run_date = _effective_date(effective_date)
-        published = failed = 0
-        analysis = self._analysis_service()
-        for asset in PUBLIC_RESEARCH_ASSET_SCOPE:
-            key = public_asset_key(asset)
-            self.reports.mark_pending(
-                asset_key=key,
-                report_kind="quick",
-                locale=PUBLIC_RESEARCH_LOCALE,
-                effective_date=run_date,
-            )
-            try:
-                result = analysis.analyze(
-                    market=asset["market"],
-                    symbol=asset["symbol"],
-                    language=PUBLIC_RESEARCH_LOCALE,
-                    timeframe="1D",
-                    user_id=None,
-                    persist_history=False,
-                )
-                if result.get("error"):
-                    raise RuntimeError("analysis_failed")
-                self.reports.mark_complete(
-                    asset_key=key,
-                    report_kind="quick",
-                    locale=PUBLIC_RESEARCH_LOCALE,
-                    effective_date=run_date,
-                    payload=self._quick_payload(asset["displaySymbol"], result),
-                )
-                published += 1
-            except Exception:
-                logger.exception("Public quick report failed for %s", key)
-                self.reports.mark_failed(
-                    asset_key=key,
-                    report_kind="quick",
-                    locale=PUBLIC_RESEARCH_LOCALE,
-                    effective_date=run_date,
-                    failure_code="analysis_failed",
-                )
-                failed += 1
-        return {"published": published, "failed": failed}
 
     def enqueue_weekly_deep_reports(self, *, effective_date: date | None = None) -> dict[str, int]:
         return self._enqueue_deep_reports(
@@ -127,30 +82,6 @@ class PublicResearchPublisher:
             if public_asset_key(asset) in requested
         )
         return self._enqueue_deep_reports(assets=assets, effective_date=effective_date)
-
-    def publish_claimed_quick_report(self, *, asset_key: str, effective_date: date | None = None) -> dict[str, Any]:
-        """Finish a public quick report whose period was atomically claimed by an API request."""
-        asset = self._asset_for_key(asset_key)
-        run_date = _effective_date(effective_date)
-        try:
-            result = self._analysis_service().analyze(
-                market=asset["market"], symbol=asset["symbol"], language=PUBLIC_RESEARCH_LOCALE,
-                timeframe="1D", user_id=None, persist_history=False,
-            )
-            if result.get("error"):
-                raise RuntimeError("analysis_failed")
-            self.reports.mark_complete(
-                asset_key=asset_key, report_kind="quick", locale=PUBLIC_RESEARCH_LOCALE,
-                effective_date=run_date, payload=self._quick_payload(asset["displaySymbol"], result),
-            )
-            return {"published": True, "assetKey": asset_key}
-        except Exception:
-            logger.exception("Public quick report failed for %s", asset_key)
-            self.reports.mark_failed(
-                asset_key=asset_key, report_kind="quick", locale=PUBLIC_RESEARCH_LOCALE,
-                effective_date=run_date, failure_code="analysis_failed",
-            )
-            return {"published": False, "assetKey": asset_key}
 
     def enqueue_claimed_deep_report(self, *, asset_key: str, effective_date: date | None = None) -> dict[str, Any]:
         """Create one system-owned deep run after an API request claimed its period."""
@@ -294,20 +225,6 @@ class PublicResearchPublisher:
         return {"published": published, "failed": failed, "pending": pending}
 
     @staticmethod
-    def _quick_payload(display_symbol: str, result: Mapping[str, Any]) -> dict[str, Any]:
-        return {
-            "title": f"Nhận định nhanh {display_symbol}",
-            "summary": str(result.get("summary") or "").strip(),
-            "sections": [
-                {"title": "Luận điểm", "items": list(result.get("reasons") or [])[:8]},
-                {"title": "Rủi ro", "items": list(result.get("risks") or [])[:8]},
-            ],
-            "decision": str(result.get("decision") or "HOLD").upper(),
-            "confidence": result.get("confidence") or (result.get("scores") or {}).get("overall"),
-            "provenance": {"engine": "Fast Analysis", "schedule": "daily"},
-        }
-
-    @staticmethod
     def build_deep_payload(*, display_symbol: str, report_markdown: str) -> dict[str, Any]:
         body = _CONTROL_CHARS.sub("", str(report_markdown or ""))[:500_000]
         body = _INTERNAL_RUN_LINE.sub("", body)
@@ -316,13 +233,6 @@ class PublicResearchPublisher:
             "body": body,
             "provenance": {"engine": "TradingAgents", "schedule": "weekly"},
         }
-
-    def _analysis_service(self):
-        if self._fast_analysis is None:
-            from app.services.fast_analysis import FastAnalysisService
-
-            self._fast_analysis = FastAnalysisService()
-        return self._fast_analysis
 
     def _trading_agents_repository(self):
         if self._trading_repository is None:

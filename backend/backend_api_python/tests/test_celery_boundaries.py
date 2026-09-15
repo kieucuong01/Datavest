@@ -66,18 +66,16 @@ def test_celery_beat_does_not_run_llm_analysis_for_every_account_watchlist():
     assert routes["datavest.tasks.enqueue_shared_research_report"]["queue"] == "ai"
 
 
-def test_celery_beat_publishes_fixed_guest_research_on_daily_and_weekly_cadence():
+def test_celery_beat_publishes_only_weekly_deep_guest_research():
     from app.celery_app import celery_app
 
     schedule = celery_app.conf.beat_schedule
-
-    quick = schedule["public-research-daily-quick"]
+    routes = celery_app.conf.task_routes
     deep = schedule["public-research-weekly-deep"]
     sync = schedule["public-research-deep-sync"]
     shared_sync = schedule["shared-research-deep-sync"]
-    assert quick["task"] == "datavest.tasks.publish_public_quick_reports"
-    assert quick["schedule"].hour == {7}
-    assert quick["schedule"].minute == {15}
+    assert "public-research-daily-quick" not in schedule
+    assert "datavest.tasks.publish_public_quick_reports" not in routes
     assert deep["task"] == "datavest.tasks.enqueue_public_deep_reports"
     assert deep["schedule"].day_of_week == {1}
     assert sync["task"] == "datavest.tasks.sync_public_deep_reports"

@@ -41,13 +41,11 @@ def _safe_value(value: Any) -> Any:
 
 
 def reporting_period_key(report_kind: str, *, today: date | None = None) -> str:
-    """Return the Vietnamese calendar day (quick) or its Monday (deep)."""
+    """Return the Monday of the Vietnamese calendar week for deep research."""
     current = today or date.today()
     kind = str(report_kind or "").strip().lower()
     if kind not in PUBLIC_RESEARCH_REPORT_KINDS:
         raise ValueError("unsupported_shared_report_kind")
-    if kind == "quick":
-        return current.isoformat()
     return (current - timedelta(days=current.weekday())).isoformat()
 
 

@@ -18,6 +18,24 @@ groups:
           summary: Required QuantDinger worker is missing
           description: "No fresh heartbeat for {{ $labels.role }}."
 
+      - alert: DataVestSmartInsightsSourceStale
+        expr: datavest_smart_insights_source_freshness{status=~"STALE|UNAVAILABLE"} > 0
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: Smart Insights source is stale or unavailable
+          description: "{{ $labels.source }} ({{ $labels.market }}) is {{ $labels.status }}."
+
+      - alert: DataVestSmartInsightsCrawlerFailed
+        expr: datavest_smart_insights_source_last_run{status=~"FAILED|QUARANTINED"} > 0
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: Smart Insights crawler failed
+          description: "Latest run for {{ $labels.source }} ({{ $labels.market }}) is {{ $labels.status }}."
+
       - alert: QuantDingerHighApiErrorRate
         expr: |
           sum(rate(quantdinger_http_requests_total{status=~"5.."}[5m]))

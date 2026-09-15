@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from flask import Response, g, jsonify, request
+from flask import g, jsonify, request
 
 from app.observability.features import observe_feature_operation
 from app.openapi.blueprint import HumanBlueprint as Blueprint
@@ -14,11 +14,13 @@ from app.services.smart_insights.public_reports import (
     PUBLIC_RESEARCH_LOCALE,
     public_asset_key,
 )
+from app.services.smart_insights.operations import get_smart_insights_operations_service
 from app.services.smart_insights.shared_research_access import SharedResearchAccessService
 from app.services.ai_report_pdf import (
     build_trading_agents_report_pdf,
     build_trading_agents_summary_pdf,
 )
+from app.services.pdf_delivery import trading_agents_pdf_response
 from app.services.smart_insights.response_compaction import (
     compact_overview_response,
     compact_pulse_response,
@@ -53,6 +55,18 @@ def _locale() -> str:
 
 def _shared_research() -> SharedResearchAccessService:
     return SharedResearchAccessService()
+
+
+@smart_insights_blp.route("/admin/operations", methods=["GET"])
+@login_required
+@admin_required
+def operations_status():
+    """Return private worker, crawl and source-freshness status for operators."""
+    try:
+        return _ok(get_smart_insights_operations_service().snapshot())
+    except Exception:
+        logger.exception("smart insights operations status failed")
+        return _fail("smart_insights_operations_unavailable", 503)
 
 
 @smart_insights_blp.route("/public/overview", methods=["GET"])
@@ -153,17 +167,11 @@ def public_deep_report_pdf(asset_key: str):
         logger.exception("public smart insights deep report PDF failed")
         return _fail("smart_insights_pdf_unavailable", 503)
 
-    symbol = str(asset["displaySymbol"]).strip() or "report"
-    date_text = str((data or {}).get("effectiveDate") or "").replace("-", "") or "latest"
-    filename = f"DataVest_TradingAgents_{symbol}_{date_text}.pdf"
-    return Response(
+    return trading_agents_pdf_response(
         pdf_bytes,
-        mimetype="application/pdf",
-        headers={
-            "Content-Disposition": f'inline; filename="{filename}"',
-            "Content-Length": str(len(pdf_bytes)),
-            "Cache-Control": "no-store, max-age=0",
-        },
+        symbol=str(asset["displaySymbol"]),
+        analysis_date=str((data or {}).get("effectiveDate") or ""),
+        summary=False,
     )
 
 
@@ -205,17 +213,11 @@ def public_deep_summary_pdf(asset_key: str):
         logger.exception("public smart insights deep summary PDF failed")
         return _fail("smart_insights_pdf_unavailable", 503)
 
-    symbol = str(asset["displaySymbol"]).strip() or "report"
-    date_text = str((data or {}).get("effectiveDate") or "").replace("-", "") or "latest"
-    filename = f"DataVest_TradingAgents_Summary_{symbol}_{date_text}.pdf"
-    return Response(
+    return trading_agents_pdf_response(
         pdf_bytes,
-        mimetype="application/pdf",
-        headers={
-            "Content-Disposition": f'inline; filename="{filename}"',
-            "Content-Length": str(len(pdf_bytes)),
-            "Cache-Control": "no-store, max-age=0",
-        },
+        symbol=str(asset["displaySymbol"]),
+        analysis_date=str((data or {}).get("effectiveDate") or ""),
+        summary=True,
     )
 
 
@@ -271,11 +273,12 @@ def shared_deep_report_pdf(asset_key: str):
     except Exception:
         logger.exception("shared smart insights deep report PDF failed")
         return _fail("smart_insights_pdf_unavailable", 503)
-    filename = f"DataVest_TradingAgents_{str(asset.get('displaySymbol') or 'report')}_{str(report.get('effectiveDate') or 'latest').replace('-', '')}.pdf"
-    return Response(pdf_bytes, mimetype="application/pdf", headers={
-        "Content-Disposition": f'inline; filename="{filename}"',
-        "Content-Length": str(len(pdf_bytes)), "Cache-Control": "no-store, max-age=0",
-    })
+    return trading_agents_pdf_response(
+        pdf_bytes,
+        symbol=str(asset.get("displaySymbol") or "report"),
+        analysis_date=str(report.get("effectiveDate") or ""),
+        summary=False,
+    )
 
 
 @smart_insights_blp.route("/research/reports/<path:asset_key>/deep-summary.pdf", methods=["GET"])
@@ -301,11 +304,12 @@ def shared_deep_summary_pdf(asset_key: str):
     except Exception:
         logger.exception("shared smart insights deep summary PDF failed")
         return _fail("smart_insights_pdf_unavailable", 503)
-    filename = f"DataVest_TradingAgents_Summary_{str(asset.get('displaySymbol') or 'report')}_{str(report.get('effectiveDate') or 'latest').replace('-', '')}.pdf"
-    return Response(pdf_bytes, mimetype="application/pdf", headers={
-        "Content-Disposition": f'inline; filename="{filename}"',
-        "Content-Length": str(len(pdf_bytes)), "Cache-Control": "no-store, max-age=0",
-    })
+    return trading_agents_pdf_response(
+        pdf_bytes,
+        symbol=str(asset.get("displaySymbol") or "report"),
+        analysis_date=str(report.get("effectiveDate") or ""),
+        summary=True,
+    )
 
 
 @smart_insights_blp.route("/research/reports/<path:asset_key>/<string:report_kind>", methods=["GET"])

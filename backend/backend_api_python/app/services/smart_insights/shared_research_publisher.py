@@ -28,41 +28,16 @@ class SharedResearchPublisher:
         self,
         *,
         reports: SharedResearchReportsRepository | None = None,
-        fast_analysis: Any | None = None,
         trading_repository: Any | None = None,
         enqueue_trading_run: Callable[[str], Any] | None = None,
         fetch_artifact: Callable[..., tuple[bytes, str]] | None = None,
         system_user_id: Callable[[], int] | None = None,
     ) -> None:
         self.reports = reports or SharedResearchReportsRepository()
-        self._fast_analysis = fast_analysis
         self._trading_repository = trading_repository
         self._enqueue_trading_run = enqueue_trading_run
         self._fetch_artifact = fetch_artifact
         self._system_user_id = system_user_id or _system_user_id
-
-    def publish_claimed_quick(self, *, asset: Mapping[str, str], period_key: str) -> dict[str, Any]:
-        key = public_asset_key(asset)
-        try:
-            result = self._analysis_service().analyze(
-                market=str(asset["market"]), symbol=str(asset["symbol"]),
-                language=PUBLIC_RESEARCH_LOCALE, timeframe="1D", user_id=None,
-                persist_history=False,
-            )
-            if result.get("error"):
-                raise RuntimeError("analysis_failed")
-            self.reports.mark_complete(
-                asset_key=key, report_kind="quick", locale=PUBLIC_RESEARCH_LOCALE,
-                period_key=period_key, payload=self.quick_payload(str(asset.get("displaySymbol") or asset["symbol"]), result),
-            )
-            return {"published": True, "assetKey": key}
-        except Exception:
-            logger.exception("Shared quick report failed for %s", key)
-            self.reports.mark_failed(
-                asset_key=key, report_kind="quick", locale=PUBLIC_RESEARCH_LOCALE,
-                period_key=period_key, failure_code="analysis_failed",
-            )
-            return {"published": False, "assetKey": key}
 
     def enqueue_claimed_deep(self, *, asset: Mapping[str, str], period_key: str) -> dict[str, Any]:
         key = public_asset_key(asset)
@@ -131,28 +106,9 @@ class SharedResearchPublisher:
         return {"published": published, "failed": failed, "pending": pending}
 
     @staticmethod
-    def quick_payload(display_symbol: str, result: Mapping[str, Any]) -> dict[str, Any]:
-        return {
-            "title": f"Nhận định nhanh {display_symbol}", "summary": str(result.get("summary") or "").strip(),
-            "sections": [
-                {"title": "Luận điểm", "items": list(result.get("reasons") or [])[:8]},
-                {"title": "Rủi ro", "items": list(result.get("risks") or [])[:8]},
-            ],
-            "decision": str(result.get("decision") or "HOLD").upper(),
-            "confidence": result.get("confidence") or (result.get("scores") or {}).get("overall"),
-            "provenance": {"engine": "Fast Analysis", "schedule": "on-demand-shared"},
-        }
-
-    @staticmethod
     def deep_payload(*, report_markdown: str) -> dict[str, Any]:
         body = _INTERNAL_RUN_LINE.sub("", _CONTROL_CHARS.sub("", str(report_markdown or "")))[:500_000]
         return {"body": body, "provenance": {"engine": "TradingAgents", "schedule": "on-demand-shared"}}
-
-    def _analysis_service(self):
-        if self._fast_analysis is None:
-            from app.services.fast_analysis import FastAnalysisService
-            self._fast_analysis = FastAnalysisService()
-        return self._fast_analysis
 
     def _trading_agents_repository(self):
         if self._trading_repository is None:

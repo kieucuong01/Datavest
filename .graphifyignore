@@ -1,0 +1,10 @@
+graphify-out/
+.tooling/
+.playwright-cli/
+frontend/.playwright-cli/
+backend/.pytest-*/
+backend/backend_api_python/.tmp/
+backend/backend_api_python/output/
+backend/backend_api_python/tmp/
+backend/backend_api_python/.test_deps/
+backend/backend_api_python/.venv/

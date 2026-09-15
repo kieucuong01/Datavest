@@ -109,8 +109,10 @@ def create_app(config_name='default', *, register_http_routes: bool = True):
 
     if register_http_routes:
         from app.observability import init_http_observability
+        from app.security_headers import init_security_headers
 
         init_http_observability(app)
+        init_security_headers(app)
 
     from app.utils.auth import _configure_jwt_secret_warnings
     _configure_jwt_secret_warnings()

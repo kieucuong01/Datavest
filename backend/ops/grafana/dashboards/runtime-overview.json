@@ -43,6 +43,40 @@
         {"expr": "quantdinger_workers_stale", "legendFormat": "stale {{role}}", "refId": "B"}
       ],
       "gridPos": {"h": 9, "w": 12, "x": 12, "y": 8}
+    },
+    {
+      "type": "stat",
+      "title": "Fresh Smart Insights sources",
+      "targets": [{"expr": "sum(datavest_smart_insights_source_freshness{status=\"FRESH\"})", "refId": "A"}],
+      "gridPos": {"h": 8, "w": 8, "x": 0, "y": 17}
+    },
+    {
+      "type": "stat",
+      "title": "Stale or unavailable sources",
+      "targets": [{"expr": "sum(datavest_smart_insights_source_freshness{status=~\"STALE|UNAVAILABLE\"})", "refId": "A"}],
+      "gridPos": {"h": 8, "w": 8, "x": 8, "y": 17}
+    },
+    {
+      "type": "stat",
+      "title": "Latest crawler failures",
+      "targets": [{"expr": "sum(datavest_smart_insights_source_last_run{status=~\"FAILED|QUARANTINED\"})", "refId": "A"}],
+      "gridPos": {"h": 8, "w": 8, "x": 16, "y": 17}
+    },
+    {
+      "type": "timeseries",
+      "title": "Smart Insights source freshness",
+      "targets": [
+        {"expr": "sum(datavest_smart_insights_source_freshness) by (status)", "legendFormat": "{{status}}", "refId": "A"}
+      ],
+      "gridPos": {"h": 9, "w": 12, "x": 0, "y": 25}
+    },
+    {
+      "type": "timeseries",
+      "title": "Smart Insights collector run status",
+      "targets": [
+        {"expr": "sum(datavest_smart_insights_source_last_run) by (status)", "legendFormat": "{{status}}", "refId": "A"}
+      ],
+      "gridPos": {"h": 9, "w": 12, "x": 12, "y": 25}
     }
   ],
   "refresh": "15s",

@@ -37,6 +37,32 @@ def test_prometheus_metrics_endpoint(client):
     assert "quantdinger_workers_healthy" in body
 
 
+def test_prometheus_exposes_smart_insights_source_health(monkeypatch):
+    from app.observability import metrics
+
+    class Operations:
+        def source_statuses(self):
+            return [
+                {
+                    "code": "cryptoetf-btc-etf",
+                    "market": "crypto",
+                    "freshness": "STALE",
+                    "lastRun": {"status": "FAILED"},
+                }
+            ]
+
+    monkeypatch.setattr(
+        metrics,
+        "get_smart_insights_operations_service",
+        lambda: Operations(),
+    )
+
+    body = metrics.render_metrics()[0].decode("utf-8")
+
+    assert 'datavest_smart_insights_source_freshness{market="crypto",source="cryptoetf-btc-etf",status="STALE"} 1.0' in body
+    assert 'datavest_smart_insights_source_last_run{market="crypto",source="cryptoetf-btc-etf",status="FAILED"} 1.0' in body
+
+
 def test_streaming_request_teardown_is_idempotent():
     app = Flask(__name__)
     init_http_observability(app)

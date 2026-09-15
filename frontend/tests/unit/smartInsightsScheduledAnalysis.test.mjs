@@ -32,5 +32,5 @@ test('Asset Opinions provides only the TradingAgents research action', () => {
   assert.doesNotMatch(opinions, /quick-analysis-action/u)
   assert.doesNotMatch(opinions, /create-analysis/u)
   assert.match(opinions, /\.opinion-row > \* \{ min-width: 0; \}/u)
-  assert.match(opinions, /grid-template-columns: minmax\(150px, \.9fr\) minmax\(0, 2\.25fr\)/u)
+  assert.match(opinions, /grid-template-columns: minmax\(132px, \.72fr\) minmax\(0, 4fr\)/u)
 })
