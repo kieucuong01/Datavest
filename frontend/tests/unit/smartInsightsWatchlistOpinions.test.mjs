@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import { applyPublicDeepReports, buildAccountOpinionRows, buildSharedOpinionRows, buildWatchlistOpinionRows } from '../../src/views/smart-insights/watchlistOpinions.js'
+import { extractPortfolioManagerDecisionSummary } from '../../src/utils/tradingAgentsReport.js'
 
 test('uses BTC, SOL, LINK and XAU as the guest default assets', () => {
   const rows = buildSharedOpinionRows([], [], null)
@@ -176,6 +177,26 @@ test('keeps a readable preview and creation time when a latest deep report has n
   assert.equal(row.deepState.report.title, 'Báo cáo chuyên sâu BTC')
   assert.equal(row.deepState.report.createdAt, '2026-09-14T01:12:00Z')
   assert.match(row.deepState.report.summary, /Kết luận danh mục/u)
+})
+
+test('keeps the complete public report body needed for the portfolio decision', () => {
+  const longPreamble = `# Báo cáo chuyên sâu BTC\n\n${'Dữ liệu nền đã xác thực. '.repeat(160)}`
+  const [row] = applyPublicDeepReports(buildSharedOpinionRows([], [], null), [{
+    assetKey: 'crypto:BTC/USDT',
+    reportKind: 'deep',
+    effectiveDate: '2026-09-14',
+    body: `${longPreamble}\n\n## V. Portfolio Manager Decision\n\n**Rating**: Hold\n\n**Time Horizon**: 1–4 tuần\n\n### Executive Summary\n\n**Core Strategy**: Giữ vị thế lõi BTC, không mua đuổi.\n\n**Stop-loss Discipline**: Hạ tỷ trọng nếu thủng vùng hỗ trợ.`,
+    sections: []
+  }])
+
+  const decision = extractPortfolioManagerDecisionSummary(row.deepState.report.body)
+
+  assert.equal(decision.rating, 'Hold')
+  assert.equal(decision.timeHorizon, '1–4 tuần')
+  assert.deepEqual(decision.actions, [
+    'Core Strategy: Giữ vị thế lõi BTC, không mua đuổi.',
+    'Stop-loss Discipline: Hạ tỷ trọng nếu thủng vùng hỗ trợ.'
+  ])
 })
 
 test('never uses the raw Generated metadata line as a report preview', () => {

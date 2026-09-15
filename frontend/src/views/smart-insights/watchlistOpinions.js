@@ -251,7 +251,10 @@ function publicDeepReport (item) {
     decision: normalizeSharedDecision(source.decision),
     confidence: Number.isFinite(confidence) ? confidence : null,
     title: textOrEmpty(source.title),
-    body: textOrEmpty(source.body),
+    // The portfolio-manager decision sits near the end of a TradingAgents
+    // report. This body is already the published, sanitized artifact; trimming
+    // it here hid that decision from the Smart Insights summary.
+    body: typeof source.body === 'string' ? source.body.trim() : '',
     summary: usableSummary || reportBodyPreview(source.body) || textOrEmpty(source.title),
     reasons: sectionItems('luận điểm'),
     risks: sectionItems('rủi ro'),

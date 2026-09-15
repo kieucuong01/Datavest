@@ -390,6 +390,7 @@ export function extractPortfolioManagerDecisionSummary (content) {
       }
       if (inExecutiveSummary && /^(?:core strategy|capital management|stop-loss discipline|stop loss|add position(?:\/dca)? conditions|chiến lược cốt lõi|quản trị vốn|kỷ luật cắt lỗ|điều kiện mua thêm(?:\/dca)?)$/i.test(fieldKey) && summary.actions.length < 8) {
         summary.actions.push(`${field.label}: ${field.value}`)
+        continue
       }
       inExecutiveSummary = false
       continue
