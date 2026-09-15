@@ -104,6 +104,7 @@ test('Asset Opinions shows the full decision brief without redundant state label
   assert.match(opinionsSource, /smartInsights\.decisionCoreStrategy/u)
   assert.match(opinionsSource, /smartInsights\.decisionCapitalManagement/u)
   assert.match(opinionsSource, /smartInsights\.decisionStopLoss/u)
+  assert.match(opinionsSource, /smartInsights\.decisionActionPlan/u)
   assert.match(opinionsSource, /decisionSummary\(row\)\.timeHorizon/u)
   assert.match(opinionsSource, /class="decision-brief-created"/u)
   assert.match(opinionsSource, /reportCreatedAt\(row\)/u)
