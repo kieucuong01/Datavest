@@ -89,8 +89,9 @@ test('Asset Opinions presents one compact decision brief instead of split fact a
   assert.match(opinionsSource, /class="opinion-main"/u)
   assert.match(opinionsSource, /class="decision-brief-grid"/u)
   assert.match(opinionsSource, /decisionActionPlan\(row\)/u)
-  assert.match(opinionsSource, /class="decision-brief-item decision-brief-item--rating"/u)
-  assert.match(opinionsSource, /decision-brief-item--rating/u)
+  assert.match(opinionsSource, /class="decision-brief-highlights"/u)
+  assert.match(opinionsSource, /class="decision-highlight decision-highlight--recommendation"/u)
+  assert.match(opinionsSource, /class="decision-highlight decision-highlight--horizon"/u)
   assert.match(opinionsSource, /smartInsights\.overweight/u)
   assert.match(opinionsSource, /smartInsights\.underweight/u)
   assert.match(opinionsSource, /class="opinion-column-label"/u)
@@ -101,6 +102,7 @@ test('Asset Opinions presents one compact decision brief instead of split fact a
 
 test('Asset Opinions shows the full decision brief without redundant state labels', () => {
   assert.match(opinionsSource, /class="decision-brief-grid"/u)
+  assert.match(opinionsSource, /class="decision-brief-highlights"[\s\S]*?smartInsights\.recommendation[\s\S]*?class="decision-highlight decision-highlight--horizon"[\s\S]*?smartInsights\.timeHorizon/u)
   assert.match(opinionsSource, /smartInsights\.decisionActionPlan/u)
   assert.match(opinionsSource, /smartInsights\.recommendation/u)
   assert.match(opinionsSource, /decisionSummary\(row\)\.timeHorizon/u)
