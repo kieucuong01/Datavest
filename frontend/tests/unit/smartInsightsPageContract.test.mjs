@@ -71,7 +71,8 @@ test('Asset Opinions does not show the retired Smart Insights quantitative score
 test('Asset Opinions shows the Portfolio Manager decision summary instead of a raw generated timestamp', () => {
   assert.match(opinionsSource, /extractPortfolioManagerDecisionSummary/u)
   assert.match(opinionsSource, /decisionSummary\(row\)/u)
-  assert.match(opinionsSource, /smartInsights\.decisionSummary/u)
+  assert.match(opinionsSource, /smartInsights\.rating/u)
+  assert.match(opinionsSource, /smartInsights\.timeHorizon/u)
   assert.match(opinionsSource, /smartInsights\.reportCreatedAt/u)
   assert.doesNotMatch(opinionsSource, /Generated:/u)
 })
@@ -86,7 +87,7 @@ test('Asset Opinions treats the latest TradingAgents report as available even wi
 
 test('Asset Opinions presents a clear decision hierarchy instead of a dense text row', () => {
   assert.match(opinionsSource, /class="opinion-main"/u)
-  assert.match(opinionsSource, /class="decision-summary-topline"/u)
+  assert.match(opinionsSource, /class="decision-summary-facts"/u)
   assert.match(opinionsSource, /decisionActionRows\(row\)/u)
   assert.match(opinionsSource, /class="decision-summary-action"/u)
   assert.match(opinionsSource, /smartInsights\.overweight/u)
@@ -97,6 +98,16 @@ test('Asset Opinions presents a clear decision hierarchy instead of a dense text
   assert.match(opinionsSource, /class="status-indicator"/u)
   assert.match(opinionsSource, /class="opinion-actions"[\s\S]*?deep-analysis-action/u)
   assert.doesNotMatch(opinionsSource, /quick-analysis-action/u)
+})
+
+test('Asset Opinions shows the full decision brief without redundant state labels', () => {
+  assert.match(opinionsSource, /class="decision-summary-facts"/u)
+  assert.match(opinionsSource, /class="decision-summary-fact-label"/u)
+  assert.match(opinionsSource, /row\.symbol \|\| row\.displaySymbol/u)
+  assert.match(opinionsSource, /decisionSummary\(row\)\.timeHorizon/u)
+  assert.doesNotMatch(opinionsSource, /\{\{\s*\$t\('smartInsights\.reportUnavailable'\)\s*\}\}/u)
+  assert.doesNotMatch(opinionsSource, /\{\{\s*\$t\('smartInsights\.decisionSummary'\)\s*\}\}/u)
+  assert.doesNotMatch(opinionsSource, /\{\{\s*\$t\('smartInsights\.deepEngine'\)\s*\}\}/u)
 })
 
 test('Asset Opinions keeps its single TradingAgents action usable on phones', () => {

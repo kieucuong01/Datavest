@@ -53,14 +53,22 @@
             <template v-if="row.researchInDevelopment">
               <a-tag class="stance-neutral">{{ $t('smartInsights.researchInDevelopment') }}</a-tag>
             </template>
-            <a-tag v-else class="stance-neutral">{{ $t('smartInsights.reportUnavailable') }}</a-tag>
           </div>
           <p v-if="row.researchInDevelopment" class="muted-line">{{ $t('smartInsights.researchInDevelopmentDesc') }}</p>
           <template v-else-if="researchReport(row)">
-            <p class="decision-summary-label">{{ $t('smartInsights.decisionSummary') }}</p>
-            <div class="decision-summary-topline">
-              <span class="decision-summary-rating" :class="decisionTone(decisionSummary(row).rating || researchReport(row).decision)">{{ reportDecisionLabel(row) }}</span>
-              <span v-if="decisionSummary(row).timeHorizon" class="decision-summary-horizon"><a-icon type="calendar" /> {{ $t('smartInsights.timeHorizon') }}: {{ decisionSummary(row).timeHorizon }}</span>
+            <div class="decision-summary-facts">
+              <div class="decision-summary-fact decision-summary-fact--rating">
+                <span class="decision-summary-fact-label">{{ $t('smartInsights.rating') }}</span>
+                <strong class="decision-summary-rating" :class="decisionTone(decisionSummary(row).rating || researchReport(row).decision)">{{ reportDecisionLabel(row) }}</strong>
+              </div>
+              <div class="decision-summary-fact">
+                <span class="decision-summary-fact-label">{{ $t('smartInsights.asset') }}</span>
+                <strong>{{ row.symbol || row.displaySymbol }}</strong>
+              </div>
+              <div class="decision-summary-fact decision-summary-fact--horizon">
+                <span class="decision-summary-fact-label">{{ $t('smartInsights.timeHorizon') }}</span>
+                <strong>{{ decisionSummary(row).timeHorizon || $t('smartInsights.notAvailable') }}</strong>
+              </div>
             </div>
             <div v-if="decisionActionRows(row).length" class="decision-summary-actions">
               <div v-for="(action, index) in decisionActionRows(row)" :key="`${row.id}-decision-${index}`" class="decision-summary-action">
@@ -74,15 +82,14 @@
             <p v-else class="muted-line">{{ reportPreview(row) }}</p>
           </template>
           <p v-else class="muted-line">{{ $t('smartInsights.deepAnalysisDesc') }}</p>
-          <div class="opinion-meta">
-            <span class="engine-line"><a-icon :type="row.researchInDevelopment ? 'tool' : 'apartment'" /> {{ row.researchInDevelopment ? $t('smartInsights.researchInDevelopment') : $t('smartInsights.deepEngine') }}</span>
+          <div v-if="row.researchInDevelopment" class="opinion-meta">
+            <span class="engine-line"><a-icon type="tool" /> {{ $t('smartInsights.researchInDevelopment') }}</span>
           </div>
         </div>
 
-        <div class="report-status" :data-label="$t('smartInsights.dataStatus')">
+        <div class="report-status" :data-label="$t('smartInsights.dataStatus')" :aria-label="statusLabel(row)" :title="statusLabel(row)">
           <div class="status-label">
             <span class="status-indicator" :class="statusIndicatorTone(row)" aria-hidden="true" />
-            <a-tag :class="statusTone(row)">{{ statusLabel(row) }}</a-tag>
           </div>
           <small v-if="reportCreatedAt(row)">{{ $t('smartInsights.reportCreatedAt') }}: {{ formatDateTime(reportCreatedAt(row)) }}</small>
         </div>
@@ -98,7 +105,7 @@
             class="deep-analysis-action"
             @click="$emit('create-deep-analysis', row)"
           >{{ $t('smartInsights.createDeepReport') }}</a-button>
-          <a-button v-else size="small" icon="file-text" class="deep-analysis-action" disabled>{{ $t('smartInsights.reportUnavailable') }}</a-button>
+          <span v-else class="opinion-action-empty" aria-hidden="true">—</span>
         </div>
       </article>
     </div>
@@ -150,7 +157,17 @@ export default {
     researchReport (row) { return row && row.deepState && row.deepState.report ? row.deepState.report : null },
     decisionSummary (row) {
       const report = this.researchReport(row)
-      return report ? extractPortfolioManagerDecisionSummary(report.body) : { rating: '', timeHorizon: '', actions: [] }
+      if (!report) return { rating: '', timeHorizon: '', actions: [] }
+      const empty = { rating: '', timeHorizon: '', actions: [] }
+      const sources = [report.body, report.summary, report.title].filter(value => typeof value === 'string' && value.trim())
+      return sources.reduce((summary, source) => {
+        const parsed = extractPortfolioManagerDecisionSummary(source)
+        return {
+          rating: summary.rating || parsed.rating,
+          timeHorizon: summary.timeHorizon || parsed.timeHorizon,
+          actions: summary.actions.length ? summary.actions : parsed.actions
+        }
+      }, empty)
     },
     decisionActionRows (row) {
       const actions = Array.isArray(this.decisionSummary(row).actions) ? this.decisionSummary(row).actions.filter(Boolean) : []
@@ -182,11 +199,20 @@ export default {
     reportDecisionLabel (row) {
       const report = this.researchReport(row)
       const summary = this.decisionSummary(row)
-      return summary.rating ? this.decisionLabel(summary.rating) : report && report.decision ? this.decisionLabel(report.decision) : this.$t('smartInsights.reportAvailable')
+      return summary.rating ? this.decisionLabel(summary.rating) : report && report.decision ? this.decisionLabel(report.decision) : this.$t('smartInsights.notAvailable')
     },
     reportPreview (row) {
       const report = this.researchReport(row)
-      return (report && (report.summary || report.title)) || this.$t('smartInsights.deepReportReady')
+      const value = report && (report.summary || report.title)
+      return this.cleanPreview(value) || this.$t('smartInsights.deepReportReady')
+    },
+    cleanPreview (value) {
+      return String(value || '')
+        .replace(/\*\*(.*?)\*\*/gu, '$1')
+        .replace(/__([^_]+)__/gu, '$1')
+        .replace(/`([^`]+)`/gu, '$1')
+        .replace(/\s+/gu, ' ')
+        .trim()
     },
     reportCreatedAt (row) {
       const report = this.researchReport(row)
@@ -278,9 +304,9 @@ export default {
 .tone-btc { color: #9d6200; background: #fff3d7; }.tone-eth { color: #545bc3; background: #eff0ff; }.tone-xau { color: #8f6b00; background: #fff8d9; }.tone-vnix { color: #fff; background: #fa4865; }.tone-vn3 { color: #25324a; background: #eef1f7; }
 .opinion-main { min-width: 0; }.opinion-main-head { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; min-height: 25px; }.opinion-column-label { display: none; color: var(--muted); font-size: 11px; font-weight: 700; }
 .opinion-row .ant-tag { margin: 0; font-size: 11px; line-height: 20px; }.stance-positive { color: var(--opinion-positive); border-color: var(--opinion-positive-border); background: var(--opinion-positive-bg); }.stance-negative { color: var(--opinion-negative); border-color: var(--opinion-negative-border); background: var(--opinion-negative-bg); }.stance-neutral { color: var(--opinion-neutral); border-color: var(--opinion-neutral-border); background: var(--opinion-neutral-bg); }
-.decision-summary-label { margin: 5px 0 0; color: var(--muted); font-size: 10px; font-weight: 700; line-height: 1.35; text-transform: uppercase; letter-spacing: .035em; }.decision-summary-topline { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-top: 6px; }.decision-summary-rating { display: inline-flex; align-items: center; min-height: 24px; padding: 2px 9px; border: 1px solid transparent; border-radius: 999px; font-size: 11px; font-weight: 750; line-height: 1.35; }.decision-summary-horizon { display: inline-flex; align-items: center; gap: 4px; max-width: 100%; overflow: hidden; color: var(--blue); font-size: 10px; line-height: 1.35; text-overflow: ellipsis; white-space: nowrap; }.decision-summary-actions { display: grid; gap: 6px; margin-top: 8px; }.decision-summary-action { display: flex; align-items: flex-start; gap: 8px; min-width: 0; padding: 7px 9px; border: 1px solid var(--line); border-left: 3px solid var(--blue-active); border-radius: 8px; background: var(--soft-blue); }.decision-summary-action-index { display: inline-grid; place-items: center; flex: 0 0 auto; width: 20px; height: 20px; border-radius: 6px; color: #fff; background: var(--blue-active); font-size: 10px; font-weight: 700; }.decision-summary-action-copy { display: grid; gap: 1px; min-width: 0; color: var(--ink); font-size: 12px; line-height: 1.45; }.decision-summary-action-copy strong { color: var(--blue); font-size: 10px; font-weight: 700; line-height: 1.3; text-transform: uppercase; letter-spacing: .03em; }.opinion-main .muted-line { display: -webkit-box; max-width: 100%; margin: 3px 0 0; overflow: hidden; color: var(--ink); font-size: 12px; line-height: 1.5; text-overflow: ellipsis; white-space: normal; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }.time-horizon { display: inline-flex; align-items: center; gap: 4px; max-width: 100%; margin: 5px 0 0; overflow: hidden; color: var(--blue); font-size: 10px; line-height: 1.35; text-overflow: ellipsis; white-space: nowrap; }.opinion-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin-top: 7px; color: var(--muted); font-size: 10px; line-height: 1.35; }.engine-line, .confidence-line { display: inline-flex; align-items: center; gap: 4px; }.engine-line .anticon { color: var(--blue); }.confidence-line { color: var(--blue); }
+.decision-summary-facts { display: grid; grid-template-columns: minmax(92px, .75fr) minmax(106px, .9fr) minmax(0, 1.6fr); gap: 8px; margin-top: 5px; }.decision-summary-fact { display: grid; align-content: start; gap: 3px; min-width: 0; padding: 8px 9px; border: 1px solid var(--line); border-radius: 8px; background: var(--card); }.decision-summary-fact--rating { background: var(--soft-blue); }.decision-summary-fact-label { color: var(--muted); font-size: 9px; font-weight: 750; line-height: 1.2; text-transform: uppercase; letter-spacing: .06em; }.decision-summary-fact > strong:not(.decision-summary-rating) { min-width: 0; overflow: hidden; color: var(--ink); font-size: 12px; font-weight: 650; line-height: 1.35; text-overflow: ellipsis; }.decision-summary-rating { display: inline-flex; align-items: center; width: max-content; max-width: 100%; min-height: 24px; padding: 2px 9px; border: 1px solid transparent; border-radius: 999px; font-size: 11px; font-weight: 750; line-height: 1.35; }.decision-summary-fact--horizon > strong { display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 3; }.decision-summary-topline { display: none; }.decision-summary-horizon { display: inline-flex; align-items: center; gap: 4px; max-width: 100%; overflow: hidden; color: var(--blue); font-size: 10px; line-height: 1.35; text-overflow: ellipsis; white-space: nowrap; }.decision-summary-actions { display: grid; gap: 6px; margin-top: 8px; }.decision-summary-action { display: flex; align-items: flex-start; gap: 8px; min-width: 0; padding: 8px 9px; border: 1px solid var(--line); border-left: 3px solid var(--blue-active); border-radius: 8px; background: var(--soft-blue); }.decision-summary-action-index { display: inline-grid; place-items: center; flex: 0 0 auto; width: 20px; height: 20px; border-radius: 6px; color: #fff; background: var(--blue-active); font-size: 10px; font-weight: 700; }.decision-summary-action-copy { display: grid; gap: 2px; min-width: 0; color: var(--ink); font-size: 12px; line-height: 1.5; }.decision-summary-action-copy strong { color: var(--blue); font-size: 10px; font-weight: 700; line-height: 1.3; text-transform: uppercase; letter-spacing: .03em; }.opinion-main .muted-line { display: -webkit-box; max-width: 100%; margin: 3px 0 0; overflow: hidden; color: var(--ink); font-size: 12px; line-height: 1.5; text-overflow: ellipsis; white-space: normal; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }.time-horizon { display: inline-flex; align-items: center; gap: 4px; max-width: 100%; margin: 5px 0 0; overflow: hidden; color: var(--blue); font-size: 10px; line-height: 1.35; text-overflow: ellipsis; white-space: nowrap; }.opinion-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin-top: 7px; color: var(--muted); font-size: 10px; line-height: 1.35; }.engine-line, .confidence-line { display: inline-flex; align-items: center; gap: 4px; }.engine-line .anticon { color: var(--blue); }.confidence-line { color: var(--blue); }
 .report-status { display: grid; align-content: start; gap: 3px; color: var(--muted); overflow-wrap: anywhere; font-size: 10px; line-height: 1.35; }.status-label { display: flex; align-items: center; gap: 4px; min-width: 0; }.status-indicator { width: 6px; height: 6px; flex: 0 0 auto; border-radius: 50%; background: var(--opinion-neutral); }.status-indicator--positive { background: var(--opinion-positive); }.status-indicator--negative { background: var(--opinion-negative); }.status-indicator--neutral { background: #9aa7b8; }.report-status .ant-tag { max-width: 100%; margin: 0; padding: 0 5px; overflow: hidden; font-size: 10px; line-height: 18px; text-overflow: ellipsis; white-space: nowrap; }.report-status small { color: var(--muted); font-size: 10px; }.next-run { color: var(--blue) !important; }
-.opinion-actions { display: flex; align-items: flex-start; justify-content: flex-end; flex-wrap: wrap; gap: 6px; min-width: 0; }.opinion-actions .ant-btn { min-height: 32px; padding: 0 8px; overflow: hidden; border-radius: 7px; font-size: 10px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; transition: transform .18s ease, box-shadow .18s ease; }.opinion-actions .ant-btn:hover { transform: translateY(-1px); }.opinion-actions .ant-btn:active { transform: scale(.98); }.deep-analysis-action { color: var(--blue); border-color: var(--blue-ring); background: transparent; }
+.opinion-actions { display: flex; align-items: flex-start; justify-content: flex-end; flex-wrap: wrap; gap: 6px; min-width: 0; }.opinion-actions .ant-btn { min-height: 32px; padding: 0 8px; overflow: hidden; border-radius: 7px; font-size: 10px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; transition: transform .18s ease, box-shadow .18s ease; }.opinion-actions .ant-btn:hover { transform: translateY(-1px); }.opinion-actions .ant-btn:active { transform: scale(.98); }.deep-analysis-action { color: var(--blue); border-color: var(--blue-ring); background: transparent; }.opinion-action-empty { display: inline-flex; align-items: center; justify-content: center; min-width: 18px; min-height: 32px; color: var(--muted); font-size: 14px; }
 .legacy-empty { display: flex; align-items: center; justify-content: center; gap: 9px; min-height: 110px; padding: 20px; color: var(--muted); text-align: center; }.legacy-empty div { display: grid; gap: 5px; text-align: left; }.legacy-empty span, .legacy-empty strong { font-size: 13px; }
 .theme-dark & { --opinion-positive: #7bd99f; --opinion-positive-bg: rgba(82, 196, 26, .14); --opinion-positive-border: rgba(82, 196, 26, .38); --opinion-negative: #ff9c96; --opinion-negative-bg: rgba(255, 77, 79, .14); --opinion-negative-border: rgba(255, 77, 79, .38); --opinion-neutral: #b7c3d4; --opinion-neutral-bg: rgba(148, 163, 184, .14); --opinion-neutral-border: rgba(148, 163, 184, .38); }
 @media (max-width: 1100px) { .opinion-table-head, .opinion-row { grid-template-columns: minmax(128px, .72fr) minmax(0, 2.8fr) minmax(108px, .55fr) minmax(140px, .7fr); gap: 12px; padding-right: 16px; padding-left: 16px; }.opinion-actions { justify-content: flex-start; } }
@@ -288,7 +314,7 @@ export default {
   .card-heading { align-items: flex-start; flex-direction: column; gap: 13px; padding: 16px; }.heading-actions { width: 100%; justify-content: flex-start; }.opinion-table-head { display: none; }
   .opinion-row { display: flex; flex-direction: column; align-items: stretch; gap: 0; min-height: 0; padding: 16px; }.opinion-row > * { width: 100%; min-width: 0; }
   .asset-cell { padding-bottom: 12px; }.opinion-main { padding: 12px 0; border-top: 1px solid var(--line); }.opinion-column-label { display: inline-block; margin-right: auto; }.opinion-main-head { justify-content: flex-start; }.opinion-main .muted-line { -webkit-line-clamp: 4; }.opinion-meta { gap: 7px 12px; }
-  .report-status { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 12px; padding: 11px 0; border-top: 1px solid var(--line); }.report-status small { display: block; }.opinion-row .opinion-actions { display: grid; grid-template-columns: 1fr; gap: 8px; justify-content: stretch; width: 100%; padding-top: 12px; border-top: 1px solid var(--line); }.opinion-row .opinion-actions .ant-btn { width: 100%; min-height: 44px; font-size: 12px; }
+  .decision-summary-facts { grid-template-columns: minmax(80px, .72fr) minmax(86px, .8fr) minmax(0, 1.5fr); gap: 6px; }.decision-summary-fact { padding: 7px; }.decision-summary-fact > strong:not(.decision-summary-rating) { font-size: 11px; }.decision-summary-action { padding: 8px; }.decision-summary-action-copy { font-size: 12px; }.report-status { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 12px; padding: 11px 0; border-top: 1px solid var(--line); }.report-status small { display: block; }.opinion-row .opinion-actions { display: grid; grid-template-columns: 1fr; gap: 8px; justify-content: stretch; width: 100%; padding-top: 12px; border-top: 1px solid var(--line); }.opinion-row .opinion-actions .ant-btn { width: 100%; min-height: 44px; font-size: 12px; }
 }
 @media (max-width: 480px) { .opinion-card { border-radius: 11px; }.heading-actions { gap: 7px; }.heading-actions .ant-btn { min-height: 40px; }.watchlist-link { width: 100%; padding: 4px 0; }.opinion-row { padding: 14px 12px; } }
 @media (max-width: 380px) { .opinion-actions { grid-template-columns: 1fr; } }
