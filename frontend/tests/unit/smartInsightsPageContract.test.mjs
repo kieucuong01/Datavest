@@ -85,11 +85,12 @@ test('Asset Opinions treats the latest TradingAgents report as available even wi
   assert.match(opinionsSource, /smartInsights\.createDeepReport/u)
 })
 
-test('Asset Opinions presents a clear decision hierarchy instead of a dense text row', () => {
+test('Asset Opinions presents one compact decision brief instead of split fact and action groups', () => {
   assert.match(opinionsSource, /class="opinion-main"/u)
-  assert.match(opinionsSource, /class="decision-summary-facts"/u)
-  assert.match(opinionsSource, /decisionActionRows\(row\)/u)
-  assert.match(opinionsSource, /class="decision-summary-action"/u)
+  assert.match(opinionsSource, /class="decision-brief-grid"/u)
+  assert.match(opinionsSource, /decisionBriefRows\(row\)/u)
+  assert.match(opinionsSource, /class="decision-brief-item"/u)
+  assert.match(opinionsSource, /decision-brief-item--rating/u)
   assert.match(opinionsSource, /smartInsights\.overweight/u)
   assert.match(opinionsSource, /smartInsights\.underweight/u)
   assert.match(opinionsSource, /class="opinion-column-label"/u)
@@ -101,10 +102,13 @@ test('Asset Opinions presents a clear decision hierarchy instead of a dense text
 })
 
 test('Asset Opinions shows the full decision brief without redundant state labels', () => {
-  assert.match(opinionsSource, /class="decision-summary-facts"/u)
-  assert.match(opinionsSource, /class="decision-summary-fact-label"/u)
-  assert.match(opinionsSource, /row\.symbol \|\| row\.displaySymbol/u)
+  assert.match(opinionsSource, /class="decision-brief-grid"/u)
+  assert.match(opinionsSource, /smartInsights\.decisionCoreStrategy/u)
+  assert.match(opinionsSource, /smartInsights\.decisionCapitalManagement/u)
+  assert.match(opinionsSource, /smartInsights\.decisionStopLoss/u)
   assert.match(opinionsSource, /decisionSummary\(row\)\.timeHorizon/u)
+  assert.doesNotMatch(opinionsSource, /smartInsights\.decisionAddPosition/u)
+  assert.doesNotMatch(opinionsSource, /class="decision-summary-fact-label">\{\{ \$t\('smartInsights\.asset'\) \}\}/u)
   assert.doesNotMatch(opinionsSource, /\{\{\s*\$t\('smartInsights\.reportUnavailable'\)\s*\}\}/u)
   assert.doesNotMatch(opinionsSource, /\{\{\s*\$t\('smartInsights\.decisionSummary'\)\s*\}\}/u)
   assert.doesNotMatch(opinionsSource, /\{\{\s*\$t\('smartInsights\.deepEngine'\)\s*\}\}/u)
