@@ -71,7 +71,7 @@ test('Asset Opinions does not show the retired Smart Insights quantitative score
 test('Asset Opinions shows the Portfolio Manager decision summary instead of a raw generated timestamp', () => {
   assert.match(opinionsSource, /extractPortfolioManagerDecisionSummary/u)
   assert.match(opinionsSource, /decisionSummary\(row\)/u)
-  assert.match(opinionsSource, /smartInsights\.rating/u)
+  assert.match(opinionsSource, /smartInsights\.recommendation/u)
   assert.match(opinionsSource, /smartInsights\.timeHorizon/u)
   assert.match(opinionsSource, /smartInsights\.reportCreatedAt/u)
   assert.doesNotMatch(opinionsSource, /Generated:/u)
@@ -88,8 +88,8 @@ test('Asset Opinions treats the latest TradingAgents report as available even wi
 test('Asset Opinions presents one compact decision brief instead of split fact and action groups', () => {
   assert.match(opinionsSource, /class="opinion-main"/u)
   assert.match(opinionsSource, /class="decision-brief-grid"/u)
-  assert.match(opinionsSource, /decisionBriefRows\(row\)/u)
-  assert.match(opinionsSource, /class="decision-brief-item"/u)
+  assert.match(opinionsSource, /decisionActionPlan\(row\)/u)
+  assert.match(opinionsSource, /class="decision-brief-item decision-brief-item--rating"/u)
   assert.match(opinionsSource, /decision-brief-item--rating/u)
   assert.match(opinionsSource, /smartInsights\.overweight/u)
   assert.match(opinionsSource, /smartInsights\.underweight/u)
@@ -101,11 +101,14 @@ test('Asset Opinions presents one compact decision brief instead of split fact a
 
 test('Asset Opinions shows the full decision brief without redundant state labels', () => {
   assert.match(opinionsSource, /class="decision-brief-grid"/u)
-  assert.match(opinionsSource, /smartInsights\.decisionCoreStrategy/u)
-  assert.match(opinionsSource, /smartInsights\.decisionCapitalManagement/u)
-  assert.match(opinionsSource, /smartInsights\.decisionStopLoss/u)
   assert.match(opinionsSource, /smartInsights\.decisionActionPlan/u)
+  assert.match(opinionsSource, /smartInsights\.recommendation/u)
   assert.match(opinionsSource, /decisionSummary\(row\)\.timeHorizon/u)
+  assert.doesNotMatch(opinionsSource, /decisionBriefRows\(row\)/u)
+  assert.doesNotMatch(opinionsSource, /class="decision-brief-action-row"/u)
+  assert.doesNotMatch(opinionsSource, /smartInsights\.decisionCoreStrategy/u)
+  assert.doesNotMatch(opinionsSource, /smartInsights\.decisionCapitalManagement/u)
+  assert.doesNotMatch(opinionsSource, /smartInsights\.decisionStopLoss/u)
   assert.match(opinionsSource, /class="decision-brief-created"/u)
   assert.match(opinionsSource, /reportCreatedAt\(row\)/u)
   assert.doesNotMatch(opinionsSource, /smartInsights\.decisionAddPosition/u)
@@ -119,8 +122,8 @@ test('Asset Opinions shows the full decision brief without redundant state label
 
 test('Smart Insights has a translated rating label for the decision facts', () => {
   const localeSource = fs.readFileSync(new URL('../../src/locales/smart-insights.js', import.meta.url), 'utf8')
-  assert.match(localeSource, /'smartInsights\.rating':\s*'Rating'/u)
-  assert.match(localeSource, /'smartInsights\.rating':\s*'Xếp hạng'/u)
+  assert.match(localeSource, /'smartInsights\.recommendation':\s*'Recommendation'/u)
+  assert.match(localeSource, /'smartInsights\.recommendation':\s*'Khuyến nghị'/u)
 })
 
 test('Asset Opinions keeps its single TradingAgents action usable on phones', () => {
