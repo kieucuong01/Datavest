@@ -178,6 +178,20 @@ test('keeps a readable preview and creation time when a latest deep report has n
   assert.match(row.deepState.report.summary, /Kết luận danh mục/u)
 })
 
+test('never uses the raw Generated metadata line as a report preview', () => {
+  const [row] = applyPublicDeepReports(buildSharedOpinionRows([], [], null), [{
+    assetKey: 'crypto:BTC/USDT',
+    reportKind: 'deep',
+    effectiveDate: '2026-09-14',
+    generatedAt: '2026-09-14T01:12:00Z',
+    summary: 'Generated: 2026-09-14 08:06:19',
+    body: '# Trading Analysis Report: BTC-USD\n\nGenerated: 2026-09-14 08:06:19\n\n## V. Portfolio Manager Decision\n\n**Rating**: Hold',
+    sections: []
+  }])
+
+  assert.doesNotMatch(row.deepState.report.summary, /^Generated:/u)
+})
+
 test('keeps an account monitor separate from the shared public TradingAgents report', () => {
   const rows = applyPublicDeepReports(
     buildAccountOpinionRows(

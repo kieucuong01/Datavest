@@ -121,6 +121,16 @@ function parseReportField (line) {
   return label && value ? { label, value } : null
 }
 
+function extractTimeHorizon (value) {
+  const text = cleanInlineMarkdown(value)
+  const marker = /(?:time horizon|khung thời gian)\s*:\s*/iu.exec(text)
+  if (!marker) return ''
+  return text
+    .slice(marker.index + marker[0].length)
+    .trim()
+    .replace(/[.!?]\s*$/u, '')
+}
+
 function pushReportCallout (blocks, field) {
   blocks.push({
     type: 'callout',
@@ -325,13 +335,21 @@ export function extractPortfolioManagerDecisionSummary (content) {
 
     const item = /^(?:[-*+]\s+|\d+[.)]\s+)(.+)$/.exec(line)
     if (inExecutiveSummary && item && summary.actions.length < 3) {
-      summary.actions.push(cleanInlineMarkdown(item[1]))
+      const action = cleanInlineMarkdown(item[1])
+      summary.actions.push(action)
+      if (!summary.timeHorizon) summary.timeHorizon = extractTimeHorizon(action)
       continue
     }
 
     const field = parseReportField(line)
     if (field) {
       const fieldKey = headingKey(field.label)
+      if (/^(?:executive summary|action summary|tóm tắt hành động)$/i.test(fieldKey)) {
+        inExecutiveSummary = true
+        if (field.value && summary.actions.length < 3) summary.actions.push(field.value)
+        if (!summary.timeHorizon) summary.timeHorizon = extractTimeHorizon(field.value)
+        continue
+      }
       if (!summary.rating && /^(?:portfolio manager rating|rating|recommendation|xếp hạng|khuyến nghị)$/.test(fieldKey)) {
         summary.rating = field.value
         continue

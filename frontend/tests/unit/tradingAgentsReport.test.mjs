@@ -55,3 +55,22 @@ Time Horizon: 1-4 weeks, reassess after the FOMC meeting.
     ]
   })
 })
+
+test('extracts a single-line executive summary used by production TradingAgents reports', () => {
+  const summary = extractPortfolioManagerDecisionSummary(`
+# Trading Analysis Report: BTC-USD
+Generated: 2026-09-14 08:06:19
+## V. Portfolio Manager Decision
+### Portfolio Manager
+**Rating**: Hold
+**Executive Summary**: Giữ nguyên vị thế lõi BTC-USD, không tăng và không xả trước FOMC. Không mua đuổi quanh 77k. Khung thời gian: 1–4 tuần, đánh giá lại sau phản ứng của Fed.
+`)
+
+  assert.deepEqual(summary, {
+    rating: 'Hold',
+    timeHorizon: '1–4 tuần, đánh giá lại sau phản ứng của Fed',
+    actions: [
+      'Giữ nguyên vị thế lõi BTC-USD, không tăng và không xả trước FOMC. Không mua đuổi quanh 77k. Khung thời gian: 1–4 tuần, đánh giá lại sau phản ứng của Fed.'
+    ]
+  })
+})

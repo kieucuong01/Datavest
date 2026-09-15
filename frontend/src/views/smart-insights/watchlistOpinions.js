@@ -57,7 +57,7 @@ function reportBodyPreview (value) {
     .replace(/\r/g, '')
     .split('\n')
     .map(item => item.trim())
-    .find(item => item && !/^#{1,6}\s+/u.test(item))
+    .find(item => item && !/^#{1,6}\s+/u.test(item) && !/^Generated:\s*/iu.test(item))
   return textOrEmpty(line)
 }
 
@@ -241,6 +241,8 @@ function publicDeepReport (item) {
     .filter(Boolean)
     .slice(0, 8)
   const confidence = Number(source.confidence)
+  const suppliedSummary = textOrEmpty(source.summary)
+  const usableSummary = suppliedSummary && !/^Generated:\s*/iu.test(suppliedSummary) ? suppliedSummary : ''
   return {
     id: `public:${source.assetKey || source.asset_key}:${source.effectiveDate || source.effective_date || ''}`,
     source: 'PUBLIC_RESEARCH_REPORT',
@@ -250,7 +252,7 @@ function publicDeepReport (item) {
     confidence: Number.isFinite(confidence) ? confidence : null,
     title: textOrEmpty(source.title),
     body: textOrEmpty(source.body),
-    summary: textOrEmpty(source.summary) || reportBodyPreview(source.body) || textOrEmpty(source.title),
+    summary: usableSummary || reportBodyPreview(source.body) || textOrEmpty(source.title),
     reasons: sectionItems('luận điểm'),
     risks: sectionItems('rủi ro'),
     analysisDate: source.effectiveDate || source.effective_date || null,
