@@ -104,3 +104,10 @@ Time Horizon: 2–6 tuần
   assert.match(summary.actions[3], /Chỉ thêm vị thế/u)
   assert.ok(summary.actions.every((action) => !action.includes('DataVest - TradingAgents')))
 })
+
+test('keeps a flat transaction proposal as a safe fallback when only report metadata is available', () => {
+  const summary = extractPortfolioManagerDecisionSummary('FINAL TRANSACTION PROPOSAL: **HOLD** (wait for confirmation)')
+
+  assert.equal(summary.rating, 'HOLD')
+  assert.deepEqual(summary.actions, [])
+})

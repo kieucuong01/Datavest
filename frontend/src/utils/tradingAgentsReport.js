@@ -320,6 +320,8 @@ export function extractPortfolioManagerDecisionSummary (content) {
   const summary = { rating: '', timeHorizon: '', actions: [] }
   const lines = String(content || '').replace(/\r\n?/g, '\n').split('\n')
   const executiveSummaryParts = []
+  let fallbackRating = ''
+  let fallbackTimeHorizon = ''
   let inPortfolioDecision = false
   let inExecutiveSummary = false
 
@@ -330,6 +332,19 @@ export function extractPortfolioManagerDecisionSummary (content) {
     const heading = /^(#{1,6})\s+(.+)$/.exec(line)
     const headingText = heading ? cleanInlineMarkdown(heading[2]) : cleanLine
     const key = headingKey(headingText)
+
+    // Some older projections only expose a compact proposal instead of the
+    // full Portfolio Manager section. Keep it as a fallback, but do not let
+    // an earlier analyst proposal override the later Mục V decision.
+    if (!inPortfolioDecision) {
+      const proposal = /^(?:FINAL TRANSACTION PROPOSAL|ĐỀ XUẤT GIAO DỊCH CUỐI CÙNG)\s*:\s*(.+)$/iu.exec(cleanLine)
+      if (proposal && !fallbackRating) {
+        const rating = /^(?:STRONG[_ -])?(BUY|SELL|HOLD|OVERWEIGHT|UNDERWEIGHT|ACCUMULATE|OUTPERFORM|REDUCE|UNDERPERFORM|NEUTRAL)\b/iu.exec(proposal[1])
+        fallbackRating = rating ? rating[1] : cleanInlineMarkdown(proposal[1]).split(/\s+/u)[0]
+      }
+      const horizon = /^(?:TIME HORIZON|KHUNG THỜI GIAN)\s*:\s*(.+)$/iu.exec(cleanLine)
+      if (horizon && !fallbackTimeHorizon) fallbackTimeHorizon = cleanInlineMarkdown(horizon[1]).replace(/[.!?]\s*$/u, '')
+    }
 
     if (/^(?:v\.\s*)?(?:portfolio manager decision|quyết định của quản lý danh mục)$/.test(key)) {
       inPortfolioDecision = true
@@ -386,6 +401,9 @@ export function extractPortfolioManagerDecisionSummary (content) {
   if (!summary.actions.length && executiveSummaryParts.length) {
     summary.actions = splitExecutiveSummary(executiveSummaryParts.join(' '))
   }
+
+  if (!summary.rating) summary.rating = fallbackRating
+  if (!summary.timeHorizon) summary.timeHorizon = fallbackTimeHorizon
 
   return summary
 }

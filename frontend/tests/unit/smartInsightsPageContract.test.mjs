@@ -110,6 +110,12 @@ test('Asset Opinions shows the full decision brief without redundant state label
   assert.doesNotMatch(opinionsSource, /\{\{\s*\$t\('smartInsights\.deepEngine'\)\s*\}\}/u)
 })
 
+test('Smart Insights has a translated rating label for the decision facts', () => {
+  const localeSource = fs.readFileSync(new URL('../../src/locales/smart-insights.js', import.meta.url), 'utf8')
+  assert.match(localeSource, /'smartInsights\.rating':\s*'Rating'/u)
+  assert.match(localeSource, /'smartInsights\.rating':\s*'Xếp hạng'/u)
+})
+
 test('Asset Opinions keeps its single TradingAgents action usable on phones', () => {
   assert.match(opinionsSource, /@media \(max-width: 680px\)[\s\S]*?\.opinion-actions\s*\{[\s\S]*?grid-template-columns:\s*1fr/u)
   assert.match(opinionsSource, /\.opinion-actions \.ant-btn\s*\{[\s\S]*?min-height:\s*44px/u)
