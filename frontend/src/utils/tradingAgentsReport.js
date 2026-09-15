@@ -131,6 +131,20 @@ function extractTimeHorizon (value) {
     .replace(/[.!?]\s*$/u, '')
 }
 
+function splitExecutiveSummary (value) {
+  const text = cleanInlineMarkdown(value)
+    .replace(/Không phải tư vấn đầu tư hoặc lệnh giao dịch\.\s*/giu, '')
+    .replace(/Not investment advice or a trading instruction\.\s*/giu, '')
+    .replace(/DataVest\s*-\s*TradingAgents\s*-\s*\d+/giu, '')
+    .replace(/\s+/g, ' ')
+  if (!text) return []
+  return text
+    .split(/(?<=[.!?])\s+/u)
+    .map(item => item.trim())
+    .filter(Boolean)
+    .slice(0, 10)
+}
+
 function pushReportCallout (blocks, field) {
   blocks.push({
     type: 'callout',
@@ -305,6 +319,7 @@ export function parseTradingAgentsReport (content) {
 export function extractPortfolioManagerDecisionSummary (content) {
   const summary = { rating: '', timeHorizon: '', actions: [] }
   const lines = String(content || '').replace(/\r\n?/g, '\n').split('\n')
+  const executiveSummaryParts = []
   let inPortfolioDecision = false
   let inExecutiveSummary = false
 
@@ -334,7 +349,7 @@ export function extractPortfolioManagerDecisionSummary (content) {
     }
 
     const item = /^(?:[-*+]\s+|\d+[.)]\s+)(.+)$/.exec(line)
-    if (inExecutiveSummary && item && summary.actions.length < 3) {
+    if (inExecutiveSummary && item && summary.actions.length < 8) {
       const action = cleanInlineMarkdown(item[1])
       summary.actions.push(action)
       if (!summary.timeHorizon) summary.timeHorizon = extractTimeHorizon(action)
@@ -346,7 +361,7 @@ export function extractPortfolioManagerDecisionSummary (content) {
       const fieldKey = headingKey(field.label)
       if (/^(?:executive summary|action summary|tóm tắt hành động)$/i.test(fieldKey)) {
         inExecutiveSummary = true
-        if (field.value && summary.actions.length < 3) summary.actions.push(field.value)
+        executiveSummaryParts.push(field.value)
         if (!summary.timeHorizon) summary.timeHorizon = extractTimeHorizon(field.value)
         continue
       }
@@ -358,11 +373,18 @@ export function extractPortfolioManagerDecisionSummary (content) {
         summary.timeHorizon = field.value
         continue
       }
-      if (inExecutiveSummary && summary.actions.length < 3) {
+      if (inExecutiveSummary && /^(?:core strategy|capital management|stop-loss discipline|stop loss|add position(?:\/dca)? conditions|chiến lược cốt lõi|quản trị vốn|kỷ luật cắt lỗ|điều kiện mua thêm(?:\/dca)?)$/i.test(fieldKey) && summary.actions.length < 8) {
         summary.actions.push(`${field.label}: ${field.value}`)
       }
+      inExecutiveSummary = false
       continue
     }
+
+    if (inExecutiveSummary) executiveSummaryParts.push(cleanLine)
+  }
+
+  if (!summary.actions.length && executiveSummaryParts.length) {
+    summary.actions = splitExecutiveSummary(executiveSummaryParts.join(' '))
   }
 
   return summary

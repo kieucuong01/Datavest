@@ -76,3 +76,31 @@ Generated: 2026-09-14 08:06:19
     ]
   })
 })
+
+test('extracts the full wrapped production executive summary without PDF footer noise', () => {
+  const summary = extractPortfolioManagerDecisionSummary(`
+V. Portfolio Manager Decision
+Portfolio Manager
+Rating: Hold
+Executive Summary: Giữ nguyên vị thế lõi BTC-USD ở mức HOLD, KHÔNG mua đuổi tại 78.386,20
+vì giá đang nằm dưới VWMA (78.910), dưới EMA10 và dưới đường giữa Bollinger (78.702). Chấp nhận
+một động thái hạ beta có giới hạn — cắt tỉa 5–10% vị thế trước FOMC 16/09 — và giảm sizing tổng
+25–30% so với điều kiện yên ắng, không dùng đòn bẩy, giữ tiền mặt dự phòng cho cả hai kịch bản.
+Stop cứng dưới vùng hội tụ 76.248–76.462 với một khoảng đệm thực sự; nếu thủng 76.248 kèm khối
+lượng, hạ về mức phòng thủ và chuyển kịch bản sang 70.000–72.000. Chỉ thêm vị thế khi có đóng
+cửa ngày TRÊN 78.910 KÈM khối lượng >40 tỷ, hoặc DCA từng phần tại 76.400–76.500 chỉ khi xuất
+hiện nến đảo chiều xác nhận.
+Không phải tư vấn đầu tư hoặc lệnh giao dịch. DataVest - TradingAgents - 45
+Investment Thesis: Cấu trúc trung–dài hạn còn tăng.
+Time Horizon: 2–6 tuần
+`)
+
+  assert.equal(summary.rating, 'Hold')
+  assert.equal(summary.timeHorizon, '2–6 tuần')
+  assert.equal(summary.actions.length, 4)
+  assert.match(summary.actions[0], /Giữ nguyên vị thế lõi BTC-USD/u)
+  assert.match(summary.actions[1], /cắt tỉa 5–10%/u)
+  assert.match(summary.actions[2], /Stop cứng/u)
+  assert.match(summary.actions[3], /Chỉ thêm vị thế/u)
+  assert.ok(summary.actions.every((action) => !action.includes('DataVest - TradingAgents')))
+})
