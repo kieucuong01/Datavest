@@ -22,7 +22,6 @@
       <div class="opinion-table-head" role="row">
         <span>{{ $t('smartInsights.asset') }}</span>
         <span>{{ $t('smartInsights.deepAnalysis') }}</span>
-        <span>{{ $t('smartInsights.dataStatus') }}</span>
         <span>{{ $t('smartInsights.actions') }}</span>
       </div>
 
@@ -65,24 +64,20 @@
                 <span class="decision-brief-label">{{ $t('smartInsights.timeHorizon') }}</span>
                 <strong>{{ decisionSummary(row).timeHorizon || $t('smartInsights.notAvailable') }}</strong>
               </div>
-              <div v-for="action in decisionBriefRows(row)" :key="`${row.id}-${action.label}`" class="decision-brief-item">
-                <span class="decision-brief-label">{{ action.label }}</span>
-                <span>{{ action.value }}</span>
+              <div v-if="decisionBriefRows(row).length" class="decision-brief-actions">
+                <div v-for="action in decisionBriefRows(row)" :key="`${row.id}-${action.label}`" class="decision-brief-action-row">
+                  <span class="decision-brief-label">{{ action.label }}</span>
+                  <span>{{ action.value }}</span>
+                </div>
               </div>
             </div>
             <p v-if="!decisionBriefRows(row).length" class="muted-line">{{ reportPreview(row) }}</p>
+            <small v-if="reportCreatedAt(row)" class="decision-brief-created">{{ $t('smartInsights.reportCreatedAt') }}: {{ formatDateTime(reportCreatedAt(row)) }}</small>
           </template>
           <p v-else class="muted-line">{{ $t('smartInsights.deepAnalysisDesc') }}</p>
           <div v-if="row.researchInDevelopment" class="opinion-meta">
             <span class="engine-line"><a-icon type="tool" /> {{ $t('smartInsights.researchInDevelopment') }}</span>
           </div>
-        </div>
-
-        <div class="report-status" :data-label="$t('smartInsights.dataStatus')" :aria-label="statusLabel(row)" :title="statusLabel(row)">
-          <div class="status-label">
-            <span class="status-indicator" :class="statusIndicatorTone(row)" aria-hidden="true" />
-          </div>
-          <small v-if="reportCreatedAt(row)">{{ $t('smartInsights.reportCreatedAt') }}: {{ formatDateTime(reportCreatedAt(row)) }}</small>
         </div>
 
         <div class="opinion-actions" :data-label="$t('smartInsights.actions')">
@@ -206,31 +201,6 @@ export default {
       const report = this.researchReport(row)
       return report && (report.createdAt || report.generatedAt || report.effectiveDate)
     },
-    presentation (row) {
-      if (this.researchReport(row)) return { status: 'AVAILABLE', capturedAt: null, nextRunAt: null }
-      const state = row && row.deepState && row.deepState.status ? String(row.deepState.status).toUpperCase() : 'UNAVAILABLE'
-      return { status: state, capturedAt: null, nextRunAt: null }
-    },
-    statusTone (row) {
-      const status = this.presentation(row).status
-      return status === 'AVAILABLE' ? 'stance-positive' : status === 'STALE' || status === 'FAILED' || status === 'OVERDUE' ? 'stance-negative' : 'stance-neutral'
-    },
-    statusIndicatorTone (row) {
-      return this.statusTone(row).replace('stance-', 'status-indicator--')
-    },
-    statusLabel (row) {
-      const labels = {
-        AVAILABLE: 'reportAvailable',
-        HISTORICAL: 'reportHistorical',
-        STALE: 'reportStale',
-        PENDING: 'reportPending',
-        PAUSED: 'reportPaused',
-        FAILED: 'reportFailed',
-        OVERDUE: 'reportOverdue',
-        UNAVAILABLE: 'reportUnavailable'
-      }
-      return this.$t(`smartInsights.${labels[this.presentation(row).status] || 'reportUnavailable'}`)
-    },
     formatDateTime (value) {
       if (!value) return this.$t('smartInsights.notAvailable')
       return formatVietnamDateTime(value, { locale: this.$i18n && this.$i18n.locale === 'vi-VN' ? 'vi-VN' : 'en-GB', fallback: String(value) })
@@ -281,7 +251,7 @@ export default {
 .watchlist-link, .table-empty a { color: var(--blue); font-size: 12px; text-decoration: none; }.watchlist-link { padding: 7px 0; font-weight: 600; }
 .watchlist-link:focus-visible, .table-empty a:focus-visible { outline: 2px solid var(--blue); outline-offset: 3px; border-radius: 4px; }
 .opinion-loading { min-height: 180px; padding: 22px 20px; }.opinion-table { width: 100%; }
-.opinion-table-head, .opinion-row { display: grid; grid-template-columns: minmax(132px, .72fr) minmax(0, 4fr) minmax(106px, .48fr) minmax(142px, .62fr); align-items: start; gap: 16px; padding: 0 20px; }
+.opinion-table-head, .opinion-row { display: grid; grid-template-columns: minmax(112px, .55fr) minmax(0, 4fr) minmax(132px, .5fr); align-items: start; gap: 12px; padding: 0 20px; }
 .opinion-table-head > *, .opinion-row > * { min-width: 0; }
 .opinion-table-head { min-height: 38px; color: var(--muted); border-bottom: 1px solid var(--line); background: var(--card); font-size: 11px; font-weight: 600; }
 .opinion-row { min-height: 104px; padding-top: 16px; padding-bottom: 16px; border-bottom: 1px solid var(--line); font-size: 13px; transition: background-color .18s ease; }
@@ -290,19 +260,18 @@ export default {
 .asset-copy strong { color: var(--ink); font-size: 14px; letter-spacing: .01em; }.asset-copy small { color: var(--muted); font-size: 11px; }
 .asset-avatar { display: inline-grid; place-items: center; flex: 0 0 auto; width: 36px; height: 36px; border-radius: 50%; color: var(--blue); border: 1px solid var(--blue-ring); background: var(--soft-blue); font-size: 10px; font-weight: 800; }
 .tone-btc { color: #9d6200; background: #fff3d7; }.tone-eth { color: #545bc3; background: #eff0ff; }.tone-xau { color: #8f6b00; background: #fff8d9; }.tone-vnix { color: #fff; background: #fa4865; }.tone-vn3 { color: #25324a; background: #eef1f7; }
-.opinion-main { min-width: 0; }.opinion-main-head { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; min-height: 25px; }.opinion-column-label { display: none; color: var(--muted); font-size: 11px; font-weight: 700; }
+.opinion-main { min-width: 0; }.opinion-main-head { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; min-height: 0; }.opinion-column-label { display: none; color: var(--muted); font-size: 11px; font-weight: 700; }
 .opinion-row .ant-tag { margin: 0; font-size: 11px; line-height: 20px; }.stance-positive { color: var(--opinion-positive); border-color: var(--opinion-positive-border); background: var(--opinion-positive-bg); }.stance-negative { color: var(--opinion-negative); border-color: var(--opinion-negative-border); background: var(--opinion-negative-bg); }.stance-neutral { color: var(--opinion-neutral); border-color: var(--opinion-neutral-border); background: var(--opinion-neutral-bg); }
-.decision-brief-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 5px; }.decision-brief-item { display: grid; align-content: start; gap: 4px; min-width: 0; padding: 9px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--card); color: var(--ink); font-size: 12px; font-weight: 600; line-height: 1.42; }.decision-brief-item--rating { background: var(--soft-blue); border-color: var(--blue-ring); }.decision-brief-label { color: var(--muted); font-size: 9px; font-weight: 750; line-height: 1.2; text-transform: uppercase; letter-spacing: .06em; }.decision-brief-rating { display: inline-flex; align-items: center; width: max-content; max-width: 100%; min-height: 24px; padding: 2px 9px; border: 1px solid transparent; border-radius: 999px; font-size: 11px; font-weight: 750; line-height: 1.35; }.opinion-main .muted-line { display: -webkit-box; max-width: 100%; margin: 6px 0 0; overflow: hidden; color: var(--ink); font-size: 12px; line-height: 1.5; text-overflow: ellipsis; white-space: normal; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }.opinion-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin-top: 7px; color: var(--muted); font-size: 10px; line-height: 1.35; }.engine-line, .confidence-line { display: inline-flex; align-items: center; gap: 4px; }.engine-line .anticon { color: var(--blue); }.confidence-line { color: var(--blue); }
-.report-status { display: grid; align-content: start; gap: 3px; color: var(--muted); overflow-wrap: anywhere; font-size: 10px; line-height: 1.35; }.status-label { display: flex; align-items: center; gap: 4px; min-width: 0; }.status-indicator { width: 6px; height: 6px; flex: 0 0 auto; border-radius: 50%; background: var(--opinion-neutral); }.status-indicator--positive { background: var(--opinion-positive); }.status-indicator--negative { background: var(--opinion-negative); }.status-indicator--neutral { background: #9aa7b8; }.report-status .ant-tag { max-width: 100%; margin: 0; padding: 0 5px; overflow: hidden; font-size: 10px; line-height: 18px; text-overflow: ellipsis; white-space: nowrap; }.report-status small { color: var(--muted); font-size: 10px; }.next-run { color: var(--blue) !important; }
+.decision-brief-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 0; }.decision-brief-item, .decision-brief-actions { min-width: 0; padding: 9px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--card); color: var(--ink); font-size: 12px; font-weight: 600; line-height: 1.42; }.decision-brief-item { display: grid; align-content: start; gap: 4px; }.decision-brief-item--rating { background: var(--soft-blue); border-color: var(--blue-ring); }.decision-brief-actions { grid-column: 1 / -1; display: grid; gap: 8px; }.decision-brief-action-row { display: grid; grid-template-columns: minmax(116px, .46fr) minmax(0, 2fr); align-items: start; gap: 12px; }.decision-brief-action-row + .decision-brief-action-row { padding-top: 8px; border-top: 1px solid var(--line); }.decision-brief-label { color: var(--muted); font-size: 9px; font-weight: 750; line-height: 1.2; text-transform: uppercase; letter-spacing: .06em; }.decision-brief-rating { display: inline-flex; align-items: center; width: max-content; max-width: 100%; min-height: 24px; padding: 2px 9px; border: 1px solid transparent; border-radius: 999px; font-size: 11px; font-weight: 750; line-height: 1.35; }.decision-brief-created { display: block; margin-top: 7px; color: var(--muted); font-size: 10px; line-height: 1.35; }.opinion-main .muted-line { display: -webkit-box; max-width: 100%; margin: 6px 0 0; overflow: hidden; color: var(--ink); font-size: 12px; line-height: 1.5; text-overflow: ellipsis; white-space: normal; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }.opinion-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin-top: 7px; color: var(--muted); font-size: 10px; line-height: 1.35; }.engine-line, .confidence-line { display: inline-flex; align-items: center; gap: 4px; }.engine-line .anticon { color: var(--blue); }.confidence-line { color: var(--blue); }
 .opinion-actions { display: flex; align-items: flex-start; justify-content: flex-end; flex-wrap: wrap; gap: 6px; min-width: 0; }.opinion-actions .ant-btn { min-height: 32px; padding: 0 8px; overflow: hidden; border-radius: 7px; font-size: 10px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; transition: transform .18s ease, box-shadow .18s ease; }.opinion-actions .ant-btn:hover { transform: translateY(-1px); }.opinion-actions .ant-btn:active { transform: scale(.98); }.deep-analysis-action { color: var(--blue); border-color: var(--blue-ring); background: transparent; }.opinion-action-empty { display: inline-flex; align-items: center; justify-content: center; min-width: 18px; min-height: 32px; color: var(--muted); font-size: 14px; }
 .legacy-empty { display: flex; align-items: center; justify-content: center; gap: 9px; min-height: 110px; padding: 20px; color: var(--muted); text-align: center; }.legacy-empty div { display: grid; gap: 5px; text-align: left; }.legacy-empty span, .legacy-empty strong { font-size: 13px; }
 .theme-dark & { --opinion-positive: #7bd99f; --opinion-positive-bg: rgba(82, 196, 26, .14); --opinion-positive-border: rgba(82, 196, 26, .38); --opinion-negative: #ff9c96; --opinion-negative-bg: rgba(255, 77, 79, .14); --opinion-negative-border: rgba(255, 77, 79, .38); --opinion-neutral: #b7c3d4; --opinion-neutral-bg: rgba(148, 163, 184, .14); --opinion-neutral-border: rgba(148, 163, 184, .38); }
-@media (max-width: 1100px) { .opinion-table-head, .opinion-row { grid-template-columns: minmax(128px, .72fr) minmax(0, 2.8fr) minmax(108px, .55fr) minmax(140px, .7fr); gap: 12px; padding-right: 16px; padding-left: 16px; }.opinion-actions { justify-content: flex-start; } }
+@media (max-width: 1100px) { .opinion-table-head, .opinion-row { grid-template-columns: minmax(112px, .55fr) minmax(0, 3fr) minmax(132px, .5fr); gap: 10px; padding-right: 16px; padding-left: 16px; }.opinion-actions { justify-content: flex-start; } }
 @media (max-width: 680px) {
   .card-heading { align-items: flex-start; flex-direction: column; gap: 13px; padding: 16px; }.heading-actions { width: 100%; justify-content: flex-start; }.opinion-table-head { display: none; }
   .opinion-row { display: flex; flex-direction: column; align-items: stretch; gap: 0; min-height: 0; padding: 16px; }.opinion-row > * { width: 100%; min-width: 0; }
-  .asset-cell { padding-bottom: 12px; }.opinion-main { padding: 12px 0; border-top: 1px solid var(--line); }.opinion-column-label { display: inline-block; margin-right: auto; }.opinion-main-head { justify-content: flex-start; }.opinion-main .muted-line { -webkit-line-clamp: 4; }.opinion-meta { gap: 7px 12px; }
-  .decision-brief-grid { grid-template-columns: 1fr; gap: 6px; }.decision-brief-item { padding: 8px; }.report-status { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 12px; padding: 11px 0; border-top: 1px solid var(--line); }.report-status small { display: block; }.opinion-row .opinion-actions { display: grid; grid-template-columns: 1fr; gap: 8px; justify-content: stretch; width: 100%; padding-top: 12px; border-top: 1px solid var(--line); }.opinion-row .opinion-actions .ant-btn { width: 100%; min-height: 44px; font-size: 12px; }
+  .asset-cell { padding-bottom: 12px; }.opinion-main { padding: 12px 0; border-top: 1px solid var(--line); }.opinion-column-label { display: inline-block; margin-right: auto; }.opinion-main-head { justify-content: flex-start; min-height: 25px; }.opinion-main .muted-line { -webkit-line-clamp: 4; }.opinion-meta { gap: 7px 12px; }
+  .decision-brief-grid { grid-template-columns: 1fr; gap: 6px; }.decision-brief-item, .decision-brief-actions { padding: 8px; }.decision-brief-action-row { grid-template-columns: 1fr; gap: 4px; }.opinion-row .opinion-actions { display: grid; grid-template-columns: 1fr; gap: 8px; justify-content: stretch; width: 100%; padding-top: 12px; border-top: 1px solid var(--line); }.opinion-row .opinion-actions .ant-btn { width: 100%; min-height: 44px; font-size: 12px; }
 }
 @media (max-width: 480px) { .opinion-card { border-radius: 11px; }.heading-actions { gap: 7px; }.heading-actions .ant-btn { min-height: 40px; }.watchlist-link { width: 100%; padding: 4px 0; }.opinion-row { padding: 14px 12px; } }
 @media (max-width: 380px) { .opinion-actions { grid-template-columns: 1fr; } }

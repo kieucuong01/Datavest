@@ -38,7 +38,7 @@ test('mobile breakpoint re-applies closed state after ProLayout updates its draw
 
 test('asset opinion rows use a predictable one-column flow on narrow screens', () => {
   assert.match(opinionsSource, /@media \(max-width: 680px\)[\s\S]*?\.opinion-row\s*\{[\s\S]*?display:\s*flex[\s\S]*?flex-direction:\s*column/u)
-  assert.match(opinionsSource, /@media \(max-width: 680px\)[\s\S]*?\.report-status\s+small\s*\{[\s\S]*?display:\s*block/u)
+  assert.match(opinionsSource, /\.decision-brief-created\s*\{[\s\S]*?display:\s*block/u)
 })
 
 test('decision brief facts use two columns on narrow screens', () => {
