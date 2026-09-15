@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import {
+  extractPortfolioManagerDecisionSummary,
   localizeTradingAgentsHeading,
   parseTradingAgentsReport
 } from '../../src/utils/tradingAgentsReport.js'
@@ -30,4 +31,27 @@ test('localizes fixed native report headings when the UI is Vietnamese', () => {
     localizeTradingAgentsHeading('Market Analyst', 'en-US'),
     'Market Analyst'
   )
+})
+
+test('extracts the portfolio manager decision summary for asset opinion cards', () => {
+  const summary = extractPortfolioManagerDecisionSummary(`
+## V. Portfolio Manager Decision
+Portfolio Manager Rating: **HOLD**
+Time Horizon: 1-4 weeks, reassess after the FOMC meeting.
+
+### Executive Summary
+- **Core strategy:** Keep the BTC core position; do not chase price before FOMC.
+- **Capital management:** Reduce total sizing by 25-30% and avoid leverage.
+- **Stop-loss discipline:** Use a hard stop below 76,248 with a volatility buffer.
+`)
+
+  assert.deepEqual(summary, {
+    rating: 'HOLD',
+    timeHorizon: '1-4 weeks, reassess after the FOMC meeting.',
+    actions: [
+      'Core strategy: Keep the BTC core position; do not chase price before FOMC.',
+      'Capital management: Reduce total sizing by 25-30% and avoid leverage.',
+      'Stop-loss discipline: Use a hard stop below 76,248 with a volatility buffer.'
+    ]
+  })
 })

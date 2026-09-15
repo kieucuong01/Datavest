@@ -54,16 +54,20 @@
               <a-tag class="stance-neutral">{{ $t('smartInsights.researchInDevelopment') }}</a-tag>
             </template>
             <template v-else-if="researchReport(row)">
-              <a-tag :class="decisionTone(researchReport(row).decision)">{{ reportDecisionLabel(row) }}</a-tag>
+              <a-tag :class="decisionTone(decisionSummary(row).rating || researchReport(row).decision)">{{ reportDecisionLabel(row) }}</a-tag>
             </template>
             <a-tag v-else class="stance-neutral">{{ $t('smartInsights.reportUnavailable') }}</a-tag>
           </div>
           <p v-if="row.researchInDevelopment" class="muted-line">{{ $t('smartInsights.researchInDevelopmentDesc') }}</p>
-          <p v-else-if="researchReport(row)" class="muted-line">{{ reportPreview(row) }}</p>
+          <template v-else-if="researchReport(row)">
+            <p class="decision-summary-label">{{ $t('smartInsights.decisionSummary') }}</p>
+            <p class="muted-line">{{ decisionSummary(row).actions[0] || reportPreview(row) }}</p>
+            <p v-if="decisionSummary(row).actions[1]" class="muted-line decision-summary-secondary">{{ decisionSummary(row).actions[1] }}</p>
+            <p v-if="decisionSummary(row).timeHorizon" class="time-horizon"><a-icon type="calendar" /> {{ $t('smartInsights.timeHorizon') }}: {{ decisionSummary(row).timeHorizon }}</p>
+          </template>
           <p v-else class="muted-line">{{ $t('smartInsights.deepAnalysisDesc') }}</p>
           <div class="opinion-meta">
             <span class="engine-line"><a-icon :type="row.researchInDevelopment ? 'tool' : 'apartment'" /> {{ row.researchInDevelopment ? $t('smartInsights.researchInDevelopment') : $t('smartInsights.deepEngine') }}</span>
-            <span v-if="researchReport(row) && (researchReport(row).generatedAt || researchReport(row).createdAt)" class="opinion-time"><a-icon type="clock-circle" /> {{ formatDateTime(researchReport(row).generatedAt || researchReport(row).createdAt) }}</span>
           </div>
         </div>
 
@@ -72,7 +76,7 @@
             <span class="status-indicator" :class="statusIndicatorTone(row)" aria-hidden="true" />
             <a-tag :class="statusTone(row)">{{ statusLabel(row) }}</a-tag>
           </div>
-          <small v-if="researchReport(row) && researchReport(row).effectiveDate">{{ $t('smartInsights.analysisDate') }}: {{ formatDateTime(researchReport(row).effectiveDate) }}</small>
+          <small v-if="reportCreatedAt(row)">{{ $t('smartInsights.reportCreatedAt') }}: {{ formatDateTime(reportCreatedAt(row)) }}</small>
         </div>
 
         <div class="opinion-actions" :data-label="$t('smartInsights.actions')">
@@ -103,6 +107,7 @@
 
 <script>
 import { formatVietnamDateTime } from '@/utils/vietnamTime'
+import { extractPortfolioManagerDecisionSummary } from '@/utils/tradingAgentsReport'
 import CryptoAssetIcon from '@/components/CryptoAssetIcon'
 
 export default {
@@ -133,13 +138,22 @@ export default {
       return this.$t('smartInsights.notAvailable')
     },
     researchReport (row) { return row && row.deepState && row.deepState.report ? row.deepState.report : null },
+    decisionSummary (row) {
+      const report = this.researchReport(row)
+      return report ? extractPortfolioManagerDecisionSummary(report.body) : { rating: '', timeHorizon: '', actions: [] }
+    },
     reportDecisionLabel (row) {
       const report = this.researchReport(row)
-      return report && report.decision ? this.decisionLabel(report.decision) : this.$t('smartInsights.reportAvailable')
+      const summary = this.decisionSummary(row)
+      return summary.rating ? this.decisionLabel(summary.rating) : report && report.decision ? this.decisionLabel(report.decision) : this.$t('smartInsights.reportAvailable')
     },
     reportPreview (row) {
       const report = this.researchReport(row)
       return (report && (report.summary || report.title)) || this.$t('smartInsights.deepReportReady')
+    },
+    reportCreatedAt (row) {
+      const report = this.researchReport(row)
+      return report && (report.createdAt || report.generatedAt || report.effectiveDate)
     },
     presentation (row) {
       if (this.researchReport(row)) return { status: 'AVAILABLE', capturedAt: null, nextRunAt: null }
@@ -227,8 +241,7 @@ export default {
 .tone-btc { color: #9d6200; background: #fff3d7; }.tone-eth { color: #545bc3; background: #eff0ff; }.tone-xau { color: #8f6b00; background: #fff8d9; }.tone-vnix { color: #fff; background: #fa4865; }.tone-vn3 { color: #25324a; background: #eef1f7; }
 .opinion-main { min-width: 0; }.opinion-main-head { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; min-height: 25px; }.opinion-column-label { display: none; color: var(--muted); font-size: 11px; font-weight: 700; }
 .opinion-row .ant-tag { margin: 0; font-size: 11px; line-height: 20px; }.stance-positive { color: var(--opinion-positive); border-color: var(--opinion-positive-border); background: var(--opinion-positive-bg); }.stance-negative { color: var(--opinion-negative); border-color: var(--opinion-negative-border); background: var(--opinion-negative-bg); }.stance-neutral { color: var(--opinion-neutral); border-color: var(--opinion-neutral-border); background: var(--opinion-neutral-bg); }
-.opinion-main .muted-line { display: -webkit-box; max-width: 100%; margin: 5px 0 0; overflow: hidden; color: var(--ink); font-size: 12px; line-height: 1.5; text-overflow: ellipsis; white-space: normal; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
-.opinion-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin-top: 7px; color: var(--muted); font-size: 10px; line-height: 1.35; }.engine-line, .opinion-time, .confidence-line { display: inline-flex; align-items: center; gap: 4px; }.engine-line .anticon { color: var(--blue); }.confidence-line { color: var(--blue); }
+.decision-summary-label { margin: 5px 0 0; color: var(--muted); font-size: 10px; font-weight: 700; line-height: 1.35; text-transform: uppercase; letter-spacing: .035em; }.opinion-main .muted-line { display: -webkit-box; max-width: 100%; margin: 3px 0 0; overflow: hidden; color: var(--ink); font-size: 12px; line-height: 1.5; text-overflow: ellipsis; white-space: normal; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }.opinion-main .decision-summary-secondary { color: var(--muted); -webkit-line-clamp: 1; }.time-horizon { display: inline-flex; align-items: center; gap: 4px; max-width: 100%; margin: 5px 0 0; overflow: hidden; color: var(--blue); font-size: 10px; line-height: 1.35; text-overflow: ellipsis; white-space: nowrap; }.opinion-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin-top: 7px; color: var(--muted); font-size: 10px; line-height: 1.35; }.engine-line, .confidence-line { display: inline-flex; align-items: center; gap: 4px; }.engine-line .anticon { color: var(--blue); }.confidence-line { color: var(--blue); }
 .report-status { display: grid; align-content: center; gap: 5px; color: var(--muted); overflow-wrap: anywhere; font-size: 11px; line-height: 1.35; }.status-label { display: flex; align-items: center; gap: 6px; min-width: 0; }.status-indicator { width: 7px; height: 7px; flex: 0 0 auto; border-radius: 50%; background: var(--opinion-neutral); }.status-indicator--positive { background: var(--opinion-positive); }.status-indicator--negative { background: var(--opinion-negative); }.status-indicator--neutral { background: #9aa7b8; }.report-status small { color: var(--muted); }.next-run { color: var(--blue) !important; }
 .opinion-actions { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 8px; min-width: 0; }.opinion-actions .ant-btn { min-height: 36px; padding: 0 12px; overflow: hidden; border-radius: 8px; font-size: 11px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; transition: transform .18s ease, box-shadow .18s ease; }.opinion-actions .ant-btn:hover { transform: translateY(-1px); }.opinion-actions .ant-btn:active { transform: scale(.98); }.deep-analysis-action { color: var(--blue); border-color: var(--blue-ring); background: transparent; }
 .legacy-empty { display: flex; align-items: center; justify-content: center; gap: 9px; min-height: 110px; padding: 20px; color: var(--muted); text-align: center; }.legacy-empty div { display: grid; gap: 5px; text-align: left; }.legacy-empty span, .legacy-empty strong { font-size: 13px; }

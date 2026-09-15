@@ -68,9 +68,12 @@ test('Asset Opinions does not show the retired Smart Insights quantitative score
   assert.doesNotMatch(opinionsSource, /displayScore/u)
 })
 
-test('Asset Opinions identifies the TradingAgents decision and report timestamp', () => {
-  assert.match(opinionsSource, /decisionTone\(researchReport\(row\)\.decision\)/u)
-  assert.match(opinionsSource, /formatDateTime\(researchReport\(row\)\.generatedAt \|\| researchReport\(row\)\.createdAt\)/u)
+test('Asset Opinions shows the Portfolio Manager decision summary instead of a raw generated timestamp', () => {
+  assert.match(opinionsSource, /extractPortfolioManagerDecisionSummary/u)
+  assert.match(opinionsSource, /decisionSummary\(row\)/u)
+  assert.match(opinionsSource, /smartInsights\.decisionSummary/u)
+  assert.match(opinionsSource, /smartInsights\.reportCreatedAt/u)
+  assert.doesNotMatch(opinionsSource, /Generated:/u)
 })
 
 test('Asset Opinions treats the latest TradingAgents report as available even without a directional rating', () => {

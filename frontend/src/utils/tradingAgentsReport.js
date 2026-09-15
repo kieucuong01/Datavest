@@ -288,6 +288,69 @@ export function parseTradingAgentsReport (content) {
 }
 
 /**
+ * Extract the actionable portfolio-manager decision from the same trusted
+ * markdown body used to render the full TradingAgents report and its PDF.
+ * This stays text-only because the artifact can contain model-generated input.
+ */
+export function extractPortfolioManagerDecisionSummary (content) {
+  const summary = { rating: '', timeHorizon: '', actions: [] }
+  const lines = String(content || '').replace(/\r\n?/g, '\n').split('\n')
+  let inPortfolioDecision = false
+  let inExecutiveSummary = false
+
+  for (const rawLine of lines) {
+    const line = rawLine.trim()
+    if (!line) continue
+    const cleanLine = cleanInlineMarkdown(line)
+    const heading = /^(#{1,6})\s+(.+)$/.exec(line)
+    const headingText = heading ? cleanInlineMarkdown(heading[2]) : cleanLine
+    const key = headingKey(headingText)
+
+    if (/^(?:v\.\s*)?(?:portfolio manager decision|quyết định của quản lý danh mục)$/.test(key)) {
+      inPortfolioDecision = true
+      inExecutiveSummary = false
+      continue
+    }
+    if (!inPortfolioDecision) continue
+    if (heading && /^(?:[ivx]+\.\s+)?(?:analyst team reports|research team decision|trading team plan|risk management team decision|báo cáo nhóm phân tích|quyết định của nhóm nghiên cứu|kế hoạch của nhóm giao dịch|quyết định của nhóm quản trị rủi ro)$/i.test(headingText)) break
+
+    if (/^(?:executive summary|action summary|tóm tắt hành động)$/i.test(headingText.replace(/:$/, ''))) {
+      inExecutiveSummary = true
+      continue
+    }
+    if (heading) {
+      inExecutiveSummary = false
+      continue
+    }
+
+    const item = /^(?:[-*+]\s+|\d+[.)]\s+)(.+)$/.exec(line)
+    if (inExecutiveSummary && item && summary.actions.length < 3) {
+      summary.actions.push(cleanInlineMarkdown(item[1]))
+      continue
+    }
+
+    const field = parseReportField(line)
+    if (field) {
+      const fieldKey = headingKey(field.label)
+      if (!summary.rating && /^(?:portfolio manager rating|rating|recommendation|xếp hạng|khuyến nghị)$/.test(fieldKey)) {
+        summary.rating = field.value
+        continue
+      }
+      if (!summary.timeHorizon && /^(?:time horizon|khung thời gian)$/.test(fieldKey)) {
+        summary.timeHorizon = field.value
+        continue
+      }
+      if (inExecutiveSummary && summary.actions.length < 3) {
+        summary.actions.push(`${field.label}: ${field.value}`)
+      }
+      continue
+    }
+  }
+
+  return summary
+}
+
+/**
  * Group flat native markdown blocks into digestible report sections without
  * rendering arbitrary HTML from the stored artifact.
  */
