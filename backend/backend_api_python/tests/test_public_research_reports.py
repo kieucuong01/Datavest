@@ -26,6 +26,16 @@ class FakeRepository:
         ]
         return max(matches, key=lambda row: row["effective_date"], default=None)
 
+    def list_completed(self, *, asset_key, report_kind, locale, limit):
+        matches = [
+            row for row in self.rows
+            if row["asset_key"] == asset_key
+            and row["report_kind"] == report_kind
+            and row["locale"] == locale
+            and row["status"] == "complete"
+        ]
+        return sorted(matches, key=lambda row: row["effective_date"], reverse=True)[:limit]
+
 
 def _row(*, effective_date, status="complete", payload=None):
     return {
@@ -132,3 +142,21 @@ def test_public_projection_reads_the_postgres_payload_json_column():
     assert result["summary"] == "Nội dung từ payload_json"
     assert result["body"] == "Báo cáo chuyên sâu"
     assert result["sections"][0]["items"] == ["Dữ liệu đã được lưu"]
+
+
+def test_history_returns_safe_public_entries_without_private_run_identifiers_or_body():
+    from app.services.smart_insights.public_reports import PublicResearchReportsService
+
+    service = PublicResearchReportsService(repository=FakeRepository([
+        _row(
+            effective_date="2026-09-14",
+            payload={"title": "BTC", "summary": "Công khai", "body": "Báo cáo đầy đủ", "runId": "private"},
+        ),
+    ]))
+
+    result = service.list_history("crypto:BTC/USDT", "deep")
+
+    assert result[0]["effectiveDate"] == "2026-09-14"
+    assert result[0]["source"] == "PUBLIC_RESEARCH_REPORT"
+    assert "body" not in result[0]
+    assert "sourceRunId" not in result[0]

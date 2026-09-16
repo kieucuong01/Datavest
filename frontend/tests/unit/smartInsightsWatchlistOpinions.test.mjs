@@ -1,8 +1,41 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { applyPublicDeepReports, buildAccountOpinionRows, buildSharedOpinionRows, buildWatchlistOpinionRows } from '../../src/views/smart-insights/watchlistOpinions.js'
+import { applyAccountDeepReports, applyPublicDeepReports, applySharedResearchStates, buildAccountOpinionRows, buildSharedOpinionRows, buildWatchlistOpinionRows } from '../../src/views/smart-insights/watchlistOpinions.js'
 import { extractPortfolioManagerDecisionSummary } from '../../src/utils/tradingAgentsReport.js'
+
+test('prefers the authenticated account deep report over the shared public snapshot', () => {
+  const rows = applySharedResearchStates(
+    buildAccountOpinionRows(
+      [{ market: 'Crypto', symbol: 'SOL/USDT', name: 'Solana' }],
+      []
+    ),
+    [{
+      assetKey: 'crypto:SOL/USDT',
+      reportKind: 'deep',
+      status: 'complete',
+      scope: 'public_common',
+      report: {
+        source: 'PUBLIC_RESEARCH_REPORT',
+        effectiveDate: '2026-09-14',
+        summary: 'Báo cáo public ngày 14/9'
+      }
+    }]
+  )
+
+  const row = applyAccountDeepReports(rows, [{
+    assetKey: 'crypto:SOL/USDT',
+    report: {
+      source: 'ACCOUNT_PRIVATE_REPORT',
+      effectiveDate: '2026-09-16',
+      summary: 'Báo cáo riêng ngày 16/9'
+    }
+  }]).find(item => item.displaySymbol === 'SOL')
+
+  assert.equal(row.deepState.report.source, 'ACCOUNT_PRIVATE_REPORT')
+  assert.equal(row.deepState.report.effectiveDate, '2026-09-16')
+  assert.equal(row.deepState.report.summary, 'Báo cáo riêng ngày 16/9')
+})
 
 test('uses BTC, SOL, LINK and XAU as the guest default assets', () => {
   const rows = buildSharedOpinionRows([], [], null)

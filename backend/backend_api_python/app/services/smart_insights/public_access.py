@@ -232,9 +232,17 @@ class PublicSmartInsightsService:
         return get_live_asset_snapshot()
 
     def get_public_report(
-        self, *, asset_key: str, report_kind: str, locale: str = "vi-VN"
+        self, *, asset_key: str, report_kind: str, locale: str = "vi-VN",
+        effective_date: date | str | None = None,
     ) -> dict[str, Any] | None:
+        if effective_date is not None:
+            return self.public_reports.get_for_date(asset_key, report_kind, effective_date, locale)
         return self.public_reports.get_latest(asset_key, report_kind, locale)
+
+    def get_public_report_history(
+        self, *, asset_key: str, report_kind: str, locale: str = "vi-VN", limit: int = 100
+    ) -> list[dict[str, Any]]:
+        return self.public_reports.list_history(asset_key, report_kind, locale, limit)
 
     def get_crypto_market_pulse(
         self, *, as_of: str | None = None, compact: bool = False,

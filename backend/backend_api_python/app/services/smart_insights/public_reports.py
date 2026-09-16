@@ -83,6 +83,29 @@ class PublicResearchReportsRepository:
             finally:
                 cur.close()
 
+    def list_completed(
+        self, *, asset_key: str, report_kind: str, locale: str, limit: int = 100
+    ) -> list[dict[str, Any]]:
+        safe_limit = max(1, min(int(limit or 100), 100))
+        with get_db_connection() as db:
+            cur = db.cursor()
+            try:
+                cur.execute(
+                    """
+                    SELECT asset_key, report_kind, locale, effective_date, status,
+                           payload_json, generated_at
+                    FROM public_research_reports
+                    WHERE asset_key = ? AND report_kind = ? AND locale = ?
+                      AND status = 'complete'
+                    ORDER BY effective_date DESC, id DESC
+                    LIMIT ?
+                    """,
+                    (asset_key, report_kind, locale, safe_limit),
+                )
+                return [dict(row) for row in (cur.fetchall() or [])]
+            finally:
+                cur.close()
+
     def claim_pending(self, *, asset_key: str, report_kind: str, locale: str, effective_date: date | str) -> bool:
         with get_db_connection() as db:
             cur = db.cursor()
@@ -310,6 +333,48 @@ class PublicResearchReportsService:
             )
         )
         return self.public_projection(latest_completed, is_fallback=is_fallback)
+
+    def get_for_date(
+        self,
+        asset_key: str,
+        report_kind: str,
+        effective_date: date | str,
+        locale: str = PUBLIC_RESEARCH_LOCALE,
+    ) -> dict[str, Any] | None:
+        clean_key, clean_kind, clean_locale = self._validate(asset_key, report_kind, locale)
+        row = self.repository.current(
+            asset_key=clean_key,
+            report_kind=clean_kind,
+            locale=clean_locale,
+            effective_date=effective_date,
+        )
+        if not row or str(row.get("status") or "") != "complete":
+            return None
+        return self.public_projection(row)
+
+    def list_history(
+        self,
+        asset_key: str,
+        report_kind: str,
+        locale: str = PUBLIC_RESEARCH_LOCALE,
+        limit: int = 100,
+    ) -> list[dict[str, Any]]:
+        clean_key, clean_kind, clean_locale = self._validate(asset_key, report_kind, locale)
+        rows = self.repository.list_completed(
+            asset_key=clean_key,
+            report_kind=clean_kind,
+            locale=clean_locale,
+            limit=limit,
+        )
+        result = []
+        for row in rows:
+            item = self.public_projection(row)
+            # History cards only need identity and provenance. The full body is
+            # fetched through the date-pinned PDF route after the user clicks.
+            item.pop("body", None)
+            item["source"] = "PUBLIC_RESEARCH_REPORT"
+            result.append(item)
+        return result
 
     def get_state(
         self,

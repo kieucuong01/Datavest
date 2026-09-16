@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from datetime import date
+
 from flask import g, jsonify, request
 
 from app.observability.features import observe_feature_operation
@@ -51,6 +53,16 @@ def _compact_requested() -> bool:
 
 def _locale() -> str:
     return str(request.args.get("lang") or request.headers.get("Accept-Language") or "vi-VN").split(",", 1)[0]
+
+
+def _public_effective_date() -> date | None:
+    value = str(request.args.get("date") or request.args.get("effectiveDate") or "").strip()
+    if not value:
+        return None
+    try:
+        return date.fromisoformat(value)
+    except ValueError as exc:
+        raise ValueError("invalid_public_report_date") from exc
 
 
 def _shared_research() -> SharedResearchAccessService:
@@ -135,7 +147,8 @@ def public_deep_report_pdf(asset_key: str):
     """Render a safe, tenant-free deep report for the guest PDF reader."""
     try:
         data = get_public_smart_insights_service().get_public_report(
-            asset_key=asset_key, report_kind="deep", locale=_locale()
+            asset_key=asset_key, report_kind="deep", locale=_locale(),
+            effective_date=_public_effective_date(),
         )
         body = str((data or {}).get("body") or "").strip()
         asset = next(
@@ -182,7 +195,8 @@ def public_deep_summary_pdf(asset_key: str):
     """Render the safe guest digest from the published deep-report payload."""
     try:
         data = get_public_smart_insights_service().get_public_report(
-            asset_key=asset_key, report_kind="deep", locale=_locale()
+            asset_key=asset_key, report_kind="deep", locale=_locale(),
+            effective_date=_public_effective_date(),
         )
         body = str((data or {}).get("body") or "").strip()
         asset = next(
@@ -219,6 +233,23 @@ def public_deep_summary_pdf(asset_key: str):
         analysis_date=str((data or {}).get("effectiveDate") or ""),
         summary=True,
     )
+
+
+@smart_insights_blp.route(
+    "/public/reports/<path:asset_key>/<string:report_kind>/history", methods=["GET"]
+)
+def public_report_history(asset_key: str, report_kind: str):
+    """List safe public report identities for the authenticated modal history."""
+    try:
+        data = get_public_smart_insights_service().get_public_report_history(
+            asset_key=asset_key, report_kind=report_kind, locale=_locale(), limit=100
+        )
+        return _ok(data)
+    except ValueError:
+        return _fail("public_report_not_found", 404)
+    except Exception:
+        logger.exception("public smart insights report history failed")
+        return _fail("smart_insights_unavailable", 503)
 
 
 @smart_insights_blp.route(

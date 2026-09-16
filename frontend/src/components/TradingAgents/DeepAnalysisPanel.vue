@@ -65,7 +65,7 @@
           <p>{{ $t('tradingAgents.historyDescription') }}</p>
           <div class="report-history-list">
             <article v-for="report in historyReports" :key="report.run_id" class="report-history-item">
-              <div><strong>{{ report.analysis_date }}</strong><span>{{ formatDateTime(report.finished_at || report.created_at) }}</span></div>
+              <div><strong>{{ report.analysis_date }}</strong><span>{{ formatDateTime(report.finished_at || report.created_at) }}</span><small class="history-source">{{ historySourceLabel(report) }}</small></div>
               <a-button size="small" :loading="historyReportOpening === report.run_id" @click="openHistoryReport(report)"><a-icon type="export" /> {{ $t('tradingAgents.openHistoryReport') }}</a-button>
             </article>
           </div>
@@ -95,7 +95,7 @@
         </div>
         <div class="report-history-list">
           <article v-for="report in historyReports" :key="report.run_id" class="report-history-item">
-            <div><strong>{{ report.analysis_date }}</strong><span>{{ formatDateTime(report.finished_at || report.created_at) }}</span></div>
+            <div><strong>{{ report.analysis_date }}</strong><span>{{ formatDateTime(report.finished_at || report.created_at) }}</span><small class="history-source">{{ historySourceLabel(report) }}</small></div>
             <a-button size="small" :loading="historyReportOpening === report.run_id" @click="openHistoryReport(report)"><a-icon type="export" /> {{ $t('tradingAgents.openHistoryReport') }}</a-button>
           </article>
         </div>
@@ -234,6 +234,7 @@ import {
   getTradingAgentsRuns,
   resumeTradingAgentsRun
 } from '@/api/trading-agents'
+import { getPublicResearchReportHistory, getPublicResearchReportPdf } from '@/api/smart-insights'
 import {
   groupTradingAgentsReportSections,
   localizeTradingAgentsHeading,
@@ -242,6 +243,7 @@ import {
 import { formatVietnamDateTime } from '@/utils/vietnamTime'
 import { parseUtcAwareInstant } from '@/utils/utcInstant'
 import ReportPdfReader from './ReportPdfReader.vue'
+import { mergeTradingAgentsHistory, publicResearchAssetKeyForTarget } from './tradingAgentsHistory'
 
 const FULL_ANALYSTS = ['market', 'social', 'news', 'fundamentals']
 const TERMINAL = new Set(['succeeded', 'failed', 'cancelled'])
@@ -481,6 +483,11 @@ export default {
     formatDateTime (value) {
       return formatVietnamDateTime(value, { locale: this.isVietnamese ? 'vi-VN' : 'en-GB', fallback: String(value || '') })
     },
+    historySourceLabel (report) {
+      return report && report.source === 'PUBLIC_RESEARCH_REPORT'
+        ? this.$t('tradingAgents.publicHistorySource')
+        : this.$t('tradingAgents.accountHistorySource')
+    },
     localizeHeading (value) {
       return localizeTradingAgentsHeading(value, this.reportLocale)
     },
@@ -630,15 +637,32 @@ export default {
       this.historyLoading = true
       this.historyError = ''
       try {
-        const data = this.unwrap(await getTradingAgentsRuns({
-          market: this.normalizedTarget.market,
-          symbol: this.normalizedTarget.symbol,
-          scope: 'history',
-          limit: 100
-        }, HISTORY_TIMEOUT_MS))
+        const publicAssetKey = typeof publicResearchAssetKeyForTarget === 'function'
+          ? publicResearchAssetKeyForTarget(this.normalizedTarget)
+          : ''
+        const [privateResult, publicResult] = await Promise.allSettled([
+          getTradingAgentsRuns({
+            market: this.normalizedTarget.market,
+            symbol: this.normalizedTarget.symbol,
+            scope: 'history',
+            limit: 100
+          }, HISTORY_TIMEOUT_MS),
+          publicAssetKey && typeof getPublicResearchReportHistory === 'function'
+            ? getPublicResearchReportHistory(publicAssetKey, 'deep')
+            : Promise.resolve(null)
+        ])
         if (requestId !== this.historyRequestId || !this.visible) return
-        this.historyReports = Array.isArray(data && data.runs) ? data.runs : []
-        this.todayRun = data && data.today_run ? data.today_run : null
+        const privateData = privateResult.status === 'fulfilled' ? this.unwrap(privateResult.value) : null
+        const publicData = publicResult.status === 'fulfilled' ? this.unwrap(publicResult.value) : null
+        const publicReports = Array.isArray(publicData)
+          ? publicData
+          : (Array.isArray(publicData && publicData.reports) ? publicData.reports : [])
+        const privateRuns = privateData && Array.isArray(privateData.runs) ? privateData.runs : []
+        this.historyReports = typeof mergeTradingAgentsHistory === 'function'
+          ? mergeTradingAgentsHistory(privateRuns, publicReports, 100)
+          : privateRuns
+        this.todayRun = privateData && privateData.today_run ? privateData.today_run : null
+        if (privateResult.status === 'rejected' && publicResult.status === 'rejected') throw privateResult.reason
       } catch (error) {
         if (requestId === this.historyRequestId && this.visible) this.historyError = this.$t('tradingAgents.historyLoadFailed')
       } finally {
@@ -706,7 +730,9 @@ export default {
       this.writePdfLoadingPreview(preview)
       this.historyReportOpening = report.run_id
       try {
-        const response = await getTradingAgentsReportPdf(report.run_id)
+        const response = report.source === 'PUBLIC_RESEARCH_REPORT'
+          ? await getPublicResearchReportPdf(report.public_asset_key, report.analysis_date, report.analysis_date)
+          : await getTradingAgentsReportPdf(report.run_id)
         const blob = response instanceof Blob ? response : new Blob([response && response.data ? response.data : response], { type: 'application/pdf' })
         const url = window.URL.createObjectURL(blob)
         if (preview) {
@@ -832,7 +858,7 @@ export default {
 .deep-analysis-context p { max-width: 620px; margin: 0; color: var(--muted, #61738b); font-size: 13px; line-height: 1.55; }
 .deep-analysis-provenance { display: flex; flex: 0 0 auto; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }.deep-analysis-provenance .ant-tag { margin: 0; }
 .deep-analysis-empty { display: grid; justify-items: center; gap: 9px; min-height: 260px; padding: 40px 24px; text-align: center; }.deep-analysis-empty > .anticon { color: var(--blue, #2563eb); font-size: 38px; }.deep-analysis-empty h4 { margin: 4px 0 0; color: var(--ink, #1f2d3d); font-size: 17px; }.deep-analysis-empty p { max-width: 540px; margin: 0 0 8px; color: var(--muted, #61738b); line-height: 1.55; }
-.report-history-list { display: grid; width: 100%; max-width: 680px; max-height: 320px; gap: 8px; overflow: auto; padding: 2px; text-align: left; }.report-history-item { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 11px 12px; border: 1px solid var(--line, #dbe4ef); border-radius: 9px; background: var(--card, #fff); }.report-history-item div { display: grid; min-width: 0; gap: 2px; }.report-history-item strong { color: var(--ink, #1f2d3d); font-size: 13px; }.report-history-item span { color: var(--muted, #61738b); font-size: 11px; }.report-history-item .ant-btn { flex: 0 0 auto; }.today-run-notice { width: 100%; max-width: 680px; text-align: left; }
+.report-history-list { display: grid; width: 100%; max-width: 680px; max-height: 320px; gap: 8px; overflow: auto; padding: 2px; text-align: left; }.report-history-item { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 11px 12px; border: 1px solid var(--line, #dbe4ef); border-radius: 9px; background: var(--card, #fff); }.report-history-item div { display: grid; min-width: 0; gap: 2px; }.report-history-item strong { color: var(--ink, #1f2d3d); font-size: 13px; }.report-history-item span, .report-history-item .history-source { color: var(--muted, #61738b); font-size: 11px; }.report-history-item .history-source { color: var(--primary, #1677ff); }.report-history-item .ant-btn { flex: 0 0 auto; }.today-run-notice { width: 100%; max-width: 680px; text-align: left; }
 .deep-analysis-status-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 8px 0 12px; }.run-state { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 700; }.run-state--queued, .run-state--running { color: #2563eb; }.run-state--succeeded { color: #16865a; }.run-state--failed, .run-state--cancelled { color: #bd4d4d; }.run-time { color: var(--muted, #61738b); font-size: 12px; }
 .deep-analysis-progress { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 10px 16px; padding: 15px; border: 1px solid var(--line, #dbe4ef); border-radius: 10px; background: var(--soft-blue, #f5f9ff); }.deep-analysis-progress .ant-progress { grid-column: 1 / -1; margin: 0; }.progress-copy { display: grid; gap: 3px; min-width: 0; }.progress-copy strong { font-size: 13px; }.progress-copy span { color: var(--muted, #61738b); font-size: 12px; }.progress-copy .progress-current { display: inline-flex; align-items: center; gap: 5px; color: var(--blue, #2563eb); font-weight: 600; }.deep-analysis-stage-list { display: flex; grid-column: 1 / -1; flex-wrap: wrap; gap: 6px; padding-top: 3px; }.deep-analysis-stage { display: inline-flex; align-items: center; gap: 4px; padding: 4px 7px; border: 1px solid var(--line, #dbe4ef); border-radius: 999px; color: var(--muted, #61738b); font-size: 11px; line-height: 1.25; }.deep-analysis-stage.is-complete { border-color: #b7e3cf; color: #16865a; background: #f0fbf5; }.deep-analysis-stage.is-current { border-color: #9fc2ff; color: #245dcc; background: #eef5ff; }.history-recovery-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
 .progress-substep { display: flex; align-items: center; gap: 5px; margin-top: 7px !important; color: var(--blue, #245dcc) !important; font-size: 12px !important; font-weight: 600; }.progress-substep .anticon { flex: 0 0 auto; }.deep-analysis-long-running { grid-column: 1 / -1; margin-top: 2px; }

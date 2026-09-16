@@ -19,6 +19,21 @@ export function canonicalOpinionMarket (value) {
   })[normalized] || String(value || '').trim().toLowerCase()
 }
 
+// Keep the client-side identity aligned with the public research asset keys,
+// while still supporting private watchlist instruments that are not published
+// to guests.
+export function opinionAssetKey (item) {
+  const market = canonicalOpinionMarket(item && item.market)
+  const rawMarket = cleanSymbol(item && item.market).toLowerCase()
+  const symbol = cleanSymbol(item && (item.symbol || item.sym))
+  if (market === 'gold') return 'forex:XAUUSD'
+  if (market === 'crypto') {
+    const pair = symbol.includes('/') ? symbol : `${symbol}/USDT`
+    return `crypto:${pair}`
+  }
+  return `${rawMarket || market}:${symbol}`
+}
+
 function identity (item) {
   return `${canonicalOpinionMarket(item && item.market)}:${canonicalOpinionSymbol(item && (item.symbol || item.sym))}`
 }
@@ -210,22 +225,53 @@ export function buildAccountOpinionRows (watchlist = [], analyses = [], asOf = n
 
 export function applySharedResearchStates (rows = [], states = []) {
   const indexed = new Map()
+  const identityIndex = new Map()
   for (const state of Array.isArray(states) ? states : []) {
     const key = String(state && state.assetKey || '')
     const kind = String(state && state.reportKind || '').toLowerCase()
-    if (key && kind) indexed.set(`${key}:${kind}`, state)
+    if (key && kind) {
+      indexed.set(`${key}:${kind}`, state)
+      if (state.asset) identityIndex.set(`${identity(state.asset)}:${kind}`, state)
+    }
   }
   return (Array.isArray(rows) ? rows : []).map(row => {
-    const assetKey = row.publicAssetKey || publicResearchAssetKey(row) || ''
-    const deepState = indexed.get(`${assetKey}:deep`) || null
+    const assetKey = row.sharedResearchAssetKey || row.publicAssetKey || opinionAssetKey(row)
+    const deepState = indexed.get(`${assetKey}:deep`) || identityIndex.get(`${identity(row)}:deep`) || null
+    const resolvedAssetKey = deepState && deepState.assetKey ? String(deepState.assetKey) : assetKey
     return {
       ...row,
-      publicAssetKey: assetKey,
-      sharedResearchAssetKey: assetKey,
+      publicAssetKey: resolvedAssetKey,
+      sharedResearchAssetKey: resolvedAssetKey,
       publicCommon: Boolean((deepState || {}).scope === 'public_common') || Boolean(row.publicCommon),
       deepState,
       dataFreshness: deepState && deepState.status === 'pending' ? 'PENDING' : row.dataFreshness,
       analysisStatus: deepState && deepState.status ? String(deepState.status).toUpperCase() : 'UNAVAILABLE'
+    }
+  })
+}
+
+export function applyAccountDeepReports (rows = [], reports = []) {
+  const indexed = new Map()
+  for (const item of Array.isArray(reports) ? reports : []) {
+    const key = String(item && (item.assetKey || item.asset_key) || '')
+    const report = item && item.report
+    if (key && report && typeof report === 'object') indexed.set(key, report)
+  }
+  return (Array.isArray(rows) ? rows : []).map(row => {
+    const key = row && (row.sharedResearchAssetKey || row.publicAssetKey || opinionAssetKey(row))
+    const report = indexed.get(String(key || ''))
+    if (!report) return row
+    return {
+      ...row,
+      deepState: {
+        ...(row.deepState || {}),
+        status: 'complete',
+        scope: 'account_private',
+        canCreate: false,
+        report
+      },
+      dataFreshness: 'ACCOUNT_REPORT',
+      analysisStatus: 'AVAILABLE'
     }
   })
 }

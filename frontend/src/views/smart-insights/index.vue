@@ -174,9 +174,10 @@ import { openAuthModal } from '@/utils/authModal'
 import { getEconomicCalendar } from '@/api/global-market'
 import { calendarCacheFresh } from './calendarRefresh'
 import { getPublicResearchReport, getSharedResearchReports, getSmartInsightsCryptoPulse, getSmartInsightsDataHealth, getSmartInsightsDates, getSmartInsightsEvidence, getSmartInsightsOverview } from '@/api/smart-insights'
+import { getTradingAgentsArtifact, getTradingAgentsRuns } from '@/api/trading-agents'
 import { runSectionLoaders } from './loadingCoordinator'
 import { formatVietnamDate, formatVietnamDateTime } from '@/utils/vietnamTime'
-import { applyPublicDeepReports, applySharedResearchStates, buildAccountOpinionRows, buildSharedOpinionRows } from './watchlistOpinions'
+import { applyAccountDeepReports, applyPublicDeepReports, applySharedResearchStates, buildAccountOpinionRows, buildSharedOpinionRows, opinionAssetKey } from './watchlistOpinions'
 import { isCurrentRequest as isCurrentRequestToken, summarizeReadiness } from './dataReadiness'
 import AssetOpinionsSection from './components/AssetOpinionsSection'
 import EconomicCalendarTable from './components/EconomicCalendarTable'
@@ -211,6 +212,7 @@ export default {
       selectedOpinionRow: null,
       publicDeepReports: [],
       sharedResearchStates: [],
+      accountDeepReports: [],
       publicDeepReport: null,
       publicDeepReportView: 'full',
       publicDeepPdfRevision: 0,
@@ -268,7 +270,10 @@ export default {
       const asOf = this.overview && this.overview.asOf
       return this.isGuest
         ? applyPublicDeepReports(buildSharedOpinionRows(this.overview && this.overview.assets, opinions, asOf), this.publicDeepReports)
-        : applySharedResearchStates(buildAccountOpinionRows(this.watchlist, opinions, asOf), this.sharedResearchStates)
+        : applyAccountDeepReports(
+          applySharedResearchStates(buildAccountOpinionRows(this.watchlist, opinions, asOf), this.sharedResearchStates),
+          this.accountDeepReports
+        )
     },
     dailyBriefHighlights () {
       const highlights = Array.isArray(this.dailyBrief.highlights) ? this.dailyBrief.highlights : []
@@ -336,6 +341,7 @@ export default {
       this.watchlist = []
       this.publicDeepReports = []
       this.sharedResearchStates = []
+      this.accountDeepReports = []
       this.stopSharedReportPolling()
       this.overview = null
       this.smartInsightsCache.dates = null
@@ -416,6 +422,7 @@ export default {
       this.overview = null
       this.cryptoPulse = null
       this.cryptoOnchainPulse = null
+      this.accountDeepReports = []
       this.pulseDetailsLoading = false
       this.pulseOnchainLoading = false
       this.calendarEvents = []
@@ -491,6 +498,73 @@ export default {
       this.sharedResearchStates = response && response.code === 1 && Array.isArray(response.data) ? response.data : []
       this.refreshSelectedSharedResearchRow()
       this.syncSharedReportPolling()
+      // Keep the shared/public state visible immediately; private artifacts
+      // are heavier and replace it asynchronously when the latest account
+      // report has been read.
+      this.loadAccountDeepReports(this.sharedResearchStates, requestId).catch(() => {})
+    },
+    tradingAgentsPayload (response) {
+      const value = response && response.data !== undefined ? response.data : response
+      return value && value.code === 1 ? value.data : value
+    },
+    tradingAgentsMarket (asset) {
+      const market = String(asset && asset.market || '').trim().toLowerCase()
+      if (market === 'gold' || market === 'forex') return 'Gold'
+      if (market === 'crypto') return 'Crypto'
+      if (market === 'vnstock' || market === 'vn' || market === 'vietnamstock') return 'VNStock'
+      if (market === 'usstock' || market === 'us') return 'USStock'
+      return String(asset && asset.market || '')
+    },
+    async loadAccountDeepReports (states, requestId) {
+      const assets = new Map()
+      for (const state of Array.isArray(states) ? states : []) {
+        const asset = state && state.asset
+        if (asset) assets.set(opinionAssetKey(asset), asset)
+      }
+      for (const asset of Array.isArray(this.watchlist) ? this.watchlist : []) {
+        assets.set(opinionAssetKey(asset), asset)
+      }
+      const entries = await Promise.allSettled([...assets.entries()].map(async ([assetKey, asset]) => {
+        const payload = this.tradingAgentsPayload(await getTradingAgentsRuns({
+          market: this.tradingAgentsMarket(asset),
+          symbol: asset.symbol || asset.sym,
+          scope: 'history',
+          limit: 100
+        }))
+        const runs = Array.isArray(payload && payload.runs) ? payload.runs : []
+        const completed = runs.find(run => ['succeeded', 'completed'].includes(String(run && run.status || '').toLowerCase()))
+        if (!completed || !completed.run_id) return null
+        const artifactResponse = await getTradingAgentsArtifact(completed.run_id, 'complete_report.md')
+        const body = typeof artifactResponse === 'string'
+          ? artifactResponse
+          : String((artifactResponse && artifactResponse.data) || '')
+        if (!body.trim()) return null
+        const generatedAt = completed.finished_at || completed.created_at || completed.analysis_date
+        return {
+          assetKey,
+          report: {
+            id: `account:${completed.run_id}`,
+            source: 'ACCOUNT_PRIVATE_REPORT',
+            scope: 'account_private',
+            status: 'completed',
+            body: body.trim(),
+            summary: '',
+            decision: null,
+            analysisDate: completed.analysis_date || null,
+            effectiveDate: completed.analysis_date || null,
+            generatedAt,
+            createdAt: generatedAt,
+            updatedAt: generatedAt,
+            inputData: { capturedAt: generatedAt, components: [] },
+            accountRunId: completed.run_id
+          }
+        }
+      }))
+      if (!this.isCurrentRequest(requestId) || this.isGuest) return
+      this.accountDeepReports = entries
+        .filter(result => result.status === 'fulfilled' && result.value)
+        .map(result => result.value)
+      this.refreshSelectedSharedResearchRow()
     },
     async loadDates (requestId, force = false) {
       if (!force && Array.isArray(this.smartInsightsCache.dates)) {
