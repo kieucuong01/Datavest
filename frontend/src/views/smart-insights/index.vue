@@ -36,7 +36,6 @@
         :loading="opinionsLoading || overviewLoading"
         :guest="isGuest"
         @refresh="retrySection('opinions')"
-        @create-deep-analysis="requestDeepAnalysis"
         @open-deep-analysis="openDeepAnalysis"
       />
 
@@ -74,6 +73,7 @@
     </footer>
 
     <a-modal
+      v-if="isGuest"
       :visible="analysisModalVisible"
       :title="analysisModalTitle"
       :width="1152"
@@ -127,6 +127,14 @@
       </div>
     </a-modal>
 
+    <deep-analysis-panel
+      v-else
+      :visible="analysisModalVisible"
+      :target="deepAnalysisTarget"
+      :dark="isDarkTheme"
+      @close="closeAssetAnalysis"
+    />
+
     <a-drawer
       :visible="evidenceVisible"
       :title="$t('smartInsights.evidence')"
@@ -165,7 +173,7 @@ import { hasAccessToken } from '@/utils/guestAccess'
 import { openAuthModal } from '@/utils/authModal'
 import { getEconomicCalendar } from '@/api/global-market'
 import { calendarCacheFresh } from './calendarRefresh'
-import { getPublicResearchReport, getSharedResearchReports, requestSharedResearchReport, getSmartInsightsCryptoPulse, getSmartInsightsDataHealth, getSmartInsightsDates, getSmartInsightsEvidence, getSmartInsightsOverview } from '@/api/smart-insights'
+import { getPublicResearchReport, getSharedResearchReports, getSmartInsightsCryptoPulse, getSmartInsightsDataHealth, getSmartInsightsDates, getSmartInsightsEvidence, getSmartInsightsOverview } from '@/api/smart-insights'
 import { runSectionLoaders } from './loadingCoordinator'
 import { formatVietnamDate, formatVietnamDateTime } from '@/utils/vietnamTime'
 import { applyPublicDeepReports, applySharedResearchStates, buildAccountOpinionRows, buildSharedOpinionRows } from './watchlistOpinions'
@@ -173,11 +181,12 @@ import { isCurrentRequest as isCurrentRequestToken, summarizeReadiness } from '.
 import AssetOpinionsSection from './components/AssetOpinionsSection'
 import EconomicCalendarTable from './components/EconomicCalendarTable'
 import MarketPulseSection from './components/MarketPulseSection'
+import DeepAnalysisPanel from '@/components/TradingAgents/DeepAnalysisPanel'
 import ReportPdfReader from '@/components/TradingAgents/ReportPdfReader'
 
 export default {
   name: 'SmartInsights',
-  components: { AssetOpinionsSection, EconomicCalendarTable, MarketPulseSection, ReportPdfReader },
+  components: { AssetOpinionsSection, EconomicCalendarTable, MarketPulseSection, DeepAnalysisPanel, ReportPdfReader },
   data () {
     return {
       asOf: undefined,
@@ -707,15 +716,6 @@ export default {
         return
       }
       this.$router.push({ path: '/ai-asset-analysis', query: { market: row.market, symbol: row.displaySymbol, action: 'analyze' } })
-    },
-    async requestDeepAnalysis (row) {
-      if (this.isGuest || !row || !row.sharedResearchAssetKey) return
-      try {
-        await requestSharedResearchReport(row.sharedResearchAssetKey, 'deep')
-        await this.loadSharedResearchReports(this.requestSequence)
-      } catch (_) {
-        this.errorMessage = this.$t('smartInsights.aiReportUnavailable')
-      }
     },
     openDeepAnalysis (row) {
       this.openAssetAnalysis(row)

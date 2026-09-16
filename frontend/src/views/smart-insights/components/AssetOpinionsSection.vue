@@ -82,15 +82,7 @@
 
         <div class="opinion-actions" :data-label="$t('smartInsights.actions')">
           <a-button v-if="row.researchInDevelopment" size="small" icon="tool" disabled class="deep-analysis-action">{{ $t('smartInsights.researchInDevelopment') }}</a-button>
-          <a-button v-else-if="researchReport(row)" size="small" icon="file-text" class="deep-analysis-action" @click="$emit('open-deep-analysis', row)">{{ $t('smartInsights.viewDeepReport') }}</a-button>
-          <a-button
-            v-else-if="!guest && row.deepState && row.deepState.canCreate"
-            size="small"
-            type="primary"
-            icon="apartment"
-            class="deep-analysis-action"
-            @click="$emit('create-deep-analysis', row)"
-          >{{ $t('smartInsights.createDeepReport') }}</a-button>
+          <a-button v-else-if="researchReport(row) || !guest" size="small" icon="file-text" class="deep-analysis-action" @click="$emit('open-deep-analysis', row)">{{ $t('smartInsights.viewDeepReport') }}</a-button>
           <span v-else class="opinion-action-empty" aria-hidden="true">—</span>
         </div>
       </article>

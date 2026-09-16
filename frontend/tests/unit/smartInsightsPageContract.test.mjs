@@ -82,7 +82,7 @@ test('Asset Opinions treats the latest TradingAgents report as available even wi
   assert.match(opinionsSource, /reportPreview\(row\)/u)
   assert.match(opinionsSource, /v-else-if="researchReport\(row\)"/u)
   assert.match(opinionsSource, /smartInsights\.viewDeepReport/u)
-  assert.match(opinionsSource, /smartInsights\.createDeepReport/u)
+  assert.doesNotMatch(opinionsSource, /smartInsights\.createDeepReport/u)
 })
 
 test('Asset Opinions presents one compact decision brief instead of split fact and action groups', () => {
