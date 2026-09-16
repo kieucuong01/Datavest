@@ -11,6 +11,7 @@
       :menu-render="topMenuRender"
       :selected-keys="[activeTopMenuKey]"
       v-bind="proLayoutSettings"
+      :logo="currentLogo"
       :title="(brandConfig && brandConfig.app_name) || title || 'DataVest'"
     >
 
@@ -525,6 +526,7 @@ export default {
         const isOpen = !!drawer
 
         this.isDrawerOpen = isOpen
+        this.syncMobileScrollLock(isOpen)
 
         if (wasOpen !== this.isDrawerOpen) {
           if (this.isDrawerOpen) {
@@ -557,6 +559,7 @@ export default {
         const currentState = !!drawer
         if (this.isDrawerOpen !== currentState) {
           this.isDrawerOpen = currentState
+          this.syncMobileScrollLock(currentState)
           if (currentState) {
             this.isDrawerAnimating = true
             setTimeout(() => {
@@ -600,6 +603,7 @@ export default {
     }
 
     this.stopLiveAssetPolling()
+    this.syncMobileScrollLock(false)
 
     if (this.mobileDrawerCloseTimer) {
       window.clearTimeout(this.mobileDrawerCloseTimer)
@@ -840,6 +844,7 @@ export default {
           if (this.isMobile) {
             const drawer = document.querySelector('.ant-drawer.ant-drawer-open')
             this.isDrawerOpen = !!drawer
+            this.syncMobileScrollLock(this.isDrawerOpen)
 
             if (drawer && !this.isDrawerAnimating) {
               // const drawerRect = drawer.getBoundingClientRect()
@@ -928,6 +933,7 @@ export default {
         this.$nextTick(() => {
           this.updateMenuFooterPosition()
         })
+        this.syncMobileScrollLock(false)
         return
       }
       if (!this.isMobile && val['screen-xs']) {
@@ -936,6 +942,7 @@ export default {
         // action that should open the route menu.
         this.collapsed = true
         this.isDrawerOpen = false
+        this.syncMobileScrollLock(false)
         this.settings.contentWidth = CONTENT_WIDTH_TYPE.Fluid
         // this.settings.fixSiderbar = false
         this.$nextTick(() => {
@@ -961,6 +968,7 @@ export default {
     },
     handleCollapse (val) {
       this.collapsed = val
+      this.syncMobileScrollLock(this.isMobile && !val)
       this.$nextTick(() => {
         this.updateMenuFooterPosition()
       })
@@ -968,6 +976,11 @@ export default {
     closeMobileMenu () {
       this.handleCollapse(true)
       this.isDrawerOpen = false
+      this.syncMobileScrollLock(false)
+    },
+    syncMobileScrollLock (locked) {
+      if (typeof document === 'undefined' || !document.body) return
+      document.body.classList.toggle('datavest-mobile-drawer-open', Boolean(this.isMobile && locked))
     },
     handleMobileMenuToggle () {
       this.$nextTick(() => {
@@ -1453,13 +1466,29 @@ export default {
   }
 }
 
+body.datavest-mobile-drawer-open {
+  overflow: hidden !important;
+}
+
 @media (max-width: 768px) {
   /* Mobile route drawer: keep navigation light even when the app shell uses realdark. */
-  .ant-drawer.ant-pro-sider-menu.ant-drawer-open {
+  .ant-drawer.ant-drawer-left.ant-drawer-open,
+  body > .ant-drawer.ant-drawer-left.ant-drawer-open {
+    --mobile-drawer-bg: #f8fafc;
+
     .ant-drawer-content,
     .ant-drawer-wrapper-body,
     .ant-drawer-body {
-      background: #f8fafc !important;
+      background: var(--mobile-drawer-bg, #f8fafc) !important;
+      color: #17253d !important;
+    }
+
+    .ant-pro-sider-menu-sider,
+    .ant-layout-sider,
+    .ant-pro-sider,
+    .ant-layout-sider-children,
+    .ant-pro-sider-menu-logo {
+      background: var(--mobile-drawer-bg, #f8fafc) !important;
       color: #17253d !important;
     }
 
@@ -1482,6 +1511,13 @@ export default {
     .ant-menu-dark,
     .ant-menu.ant-menu-dark {
       background: transparent !important;
+      color: #475569 !important;
+    }
+
+    .ant-menu-dark .ant-menu-item,
+    .ant-menu-dark .ant-menu-submenu-title,
+    .ant-menu-dark .ant-menu-item > a,
+    .ant-menu-dark .ant-menu-title-content {
       color: #475569 !important;
     }
 

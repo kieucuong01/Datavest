@@ -2,30 +2,6 @@
   <div class="legacy-page" :class="{ 'theme-dark': isDarkTheme }">
 
     <main class="legacy-main">
-      <section v-if="!isGuest" class="data-readiness" :aria-label="$t('smartInsights.dataReadiness')" :aria-busy="readinessLoading ? 'true' : 'false'">
-        <div class="data-readiness-summary">
-          <div class="data-readiness-heading">
-            <span class="readiness-dot" :class="`readiness-${readinessSummary.status.toLowerCase()}`" aria-hidden="true" />
-            <div>
-              <small>{{ readinessLabel(readinessSummary.status) }} · {{ readinessSummary.fetchedAt ? `${$t('smartInsights.lastUpdated')}: ${formatDateTime(readinessSummary.fetchedAt)}` : $t('smartInsights.waitingForData') }}</small>
-            </div>
-          </div>
-          <a-button size="small" :loading="retryingSection === 'all'" @click="retryAll">{{ $t('smartInsights.retryAll') }}</a-button>
-          <a-button size="small" @click="healthVisible = true">{{ $t('smartInsights.readinessSources') }}</a-button>
-        </div>
-        <div class="data-readiness-sections">
-          <div v-for="section in readinessSections" :key="section.key" class="data-readiness-section">
-            <div><strong>{{ section.label }}</strong><small>{{ section.fetchedAt ? formatDateTime(section.fetchedAt) : $t('smartInsights.notAvailable') }}</small></div>
-            <a-tag :color="readinessColor(section.status)">{{ readinessLabel(section.status) }}</a-tag>
-            <a-button size="small" :loading="retryingSection === section.key" @click="retrySection(section.key)">{{ $t('smartInsights.retry') }}</a-button>
-          </div>
-        </div>
-        <div v-if="readinessSummary.issues.length" class="data-readiness-issues">
-          <strong>{{ $t('smartInsights.sourceIssues') }}:</strong>
-          <span v-for="issue in readinessSummary.issues.slice(0, 3)" :key="issue.key">{{ issue.label }}</span>
-        </div>
-      </section>
-
       <a-alert v-if="errorMessage" class="legacy-alert" type="error" show-icon :message="errorMessage" />
 
       <section v-if="overviewLoading && !overview" class="initial-overview-loading" aria-busy="true" aria-live="polite">
@@ -144,24 +120,6 @@
     >
       <a-spin :spinning="evidenceLoading"><a-descriptions v-if="evidence" bordered :column="1" size="small"><a-descriptions-item :label="$t('smartInsights.provider')">{{ evidence.sourceName || evidence.source }}</a-descriptions-item><a-descriptions-item :label="$t('smartInsights.sourceUrl')"><a v-if="evidence.sourceUrl" :href="evidence.sourceUrl" target="_blank" rel="noopener">{{ evidence.sourceUrl }}</a><span v-else>—</span></a-descriptions-item><a-descriptions-item :label="$t('smartInsights.observedAt')">{{ evidence.observedAt }}</a-descriptions-item><a-descriptions-item :label="$t('smartInsights.effectiveAt')">{{ evidence.effectiveAt }}</a-descriptions-item><a-descriptions-item :label="$t('smartInsights.reliability')">{{ evidence.reliability || '—' }}</a-descriptions-item><a-descriptions-item :label="$t('smartInsights.dataClass')">{{ evidence.dataClass || '—' }}</a-descriptions-item><a-descriptions-item :label="$t('smartInsights.methodology')">{{ evidence.methodologyVersion }}</a-descriptions-item><a-descriptions-item :label="$t('smartInsights.value')"><pre>{{ pretty(evidence.value) }}</pre></a-descriptions-item><a-descriptions-item :label="$t('smartInsights.warnings')">{{ (evidence.warnings || []).join(', ') || $t('smartInsights.none') }}</a-descriptions-item><a-descriptions-item :label="$t('smartInsights.checksum')"><code>{{ evidence.checksum }}</code></a-descriptions-item></a-descriptions></a-spin>
     </a-drawer>
-    <a-drawer
-      :visible="healthVisible"
-      :title="$t('smartInsights.dataHealth')"
-      :width="760"
-      :wrap-class-name="isDarkTheme ? 'insights-drawer theme-dark' : 'insights-drawer'"
-      @close="healthVisible = false"
-    >
-      <a-spin :spinning="healthLoading">
-        <a-table
-          row-key="code"
-          size="small"
-          :pagination="false"
-          :columns="healthColumns"
-          :data-source="health"
-          :scroll="{ x: 700 }"
-        />
-      </a-spin>
-    </a-drawer>
   </div>
 </template>
 
@@ -173,17 +131,20 @@ import { hasAccessToken } from '@/utils/guestAccess'
 import { openAuthModal } from '@/utils/authModal'
 import { getEconomicCalendar } from '@/api/global-market'
 import { calendarCacheFresh } from './calendarRefresh'
-import { getPublicResearchReport, getSharedResearchReports, getSmartInsightsCryptoPulse, getSmartInsightsDataHealth, getSmartInsightsDates, getSmartInsightsEvidence, getSmartInsightsOverview } from '@/api/smart-insights'
+import { getPublicResearchReport, getSharedResearchReports, getSmartInsightsCryptoPulse, getSmartInsightsDates, getSmartInsightsEvidence, getSmartInsightsOverview } from '@/api/smart-insights'
 import { getTradingAgentsArtifact, getTradingAgentsRuns } from '@/api/trading-agents'
 import { runSectionLoaders } from './loadingCoordinator'
 import { formatVietnamDate, formatVietnamDateTime } from '@/utils/vietnamTime'
 import { applyAccountDeepReports, applyPublicDeepReports, applySharedResearchStates, buildAccountOpinionRows, buildSharedOpinionRows, opinionAssetKey } from './watchlistOpinions'
-import { isCurrentRequest as isCurrentRequestToken, summarizeReadiness } from './dataReadiness'
 import AssetOpinionsSection from './components/AssetOpinionsSection'
 import EconomicCalendarTable from './components/EconomicCalendarTable'
 import MarketPulseSection from './components/MarketPulseSection'
 import DeepAnalysisPanel from '@/components/TradingAgents/DeepAnalysisPanel'
 import ReportPdfReader from '@/components/TradingAgents/ReportPdfReader'
+
+function isCurrentRequestToken (requestId, activeRequestId) {
+  return requestId === activeRequestId
+}
 
 export default {
   name: 'SmartInsights',
@@ -206,7 +167,6 @@ export default {
       },
       calendarLoading: false,
       calendarError: '',
-      health: [],
       watchlist: [],
       evidence: null,
       selectedOpinionRow: null,
@@ -227,22 +187,19 @@ export default {
       pulseLoading: false,
       pulseDetailsLoading: false,
       pulseOnchainLoading: false,
-      healthLoading: false,
       evidenceLoading: false,
       evidenceVisible: false,
       analysisModalVisible: false,
       analysisMode: 'deep',
       deepAnalysisVisible: false,
       deepAnalysisTarget: null,
-      healthVisible: false,
       requestSequence: 0,
       sectionRequests: {},
-      sectionErrors: { overview: false, opinions: false, pulse: false, calendar: false, health: false },
+      sectionErrors: { overview: false, opinions: false, pulse: false, calendar: false },
       evidenceSequence: 0,
       speechSupported: typeof window !== 'undefined' && Boolean(window.speechSynthesis && window.SpeechSynthesisUtterance),
       smartInsightsCache: {
         dates: null,
-        health: null,
         calendar: null,
         overview: new Map(),
         pulse: new Map(),
@@ -297,40 +254,7 @@ export default {
       const modeLabel = this.$t('smartInsights.deepAnalysis')
       return symbol ? `${modeLabel} · ${symbol}` : modeLabel
     },
-    overviewStatus () { return this.statusLabel(this.hasOverview ? this.overview.status : 'UNAVAILABLE') },
-    readinessLoading () { return this.datesLoading || this.overviewLoading || this.opinionsLoading || this.pulseLoading || this.calendarLoading || this.healthLoading },
-    sourceReadinessStatus () {
-      if (this.healthLoading) return 'LOADING'
-      if (!this.health.length) return 'UNAVAILABLE'
-      return this.health.some(row => ['STALE', 'UNAVAILABLE'].includes(String(row && row.freshness || '').toUpperCase()) || ['FAILED', 'ERROR'].includes(String(row && row.lastRun && row.lastRun.status || '').toUpperCase())) ? 'PARTIAL' : 'AVAILABLE'
-    },
-    readinessSections () {
-      return [
-        { key: 'overview', label: this.$t('smartInsights.readinessOverview'), status: this.overview && (this.overview.freshness || this.overview.status) || 'UNAVAILABLE', fetchedAt: this.overview && this.overview.fetchedAt },
-        { key: 'pulse', label: this.$t('smartInsights.readinessPulse'), status: this.cryptoPulse && (this.cryptoPulse.freshness || this.cryptoPulse.status) || 'UNAVAILABLE', fetchedAt: this.cryptoPulse && this.cryptoPulse.fetchedAt },
-        { key: 'calendar', label: this.$t('smartInsights.readinessCalendar'), status: this.calendarMeta.freshness || (this.calendarEvents.length ? 'FRESH' : 'UNAVAILABLE'), fetchedAt: this.calendarMeta.fetchedAt },
-        { key: 'sources', label: this.$t('smartInsights.readinessSources'), status: this.sourceReadinessStatus, fetchedAt: this.health.reduce((latest, row) => String(row && row.lastObservedAt || '') > String(latest || '') ? row.lastObservedAt : latest, '') }
-      ].map(section => {
-        const key = section.key === 'sources' ? 'health' : section.key
-        return { ...section, status: this[`${key}Loading`] ? 'LOADING' : this.sectionErrors[key] ? 'UNAVAILABLE' : section.status }
-      })
-    },
-    readinessSummary () {
-      const summary = summarizeReadiness(this.readinessSections, this.health, this.readinessLoading)
-      const timestamps = this.readinessSections.map(section => section.fetchedAt).filter(Boolean).sort()
-      summary.fetchedAt = timestamps[timestamps.length - 1] || ''
-      return summary
-    },
-    healthColumns () {
-      return [
-        { title: this.$t('smartInsights.provider'), dataIndex: 'name', width: 180 },
-        { title: this.$t('smartInsights.activationMode'), dataIndex: 'activationMode', customRender: value => this.modeLabel(value), width: 130 },
-        { title: this.$t('smartInsights.freshness'), dataIndex: 'freshness', customRender: value => this.stateLabel(value), width: 110 },
-        { title: this.$t('smartInsights.coverage'), dataIndex: 'coverage.liveObservations30d', width: 150 },
-        { title: this.$t('smartInsights.lastRun'), dataIndex: 'lastRun.status', customRender: value => this.lastRunLabel(value), width: 130 },
-        { title: this.$t('smartInsights.methodology'), dataIndex: 'methodologyVersion', width: 150 }
-      ]
-    }
+    overviewStatus () { return this.statusLabel(this.hasOverview ? this.overview.status : 'UNAVAILABLE') }
   },
   watch: {
     '$i18n.locale' () { this.loadAll(false) },
@@ -428,10 +352,9 @@ export default {
       this.calendarEvents = []
       this.calendarMeta = {}
       this.calendarError = ''
-      ;['dates', 'overview', 'opinions', 'pulse', 'calendar', 'health'].forEach(section => this.setSectionLoading(section, false, requestId))
+      ;['dates', 'overview', 'opinions', 'pulse', 'calendar'].forEach(section => this.setSectionLoading(section, false, requestId))
       this.errorMessage = ''
       const independentLoaders = {}
-      if (force || !Array.isArray(this.smartInsightsCache.health)) independentLoaders.health = requestId => this.loadHealth(requestId, force)
       independentLoaders.opinions = requestId => this.isGuest ? this.loadPublicDeepReports(requestId) : this.loadSharedResearchReports(requestId)
       const independentResults = this.runSections(independentLoaders, requestId)
       const needsDates = force || !Array.isArray(this.smartInsightsCache.dates)
@@ -463,7 +386,7 @@ export default {
     },
     setSectionLoading (section, active, requestId) {
       if (requestId !== undefined && !this.isCurrentRequest(requestId)) return
-      const fields = { dates: 'datesLoading', overview: 'overviewLoading', opinions: 'opinionsLoading', pulse: 'pulseLoading', calendar: 'calendarLoading', health: 'healthLoading' }
+      const fields = { dates: 'datesLoading', overview: 'overviewLoading', opinions: 'opinionsLoading', pulse: 'pulseLoading', calendar: 'calendarLoading' }
       if (fields[section]) this[fields[section]] = active
     },
     async loadOverview (requestId, force = false) {
@@ -581,17 +504,6 @@ export default {
       this.dates = dates
       if (!this.asOf && this.dates.length) this.asOf = this.dates[0]
     },
-    async loadHealth (requestId, force = false) {
-      if (!force && Array.isArray(this.smartInsightsCache.health)) {
-        if (this.isCurrentRequest(requestId)) this.health = this.smartInsightsCache.health
-        return
-      }
-      const response = await getSmartInsightsDataHealth()
-      const health = (response.data && response.data.sources) || []
-      if (!this.isCurrentRequest(requestId)) return
-      this.smartInsightsCache.health = health
-      this.health = health
-    },
     async loadPulse (requestId, force = false) {
       const cacheKey = this.cacheKey()
       if (!force && this.smartInsightsCache.pulse.has(cacheKey)) {
@@ -671,12 +583,8 @@ export default {
         throw error
       }
     },
-    async retryAll () {
-      this.retryingSection = 'all'
-      try { await this.loadAll(true) } finally { if (this.retryingSection === 'all') this.retryingSection = '' }
-    },
     async retrySection (section) {
-      const loaderKey = section === 'sources' ? 'health' : section
+      const loaderKey = section
       const loaders = loaderKey === 'opinions'
         ? {
             opinions: requestId => this.loadOverview(requestId, true)
@@ -684,8 +592,7 @@ export default {
         : {
             overview: requestId => this.loadOverview(requestId, true),
             pulse: requestId => this.loadPulse(requestId, true),
-            calendar: requestId => this.loadCalendar(true, requestId),
-            health: requestId => this.loadHealth(requestId, true)
+            calendar: requestId => this.loadCalendar(true, requestId)
           }
       if (!loaders[loaderKey]) return
       const requestId = this.requestSequence
@@ -866,13 +773,6 @@ export default {
       return this.$t(key)
     },
     pretty (value) { return JSON.stringify(value || {}, null, 2) },
-    readinessLabel (status) {
-      return ({ READY: this.$t('smartInsights.readinessReady'), AVAILABLE: this.$t('smartInsights.readinessReady'), LOADING: this.$t('smartInsights.readinessLoading'), PARTIAL: this.$t('smartInsights.readinessPartial'), STALE: this.$t('smartInsights.readinessPartial'), FRESH: this.$t('smartInsights.readinessReady'), UNAVAILABLE: this.$t('smartInsights.readinessUnavailable') })[String(status || 'UNAVAILABLE').toUpperCase()] || this.$t('smartInsights.readinessUnavailable')
-    },
-    readinessColor (status) {
-      const normalized = String(status || '').toUpperCase()
-      return ['READY', 'AVAILABLE', 'FRESH'].includes(normalized) ? 'green' : normalized === 'LOADING' ? 'blue' : 'orange'
-    },
     shortChecksum (value) { const text = String(value || ''); return text ? `${text.slice(0, 10)}...${text.slice(-6)}` : this.$t('smartInsights.notAvailable') },
     formatDate (value) { return formatVietnamDate(value, { locale: this.$i18n && this.$i18n.locale === 'vi-VN' ? 'vi-VN' : 'en-GB', fallback: this.$t('smartInsights.dataUnavailableShort') }) },
     formatDateTime (value) {
@@ -899,7 +799,6 @@ export default {
 .legacy-page { --page-bg: #f7f9fc; --ink: #17253d; --muted: #7b8798; --line: #e4eaf3; --card: #fff; --blue: var(--primary-color, #174ca8); --blue-hover: var(--primary-color-hover, #40a9ff); --blue-active: var(--primary-color-active, #096dd9); --blue-ring: var(--primary-color-ring, rgba(24,144,255,.22)); --soft-blue: var(--primary-color-soft, rgba(24,144,255,.1)); --soft-blue-strong: var(--primary-color-soft-strong, rgba(24,144,255,.18)); position: relative; min-height: calc(100vh - 64px); overflow: hidden; color: var(--ink); background: var(--page-bg); font-size: 15px; }
 .legacy-main, .footer-inner, .footer-bottom { width: 100%; max-width: 1120px; margin: 0 auto; }
 .legacy-main { width: 100%; max-width: 1480px; margin: 0 auto; box-sizing: border-box; padding: 24px 28px 48px; }.analysis-controls { display: flex; align-items: end; gap: 10px; min-height: 40px; margin-bottom: 17px; }.date-control { display: grid; grid-template-columns: auto 130px; align-items: center; gap: 8px; }.date-control label { color: var(--muted); font-size: 13px; font-weight: 600; }.date-control .ant-select { width: 130px; }.analysis-controls .ant-btn, .analysis-controls .ant-radio-button-wrapper, .date-control .ant-select-selection-selected-value { font-size: 13px; }.control-spacer { flex: 1; }.legacy-alert { margin-bottom: 12px; }.initial-overview-loading { min-height: 184px; padding: 34px 38px; border: 1px solid var(--line); border-radius: 17px; background: var(--card); box-shadow: 0 8px 24px var(--blue-ring); }
-.data-readiness { margin-bottom: 14px; overflow: hidden; border: 1px solid var(--line); border-radius: 12px; background: var(--card); box-shadow: 0 3px 12px var(--blue-ring); }.data-readiness-summary { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 11px 14px; border-bottom: 1px solid var(--line); background: linear-gradient(var(--soft-blue), var(--card)); }.data-readiness-heading { display: flex; align-items: center; gap: 9px; min-width: 0; }.data-readiness-heading > div { display: grid; gap: 3px; min-width: 0; }.data-readiness-heading strong { color: var(--ink); font-size: 13px; }.data-readiness-heading small { overflow: hidden; color: var(--muted); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }.readiness-dot { width: 9px; height: 9px; flex: 0 0 auto; border-radius: 50%; background: #1b9a6c; box-shadow: 0 0 0 3px rgba(27,154,108,.12); }.readiness-dot.readiness-loading { background: var(--blue); box-shadow: 0 0 0 3px var(--blue-ring); }.readiness-dot.readiness-partial, .readiness-dot.readiness-unavailable { background: #d49b2f; box-shadow: 0 0 0 3px rgba(212,155,47,.14); }.data-readiness-sections { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1px; background: var(--line); }.data-readiness-section { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 8px; min-width: 0; padding: 10px 12px; background: var(--card); }.data-readiness-section > div { display: grid; gap: 3px; min-width: 0; }.data-readiness-section strong { overflow: hidden; color: var(--ink); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }.data-readiness-section small { overflow: hidden; color: var(--muted); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }.data-readiness-section .ant-tag { grid-column: 2; grid-row: 1; margin: 0; font-size: 10px; }.data-readiness-section .ant-btn { grid-column: 1 / -1; justify-self: start; min-height: 26px; padding: 0 8px; font-size: 11px; }.data-readiness-issues { display: flex; flex-wrap: wrap; gap: 6px; padding: 8px 12px; color: var(--muted); font-size: 11px; }.data-readiness-issues span { padding: 2px 7px; border-radius: 999px; background: var(--soft-blue); }
 .daily-hero { display: flex; align-items: center; justify-content: space-between; min-height: 184px; padding: 30px 38px; overflow: hidden; border-radius: 17px; color: #fff; background: linear-gradient(115deg, var(--blue-active) 0%, var(--blue) 52%, var(--blue-hover) 122%); box-shadow: 0 14px 28px var(--blue-ring); }.hero-copy { position: relative; z-index: 1; min-width: 0; }.hero-kicker { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; color: rgba(255,255,255,.78); font-size: 12px; }.hero-badge, .hero-status { padding: 4px 9px; border: 1px solid rgba(255,255,255,.2); border-radius: 999px; background: rgba(255,255,255,.12); }.hero-badge { font-weight: 700; }.daily-hero h1 { max-width: 620px; margin: 0 0 9px; color: #fff; font-size: clamp(30px, 4vw, 42px); line-height: 1.08; letter-spacing: -.04em; }.daily-hero p { margin: 0; color: rgba(255,255,255,.82); font-size: 13px; }.hero-thesis { margin-top: 6px !important; color: rgba(255,255,255,.62) !important; }.hero-arrow { color: var(--blue-hover); }.daily-brief-highlights { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; max-width: 860px; margin-top: 14px; }.brief-highlight { display: grid; gap: 6px; min-width: 0; padding: 10px 11px; border: 1px solid rgba(255,255,255,.18); border-radius: 10px; color: #fff; text-align: left; background: rgba(255,255,255,.1); cursor: pointer; transition: background .18s ease, border-color .18s ease, transform .18s ease; }.brief-highlight:hover, .brief-highlight:focus-visible { border-color: rgba(255,255,255,.42); background: rgba(255,255,255,.18); outline: 0; transform: translateY(-1px); }.brief-highlight-head { display: flex; align-items: center; gap: 7px; min-width: 0; }.brief-highlight-head strong { font-size: 13px; }.brief-highlight-decision { font-size: 11px; font-weight: 700; }.brief-highlight-decision.analysis-positive { color: #b9f5d8 !important; }.brief-highlight-decision.analysis-negative { color: #ffd1d1 !important; }.brief-highlight-decision.analysis-neutral { color: rgba(255,255,255,.76) !important; }.brief-highlight-confidence { margin-left: auto; color: rgba(255,255,255,.68); font-size: 10px; }.brief-highlight-summary { display: -webkit-box; overflow: hidden; color: rgba(255,255,255,.78); font-size: 11px; line-height: 1.45; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }.brief-highlight-link { color: rgba(255,255,255,.9); font-size: 10px; font-weight: 700; }.hero-audio { display: flex; align-items: center; gap: 12px; min-width: 190px; padding: 11px 15px; border: 1px solid rgba(255,255,255,.18); border-radius: 12px; color: #fff; text-align: left; background: rgba(255,255,255,.1); opacity: .7; }.hero-audio strong, .hero-audio small { display: block; }.hero-audio strong { font-size: 13px; }.hero-audio small { margin-top: 3px; color: rgba(255,255,255,.62); font-size: 11px; }.play-button { display: grid; place-items: center; width: 38px; height: 38px; border-radius: 50%; color: var(--blue); background: rgba(255,255,255,.75); }
 .legacy-card { margin-top: 16px; overflow: hidden; border: 1px solid var(--line); border-radius: 12px; background: var(--card); box-shadow: 0 3px 12px var(--blue-ring); }.card-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 17px; border-bottom: 1px solid var(--line); background: linear-gradient(var(--soft-blue), var(--card)); }.heading-with-icon { display: flex; align-items: flex-start; gap: 9px; min-width: 0; }.section-icon { display: inline-grid; place-items: center; flex: 0 0 auto; width: 30px; height: 30px; border-radius: 8px; color: #fff; background: var(--blue); font-size: 17px; font-weight: 700; }.card-heading h2 { margin: 0; color: var(--ink); font-size: 16px; line-height: 1.3; }.card-heading p { margin: 3px 0 0; color: var(--muted); font-size: 12px; }.card-heading h2 .ant-tag { vertical-align: 2px; color: #18a575; border-color: #b7ead6; background: #ecfbf4; }
 .change-list { width: 100%; }.change-row { display: grid; grid-template-columns: 1.1fr 1fr 20px; align-items: center; gap: 12px; min-height: 52px; padding: 10px 16px; border-bottom: 1px solid var(--line); }.change-row:last-child { border-bottom: 0; }.change-row > div:first-child { display: grid; gap: 2px; }.change-row strong { font-size: 13px; }.change-row span, .change-row small { color: var(--muted); font-size: 12px; }.change-detail { display: flex; justify-content: space-between; gap: 10px; }.legacy-empty { display: flex; align-items: center; justify-content: center; gap: 9px; color: var(--muted); text-align: center; }.legacy-empty div { display: grid; gap: 4px; text-align: left; }.legacy-empty span, .legacy-empty strong { font-size: 13px; }.calendar-empty { min-height: 120px; flex-direction: column; }
@@ -911,18 +810,6 @@ export default {
 @media (max-width: 960px) { .legacy-main { width: 100%; }.analysis-controls { flex-wrap: wrap; align-items: stretch; }.control-spacer { display: none; }.date-control { flex: 1 1 100%; grid-template-columns: auto 118px; } }
 @media (max-width: 900px) and (min-width: 681px) { .analysis-metric-grid, .analysis-factor-grid, .analysis-consensus-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 680px) { .legacy-main { padding: 14px 12px 32px; }.date-control { grid-template-columns: auto 1fr; }.date-control .ant-select { width: 100%; }.daily-hero { align-items: flex-start; flex-direction: column; gap: 22px; padding: 25px 22px; }.daily-hero h1 { font-size: 32px; }.daily-brief-highlights { grid-template-columns: 1fr; width: 100%; }.hero-audio { width: 100%; }.card-heading { align-items: flex-start; flex-direction: column; }.calendar-filters { flex-wrap: wrap; }.brief-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }.analysis-mode-switcher { grid-template-columns: 1fr; gap: 4px; }.analysis-mode-option { min-height: 48px; }.analysis-deep-intro { align-items: stretch; flex-direction: column; }.analysis-result-grid, .analysis-metric-grid, .analysis-factor-grid, .analysis-consensus-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }.analysis-trend-item { grid-template-columns: 1fr auto; }.analysis-trend-item small { grid-column: 1 / -1; }.asset-analysis-meta { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }.footer-inner { width: calc(100% - 24px); grid-template-columns: 1fr; }.footer-inner > div:last-child { justify-self: start; }.footer-bottom { width: calc(100% - 24px); flex-direction: column; } }
-@media (max-width: 680px) {
-  .data-readiness-summary { align-items: flex-start; flex-wrap: wrap; }
-  .data-readiness-heading { flex: 1 0 100%; }
-  .data-readiness-heading small { white-space: normal; overflow-wrap: anywhere; }
-  .data-readiness-summary .ant-btn { min-height: 44px; flex: 1; }
-  .data-readiness-sections { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .data-readiness-section { display: flex; flex-direction: column; align-items: stretch; padding: 10px; }
-  .data-readiness-section strong, .data-readiness-section small { white-space: normal; overflow-wrap: anywhere; }
-  .data-readiness-section .ant-tag { align-self: flex-start; max-width: 100%; white-space: normal; }
-  .data-readiness-section .ant-btn { width: 100%; min-height: 44px; margin-top: auto; }
-  .data-readiness-issues { line-height: 1.45; }
-}
 .theme-dark ::v-deep .flow-terminal,
 .theme-dark ::v-deep .derivatives-terminal,
 .theme-dark ::v-deep .cycle-terminal,

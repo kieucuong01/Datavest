@@ -141,25 +141,22 @@ test('Smart Insights formats dates in Vietnam time and guards stale date respons
   assert.doesNotMatch(source, /new Date\(\)\.toISOString\(\)\.slice\(0, 10\)/u)
 })
 
-test('Smart Insights exposes a compact data readiness bar with per-section retry actions', () => {
-  assert.match(source, /data-readiness/u)
+test('Smart Insights does not render the retired data readiness section', () => {
+  assert.doesNotMatch(source, /data-readiness|dataReadiness|readinessSummary|readinessSections|readinessLabel|readinessColor/u)
+  assert.doesNotMatch(source, /getSmartInsightsDataHealth|healthVisible|healthColumns|loadHealth/u)
   assert.match(source, /retrySection/u)
-  assert.match(source, /dataHealth/u)
-  assert.match(source, /fetchedAt/u)
-  assert.match(source, /freshness/u)
-  assert.match(source, /coverage/u)
 })
 
 test('Smart Insights removes the retired daily hero and decision brief surfaces', () => {
   assert.doesNotMatch(source, /<section class="daily-hero"/u)
   assert.doesNotMatch(source, /decision-brief-card|decision-brief-title/u)
   assert.doesNotMatch(source, /data-readiness-title/u)
-  assert.match(source, /class="data-readiness"/u)
+  assert.doesNotMatch(source, /data-readiness/u)
 })
 
 test('Guest Smart Insights hides readiness and the retired guest alert', () => {
   assert.doesNotMatch(source, /class="guest-mode-alert"/u)
-  assert.match(source, /<section v-if="!isGuest" class="data-readiness"/u)
+  assert.doesNotMatch(source, /data-readiness|dataReadiness/u)
 })
 
 test('Header logo links back to Smart Insights', () => {
@@ -168,7 +165,9 @@ test('Header logo links back to Smart Insights', () => {
 })
 
 test('Mobile navigation centers the trigger and uses a light drawer surface', () => {
-  assert.match(layoutStyles, /@media \(max-width: 768px\)[\s\S]*?\.basic-layout-wrapper \.ant-pro-global-header-trigger[\s\S]*?display:\s*inline-flex\s*!important[\s\S]*?justify-content:\s*center\s*!important/u)
-  assert.match(layoutSource, /@media \(max-width: 768px\)[\s\S]*?\.ant-drawer\.ant-pro-sider-menu\.ant-drawer-open[\s\S]*?background:\s*#f8fafc\s*!important/u)
-  assert.match(layoutSource, /\.ant-drawer\.ant-pro-sider-menu\.ant-drawer-open[\s\S]*?\.ant-menu-dark[\s\S]*?background:\s*transparent\s*!important/u)
+  assert.match(layoutSource, /:logo="currentLogo"/u)
+  assert.match(layoutStyles, /@media \(max-width: 768px\)[\s\S]*?\.basic-layout-wrapper \.ant-pro-global-header\s*\{[\s\S]*?position:\s*relative\s*!important/u)
+  assert.match(layoutStyles, /@media \(max-width: 768px\)[\s\S]*?\.basic-layout-wrapper \.ant-pro-global-header-trigger[\s\S]*?position:\s*absolute\s*!important[\s\S]*?left:\s*50%\s*!important[\s\S]*?transform:\s*translate\(-50%,\s*-50%\)\s*!important/u)
+  assert.match(layoutSource, /@media \(max-width: 768px\)[\s\S]*?\.ant-drawer\.ant-drawer-left\.ant-drawer-open[\s\S]*?background:\s*var\(--mobile-drawer-bg,\s*#f8fafc\)\s*!important/u)
+  assert.match(layoutSource, /\.ant-drawer\.ant-drawer-left\.ant-drawer-open[\s\S]*?\.ant-menu-dark[\s\S]*?background:\s*transparent\s*!important/u)
 })

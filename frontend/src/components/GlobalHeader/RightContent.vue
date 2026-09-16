@@ -136,6 +136,20 @@ export default {
   }
 }
 
+@media (max-width: 480px) {
+  .ant-pro-global-header-index-right .guest-login-button {
+    width: 44px;
+    min-width: 44px;
+    padding: 0;
+    font-size: 0;
+  }
+
+  .ant-pro-global-header-index-right .guest-login-button > .anticon {
+    margin-right: 0;
+    font-size: 16px;
+  }
+}
+
 body.dark,
 body.realdark,
 .ant-layout.dark,

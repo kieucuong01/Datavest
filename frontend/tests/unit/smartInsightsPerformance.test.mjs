@@ -17,7 +17,8 @@ test('Smart Insights caches stable datasets and keys date-scoped data by asOf', 
   assert.match(pageSource, /loadCalendar\(force, requestId\)/u)
   assert.doesNotMatch(pageSource, /class="analysis-controls"/u)
   assert.doesNotMatch(pageSource, /@change="handleDateChange"/u)
-  assert.match(pageSource, /await this\.loadAll\(true\)/u)
+  assert.match(pageSource, /retrySection\s*\(section\)/u)
+  assert.doesNotMatch(pageSource, /retryAll|await this\.loadAll\(true\)/u)
 })
 
 test('Smart Insights defers crypto terminals until the first page render is ready', () => {

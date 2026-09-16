@@ -166,7 +166,14 @@
     min-width: 0 !important;
   }
 
+  .basic-layout-wrapper .ant-pro-global-header {
+    position: relative !important;
+  }
+
   .basic-layout-wrapper .ant-pro-global-header-trigger {
+    position: absolute !important;
+    top: 50% !important;
+    left: 50% !important;
     display: inline-flex !important;
     align-items: center !important;
     justify-content: center !important;
@@ -178,6 +185,8 @@
     padding: 0 !important;
     line-height: 1 !important;
     border-radius: 10px !important;
+    transform: translate(-50%, -50%) !important;
+    z-index: 2 !important;
   }
 
   .basic-layout-wrapper .ant-pro-global-header-trigger .anticon {
