@@ -250,6 +250,35 @@ export function applySharedResearchStates (rows = [], states = []) {
   })
 }
 
+function reportDateRank (report) {
+  const value = report && (report.effectiveDate || report.analysisDate || report.effective_date || report.analysis_date)
+  const parsed = Date.parse(`${String(value || '').slice(0, 10)}T00:00:00Z`)
+  return Number.isFinite(parsed) ? parsed : 0
+}
+
+function reportInstantRank (report) {
+  const value = report && (report.generatedAt || report.createdAt || report.updatedAt || report.generated_at || report.created_at)
+  const parsed = Date.parse(String(value || ''))
+  return Number.isFinite(parsed) ? parsed : 0
+}
+
+function selectNewestReport (publicReport, accountReport) {
+  if (!publicReport) return { report: accountReport, source: 'ACCOUNT_PRIVATE_REPORT' }
+  if (!accountReport) return { report: publicReport, source: 'PUBLIC_RESEARCH_REPORT' }
+  const publicDate = reportDateRank(publicReport)
+  const accountDate = reportDateRank(accountReport)
+  if (publicDate !== accountDate) {
+    return publicDate > accountDate
+      ? { report: publicReport, source: 'PUBLIC_RESEARCH_REPORT' }
+      : { report: accountReport, source: 'ACCOUNT_PRIVATE_REPORT' }
+  }
+  const publicInstant = reportInstantRank(publicReport)
+  const accountInstant = reportInstantRank(accountReport)
+  return publicInstant > accountInstant
+    ? { report: publicReport, source: 'PUBLIC_RESEARCH_REPORT' }
+    : { report: accountReport, source: 'ACCOUNT_PRIVATE_REPORT' }
+}
+
 export function applyAccountDeepReports (rows = [], reports = []) {
   const indexed = new Map()
   for (const item of Array.isArray(reports) ? reports : []) {
@@ -259,18 +288,25 @@ export function applyAccountDeepReports (rows = [], reports = []) {
   }
   return (Array.isArray(rows) ? rows : []).map(row => {
     const key = row && (row.sharedResearchAssetKey || row.publicAssetKey || opinionAssetKey(row))
-    const report = indexed.get(String(key || ''))
-    if (!report) return row
+    const accountReport = indexed.get(String(key || ''))
+    if (!accountReport && !(row.deepState && row.deepState.report)) return row
+    const publicReport = row.deepState && row.deepState.report && row.deepState.scope !== 'account_private'
+      ? row.deepState.report
+      : null
+    const selected = selectNewestReport(publicReport, accountReport)
     return {
       ...row,
       deepState: {
         ...(row.deepState || {}),
         status: 'complete',
-        scope: 'account_private',
+        scope: selected.source === 'PUBLIC_RESEARCH_REPORT' ? 'public_common' : 'account_private',
         canCreate: false,
-        report
+        report: selected.report,
+        publicReport,
+        accountReport,
+        selectedSource: selected.source
       },
-      dataFreshness: 'ACCOUNT_REPORT',
+      dataFreshness: selected.source === 'PUBLIC_RESEARCH_REPORT' ? 'PUBLIC_REPORT' : 'ACCOUNT_REPORT',
       analysisStatus: 'AVAILABLE'
     }
   })

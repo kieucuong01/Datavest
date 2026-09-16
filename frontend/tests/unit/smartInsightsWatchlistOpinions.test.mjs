@@ -4,7 +4,7 @@ import test from 'node:test'
 import { applyAccountDeepReports, applyPublicDeepReports, applySharedResearchStates, buildAccountOpinionRows, buildSharedOpinionRows, buildWatchlistOpinionRows } from '../../src/views/smart-insights/watchlistOpinions.js'
 import { extractPortfolioManagerDecisionSummary } from '../../src/utils/tradingAgentsReport.js'
 
-test('prefers the authenticated account deep report over the shared public snapshot', () => {
+test('selects the newest account or public deep report for the authenticated row', () => {
   const rows = applySharedResearchStates(
     buildAccountOpinionRows(
       [{ market: 'Crypto', symbol: 'SOL/USDT', name: 'Solana' }],
@@ -35,6 +35,42 @@ test('prefers the authenticated account deep report over the shared public snaps
   assert.equal(row.deepState.report.source, 'ACCOUNT_PRIVATE_REPORT')
   assert.equal(row.deepState.report.effectiveDate, '2026-09-16')
   assert.equal(row.deepState.report.summary, 'Báo cáo riêng ngày 16/9')
+})
+
+test('shows a newer public report outside while retaining the account report for provenance', () => {
+  const rows = applySharedResearchStates(
+    buildAccountOpinionRows(
+      [{ market: 'Crypto', symbol: 'SOL/USDT', name: 'Solana' }],
+      []
+    ),
+    [{
+      assetKey: 'crypto:SOL/USDT',
+      reportKind: 'deep',
+      status: 'complete',
+      scope: 'public_common',
+      report: {
+        source: 'PUBLIC_RESEARCH_REPORT',
+        effectiveDate: '2026-09-17',
+        generatedAt: '2026-09-17T01:00:00Z',
+        summary: 'Báo cáo public ngày 17/9'
+      }
+    }]
+  )
+
+  const row = applyAccountDeepReports(rows, [{
+    assetKey: 'crypto:SOL/USDT',
+    report: {
+      source: 'ACCOUNT_PRIVATE_REPORT',
+      effectiveDate: '2026-09-16',
+      generatedAt: '2026-09-16T03:00:00Z',
+      summary: 'Báo cáo riêng ngày 16/9'
+    }
+  }]).find(item => item.displaySymbol === 'SOL')
+
+  assert.equal(row.deepState.report.source, 'PUBLIC_RESEARCH_REPORT')
+  assert.equal(row.deepState.report.effectiveDate, '2026-09-17')
+  assert.equal(row.deepState.selectedSource, 'PUBLIC_RESEARCH_REPORT')
+  assert.equal(row.deepState.accountReport.effectiveDate, '2026-09-16')
 })
 
 test('uses BTC, SOL, LINK and XAU as the guest default assets', () => {
