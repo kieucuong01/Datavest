@@ -24,6 +24,7 @@ from app.tasks.trading_agents import (
 from app.services.trading_agents_progress import build_public_progress, public_event
 from app.services.ai_report_pdf import build_trading_agents_report_pdf, build_trading_agents_summary_pdf
 from app.services.pdf_delivery import trading_agents_pdf_response
+from app.data.market_symbols_seed import validate_hose_ai_target
 from app.utils.auth import login_required
 from app.utils.logger import get_logger
 
@@ -80,6 +81,7 @@ def _validate_request(payload: Any) -> tuple[dict[str, Any], dict[str, Any]]:
     symbol = str(payload.get("symbol") or "").strip()
     if market not in _SUPPORTED_MARKETS or not symbol or len(symbol) > 80:
         raise ValueError("unsupported_market_or_symbol")
+    symbol = validate_hose_ai_target(market, symbol)
     analysis_date = str(payload.get("analysisDate") or payload.get("analysis_date") or _today_vietnam()).strip()
     try:
         date.fromisoformat(analysis_date)

@@ -303,7 +303,9 @@ class UniverseService:
                 )
             elif universe.get("source") == "symbol_master":
                 cur.close()
-                return self._symbol_master_members(str(universe.get("source_ref") or ""))
+                return self._symbol_master_members(
+                    str(universe.get("source_ref") or ""), as_of=as_of_date
+                )
             else:
                 cur.execute(
                     """
@@ -329,7 +331,7 @@ class UniverseService:
         ]
 
     @staticmethod
-    def _symbol_master_members(source_ref: str) -> list[dict]:
+    def _symbol_master_members(source_ref: str, *, as_of: Any = None) -> list[dict]:
         parts = str(source_ref or "").split(":")
         if len(parts) != 3:
             return []
@@ -338,18 +340,61 @@ class UniverseService:
             market = normalize_supported_market(market)
         except (TypeError, ValueError):
             return []
+        as_of_date = parse_as_of(as_of) if as_of is not None else date.today()
         query = """
             SELECT market, symbol, name, exchange AS exchange_id, market_type,
                    instrument_id, settle_currency
             FROM qd_market_symbols
-            WHERE market = ? AND is_active = 1 AND asset_class = ?
+            WHERE market = ? AND asset_class = ?
+              AND (listed_date IS NULL OR listed_date <= ?)
+              AND (delisted_date IS NULL OR delisted_date > ?)
+        """
+        params: list[Any] = [market, asset_class, as_of_date, as_of_date]
+        if as_of_date >= date.today():
+            query += " AND is_active = 1"
+        if scope == "hot":
+            query += " AND is_hot = 1"
+        query += " ORDER BY sort_order DESC, symbol"
+        with get_db_connection() as db:
+            cur = db.cursor()
+            cur.execute(query, tuple(params))
+            rows = cur.fetchall() or []
+            cur.close()
+        return [
+            member
+            for row in rows
+            for member in [UniverseService._serialize_supported_member(row)]
+            if member is not None
+        ]
+
+    @staticmethod
+    def _symbol_master_candidates(
+        source_ref: str, *, start: Any, end: Any
+    ) -> list[dict]:
+        parts = str(source_ref or "").split(":")
+        if len(parts) != 3:
+            return []
+        market, scope, asset_class = parts
+        try:
+            market = normalize_supported_market(market)
+        except (TypeError, ValueError):
+            return []
+        start_date = parse_as_of(start)
+        end_date = parse_as_of(end)
+        query = """
+            SELECT market, symbol, name, exchange AS exchange_id, market_type,
+                   instrument_id, settle_currency
+            FROM qd_market_symbols
+            WHERE market = ? AND asset_class = ?
+              AND (listed_date IS NULL OR listed_date <= ?)
+              AND (delisted_date IS NULL OR delisted_date > ?)
         """
         if scope == "hot":
             query += " AND is_hot = 1"
         query += " ORDER BY sort_order DESC, symbol"
         with get_db_connection() as db:
             cur = db.cursor()
-            cur.execute(query, (market, asset_class))
+            cur.execute(query, (market, asset_class, end_date, start_date))
             rows = cur.fetchall() or []
             cur.close()
         return [
@@ -386,7 +431,11 @@ class UniverseService:
             raise UniverseError("universe.invalidDateRange")
         with get_db_connection() as db:
             universe = self._get_visible_universe(db, user_id, universe_id)
-        if universe.get("universe_type") == "watchlist" or universe.get("source") == "symbol_master":
+        if universe.get("source") == "symbol_master":
+            return self._symbol_master_candidates(
+                str(universe.get("source_ref") or ""), start=start_date, end=end_date
+            )
+        if universe.get("universe_type") == "watchlist":
             return self.resolve_members(user_id, universe_id, as_of=end_date)
         with get_db_connection() as db:
             cur = db.cursor()

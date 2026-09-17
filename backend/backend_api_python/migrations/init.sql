@@ -872,6 +872,12 @@ CREATE TABLE IF NOT EXISTS qd_market_symbols (
     instrument_id VARCHAR(120) NOT NULL DEFAULT '',
     settle_currency VARCHAR(20) NOT NULL DEFAULT '',
     asset_class VARCHAR(20) NOT NULL DEFAULT 'crypto',
+    sector VARCHAR(255) NOT NULL DEFAULT '',
+    listed_date DATE,
+    delisted_date DATE,
+    trading_status VARCHAR(30) NOT NULL DEFAULT 'ACTIVE',
+    source VARCHAR(50) NOT NULL DEFAULT '',
+    source_updated_at TIMESTAMPTZ,
     currency VARCHAR(10) DEFAULT '',
     is_active INTEGER DEFAULT 1,
     is_hot INTEGER DEFAULT 0,
@@ -903,10 +909,22 @@ ALTER TABLE qd_market_symbols ADD COLUMN IF NOT EXISTS market_type VARCHAR(20) N
 ALTER TABLE qd_market_symbols ADD COLUMN IF NOT EXISTS instrument_id VARCHAR(120) NOT NULL DEFAULT '';
 ALTER TABLE qd_market_symbols ADD COLUMN IF NOT EXISTS settle_currency VARCHAR(20) NOT NULL DEFAULT '';
 ALTER TABLE qd_market_symbols ADD COLUMN IF NOT EXISTS asset_class VARCHAR(20) NOT NULL DEFAULT 'crypto';
+ALTER TABLE qd_market_symbols ADD COLUMN IF NOT EXISTS sector VARCHAR(255) NOT NULL DEFAULT '';
+ALTER TABLE qd_market_symbols ADD COLUMN IF NOT EXISTS listed_date DATE;
+ALTER TABLE qd_market_symbols ADD COLUMN IF NOT EXISTS delisted_date DATE;
+ALTER TABLE qd_market_symbols ADD COLUMN IF NOT EXISTS trading_status VARCHAR(30) NOT NULL DEFAULT 'ACTIVE';
+ALTER TABLE qd_market_symbols ADD COLUMN IF NOT EXISTS source VARCHAR(50) NOT NULL DEFAULT '';
+ALTER TABLE qd_market_symbols ADD COLUMN IF NOT EXISTS source_updated_at TIMESTAMPTZ;
+CREATE INDEX IF NOT EXISTS idx_market_symbols_hose_active
+  ON qd_market_symbols(exchange, is_active, trading_status)
+  WHERE market = 'VNStock';
 UPDATE qd_market_symbols SET asset_class = 'equity'
 WHERE market IN ('CNStock', 'HKStock', 'USStock', 'MOEX') AND asset_class = 'crypto';
 UPDATE qd_market_symbols SET asset_class = 'forex'
 WHERE market = 'Forex' AND asset_class = 'crypto';
+UPDATE qd_market_symbols
+SET asset_class = CASE WHEN symbol IN ('VNINDEX', 'VN30') THEN 'index' ELSE 'equity' END
+WHERE market = 'VNStock' AND asset_class = 'crypto';
 UPDATE qd_market_symbols SET asset_class = 'futures'
 WHERE market = 'Futures' AND asset_class = 'crypto';
 UPDATE qd_market_symbols SET is_hot = 1, sort_order = GREATEST(sort_order, 80)
@@ -1422,3 +1440,72 @@ DO $$
 BEGIN
     RAISE NOTICE 'QuantDinger PostgreSQL schema initialized successfully!';
 END $$;
+CREATE TABLE IF NOT EXISTS qd_vietnam_financial_observations (
+    id BIGSERIAL PRIMARY KEY,
+    symbol VARCHAR(16) NOT NULL,
+    metric VARCHAR(80) NOT NULL,
+    item_code VARCHAR(80) NOT NULL,
+    label TEXT NOT NULL DEFAULT '',
+    numeric_value DOUBLE PRECISION NOT NULL,
+    unit VARCHAR(24) NOT NULL DEFAULT 'VND',
+    period_end DATE NOT NULL,
+    available_at TIMESTAMPTZ NOT NULL,
+    revision_at TIMESTAMPTZ,
+    frequency VARCHAR(24) NOT NULL,
+    report_scope VARCHAR(24) NOT NULL,
+    model_type VARCHAR(80) NOT NULL DEFAULT '',
+    source VARCHAR(80) NOT NULL,
+    source_url TEXT NOT NULL DEFAULT '',
+    metadata_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+    ingested_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (symbol, item_code, period_end, available_at, report_scope, source)
+);
+
+CREATE INDEX IF NOT EXISTS idx_qd_vietnam_financial_pit
+    ON qd_vietnam_financial_observations (symbol, available_at, period_end);
+
+CREATE TABLE IF NOT EXISTS qd_vietnam_daily_prices (
+    id BIGSERIAL PRIMARY KEY,
+    symbol VARCHAR(20) NOT NULL,
+    trading_time TIMESTAMPTZ NOT NULL,
+    raw_open DOUBLE PRECISION NOT NULL,
+    raw_high DOUBLE PRECISION NOT NULL,
+    raw_low DOUBLE PRECISION NOT NULL,
+    raw_close DOUBLE PRECISION NOT NULL,
+    adjusted_open DOUBLE PRECISION,
+    adjusted_high DOUBLE PRECISION,
+    adjusted_low DOUBLE PRECISION,
+    adjusted_close DOUBLE PRECISION,
+    adjustment_factor DOUBLE PRECISION,
+    volume DOUBLE PRECISION NOT NULL DEFAULT 0,
+    price_mode VARCHAR(20) NOT NULL,
+    source VARCHAR(50) NOT NULL,
+    observed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    quality_flags JSONB NOT NULL DEFAULT '{}'::jsonb,
+    checksum VARCHAR(64) NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE(symbol, trading_time, price_mode, source)
+);
+
+CREATE INDEX IF NOT EXISTS idx_qd_vietnam_daily_prices_lookup
+    ON qd_vietnam_daily_prices(symbol, price_mode, trading_time DESC);
+
+CREATE TABLE IF NOT EXISTS qd_vietnam_events (
+    id BIGSERIAL PRIMARY KEY,
+    source VARCHAR(80) NOT NULL,
+    event_id VARCHAR(160) NOT NULL,
+    symbol VARCHAR(16) NOT NULL,
+    category VARCHAR(40) NOT NULL,
+    event_type VARCHAR(100) NOT NULL DEFAULT '',
+    title TEXT NOT NULL DEFAULT '',
+    available_at TIMESTAMPTZ NOT NULL,
+    effective_date DATE,
+    actual_date DATE,
+    source_url TEXT NOT NULL DEFAULT '',
+    payload_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+    ingested_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (source, event_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_qd_vietnam_events_pit
+    ON qd_vietnam_events (symbol, available_at, category);

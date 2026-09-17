@@ -190,6 +190,29 @@ def test_create_reuses_an_existing_daily_run_after_it_has_completed(monkeypatch)
     }
 
 
+def test_create_rejects_unknown_or_inactive_hose_symbol_before_repository_write(monkeypatch):
+    client, route_module = _client(monkeypatch)
+
+    monkeypatch.setattr(
+        route_module,
+        "validate_hose_ai_target",
+        lambda _market, _symbol: (_ for _ in ()).throw(ValueError("unsupported_or_inactive_vn_symbol")),
+    )
+    monkeypatch.setattr(
+        route_module,
+        "get_repository",
+        lambda: (_ for _ in ()).throw(AssertionError("invalid symbol must not reach repository")),
+    )
+
+    response = client.post(
+        "/api/trading-agents/runs",
+        json={"market": "VNStock", "symbol": "NOTREAL", "analysisDate": "2026-09-16"},
+    )
+
+    assert response.status_code == 400
+    assert response.get_json()["msg"] == "unsupported_or_inactive_vn_symbol"
+
+
 def test_create_reuses_an_exact_active_run_for_repeated_clicks(monkeypatch):
     client, route_module = _client(monkeypatch)
     created = []

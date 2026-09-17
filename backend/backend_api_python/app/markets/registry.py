@@ -92,17 +92,24 @@ MARKET_MODULES: Dict[str, MarketModule] = {
     "VNStock": MarketModule(
         key="VNStock",
         label="Vietnam Stocks",
-        description="Vietnamese equities listed on HOSE, HNX, and UPCOM.",
+        description="Vietnamese equities and ETFs listed on HOSE.",
         asset_class="equity",
         symbol_hint="FPT",
         base_currency="VND",
         features=["research", "backtest", "paper"],
         data_requirements=[
             DataRequirement(
-                key="kbs_public",
-                label="KB Securities public feed",
+                key="vndirect",
+                label="VNDIRECT public market data",
                 built_in=True,
-                purpose="quotes and OHLCV",
+                recommended=True,
+                purpose="HOSE universe and primary OHLCV",
+            ),
+            DataRequirement(
+                key="yahoo_vn",
+                label="Yahoo Finance .VN fallback",
+                built_in=True,
+                purpose="fallback OHLCV",
             ),
         ],
         supports={"spot": True, "swap": False, "short": False, "session": "exchange-hours"},

@@ -93,6 +93,18 @@ def test_policy_metadata_uses_strictest_market_and_normalizes_timeframe():
     assert policy["maxSelectedDays"] == 698
 
 
+def test_vietnam_daily_backtests_allow_a_full_ten_calendar_year_window():
+    policy = backtest_range_policy_metadata(
+        markets=["VNStock"],
+        timeframe="1D",
+        warmup_bars=0,
+    )
+
+    assert policy["market"] == "VNStock"
+    assert policy["maxDays"] == 3660
+    assert policy["maxSelectedDays"] == 3660
+
+
 def test_service_rejects_one_year_of_one_minute_data_before_fetching():
     code = '''
 def initialize(context):

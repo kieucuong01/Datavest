@@ -8,6 +8,7 @@ import re
 import uuid
 from typing import Any, Mapping
 
+from app.data.market_symbols_seed import validate_hose_ai_target
 from app.utils.db import get_db_connection
 
 
@@ -39,7 +40,13 @@ class TradingAgentsRepository:
         clean_source_pin = str(source_pin or "").strip()
         if not clean_source_pin or len(clean_source_pin) > 160:
             raise ValueError("source_pin is required and must be at most 160 characters")
-        request_json = self._json_mapping(request, "request")
+        market = self._validate_short_text(str(request.get("market") or ""), "market", 40)
+        symbol = self._validate_short_text(str(request.get("symbol") or ""), "symbol", 80)
+        symbol = validate_hose_ai_target(market, symbol)
+        normalized_request = dict(request)
+        normalized_request["market"] = market
+        normalized_request["symbol"] = symbol
+        request_json = self._json_mapping(normalized_request, "request")
         config_json = self._json_mapping(config, "config")
         clean_checksum = (config_checksum or self._checksum(config_json)).lower()
         if not _SHA256_RE.fullmatch(clean_checksum):
@@ -48,8 +55,6 @@ class TradingAgentsRepository:
         with get_db_connection() as db:
             cur = db.cursor()
             try:
-                market = self._validate_short_text(str(request.get("market") or ""), "market", 40)
-                symbol = self._validate_short_text(str(request.get("symbol") or ""), "symbol", 80)
                 analysis_date = self._validate_short_text(str(request.get("analysis_date") or ""), "analysis_date", 10)
                 cur.execute(
                     """

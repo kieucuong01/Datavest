@@ -10,6 +10,7 @@ import pandas as pd
 
 from app.data_sources import DataSourceFactory
 from app.services.backtest_cache import KlineCache
+from app.services.vietnam_execution import enrich_vietnam_execution_frame
 from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -83,6 +84,11 @@ def load_strategy_frame(
             after_time=after_time,
             exchange_id=exchange_id,
             market_type=market_type,
+            price_mode=(
+                "adjusted"
+                if str(market) == "VNStock" and provider_timeframe == "1D"
+                else None
+            ),
         )
     except Exception as exc:
         logger.warning(
@@ -123,6 +129,8 @@ def load_strategy_frame(
     frame = frame[(frame.index >= requested_start) & (frame.index <= requested_end)].dropna(
         subset=["open", "high", "low", "close"]
     )
+    if str(market) == "VNStock" and provider_timeframe == "1D":
+        frame = enrich_vietnam_execution_frame(frame)
     closed_bar_cutoff = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(seconds=timeframe_seconds)
     if requested_end >= closed_bar_cutoff:
         frame = frame[frame.index <= pd.Timestamp(closed_bar_cutoff)]

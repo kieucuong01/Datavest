@@ -45,8 +45,9 @@ from app.services.ai_report_pdf import build_ai_report_pdf
 from app.services.kline import KlineService
 from app.services.llm import LLMAPIError, LLMService
 from app.services.search import get_search_service
+from app.services.vietnam_evidence import get_vietnam_evidence_service
 from app.config.data_sources import AkshareConfig, TradingEconomicsConfig
-from app.data.market_symbols_seed import search_symbols as seed_search_symbols
+from app.data.market_symbols_seed import search_symbols as seed_search_symbols, validate_hose_ai_target
 from app.data_providers.macro_series import get_macro_series_provider
 from app.data_providers.news import get_economic_calendar_payload
 from app.utils.auth import admin_required, login_required
@@ -1530,6 +1531,38 @@ def _company_fundamentals_context(candidates: list[dict], search_context: dict, 
     }
 
 
+def _vietnam_evidence_context(context: dict, primary: dict | None, snapshot: dict | None) -> dict:
+    target = primary if primary and str(primary.get("market") or "") == "VNStock" else None
+    if target is None and str(context.get("market") or "") == "VNStock" and context.get("symbol"):
+        target = {"market": "VNStock", "symbol": context.get("symbol")}
+    if not target:
+        return {}
+
+    symbol = str(target.get("symbol") or "").strip()
+    if not symbol:
+        return {}
+    normalized_symbol = symbol if target is primary else validate_hose_ai_target("VNStock", symbol)
+    target["symbol"] = normalized_symbol
+    market_snapshot = snapshot if isinstance(snapshot, dict) else {}
+    snapshot_price = market_snapshot.get("price") if isinstance(market_snapshot.get("price"), dict) else {}
+    price = {
+        "price": snapshot_price.get("last") or snapshot_price.get("price"),
+        "change": snapshot_price.get("change"),
+        "changePercent": snapshot_price.get("change_percent") or snapshot_price.get("changePercent"),
+        "high": snapshot_price.get("high"),
+        "low": snapshot_price.get("low"),
+        "open": snapshot_price.get("open"),
+        "source": snapshot_price.get("source") or "unknown",
+    }
+    technical = {"timeframes": market_snapshot.get("timeframes") or {}}
+    return get_vietnam_evidence_service().build(
+        symbol=normalized_symbol,
+        price=price,
+        technical=technical,
+        as_of=_now_utc(),
+    )
+
+
 def _build_research_context(context: dict, has_image: bool = False) -> dict:
     message = str(context.get("user_message") or "")
     intent = str(context.get("intent") or "")
@@ -1549,6 +1582,8 @@ def _build_research_context(context: dict, has_image: bool = False) -> dict:
     if not candidates and search_context.get("web_results"):
         candidates.extend(_discover_symbol_candidates_from_search(search_context, candidates))
     primary = candidates[0] if candidates else None
+    if primary and str(primary.get("market") or "") == "VNStock" and primary.get("symbol"):
+        primary["symbol"] = validate_hose_ai_target("VNStock", primary["symbol"])
     raw_macro_context = _macro_intelligence(message) if flags["needs_macro"] else {}
     macro_context = raw_macro_context if isinstance(raw_macro_context, dict) else {}
 
@@ -1560,6 +1595,9 @@ def _build_research_context(context: dict, has_image: bool = False) -> dict:
             primary_snapshot = selected_snapshot
         else:
             primary_snapshot = _snapshot_for_candidate(primary)
+
+    evidence_snapshot = primary_snapshot or selected_snapshot
+    vietnam_evidence = _vietnam_evidence_context(context, primary, evidence_snapshot)
 
     data_gaps = []
     if flags["needs_market_data"] and not (selected_snapshot or primary_snapshot):
@@ -1574,6 +1612,8 @@ def _build_research_context(context: dict, has_image: bool = False) -> dict:
         data_gaps.append("No exact macro release value was available for this question. Check BLS/Trading Economics/search configuration.")
     if primary and primary.get("market") in {"private_company", "private_business_unit"}:
         data_gaps.append("The inferred entity is not directly exchange-traded; do not answer with a fake public stock price.")
+    if vietnam_evidence:
+        data_gaps.extend(vietnam_evidence.get("dataGaps") or [])
 
     recommended_actions = []
     if primary_snapshot:
@@ -1617,7 +1657,12 @@ def _build_research_context(context: dict, has_image: bool = False) -> dict:
         },
         "news": search_context,
         "macro": macro_context,
-        "fundamentals": _company_fundamentals_context(candidates, search_context, flags),
+        "fundamentals": (
+            vietnam_evidence.get("fundamentals")
+            if vietnam_evidence
+            else _company_fundamentals_context(candidates, search_context, flags)
+        ),
+        "vietnamEvidence": vietnam_evidence,
         "data_gaps": data_gaps,
         "answer_policy": {
             "prefer_user_entity_over_stale_ui_selection": True,
@@ -2296,6 +2341,12 @@ def chat_message():
     session_id = data.get("session_id") or data.get("chatId")
 
     try:
+        if context.get("market") and context.get("symbol"):
+            context["symbol"] = validate_hose_ai_target(context["market"], context["symbol"])
+    except ValueError as exc:
+        return jsonify({"code": 0, "msg": str(exc), "data": None}), 400
+
+    try:
         attachments = _normalize_attachments(data.get("attachments") or [])
     except ValueError as e:
         return jsonify({"code": 0, "msg": str(e), "data": None}), 400
@@ -2313,7 +2364,10 @@ def chat_message():
     context["intent"] = intent
     context["agent_intent"] = agent_plan
     context["language"] = language
-    context = _enrich_context(context, has_image=bool(attachments))
+    try:
+        context = _enrich_context(context, has_image=bool(attachments))
+    except ValueError as exc:
+        return jsonify({"code": 0, "msg": str(exc), "data": None}), 400
 
     try:
         with get_db_connection() as db:
@@ -2471,6 +2525,12 @@ def chat_message_stream():
     session_id = data.get("session_id") or data.get("chatId")
 
     try:
+        if context.get("market") and context.get("symbol"):
+            context["symbol"] = validate_hose_ai_target(context["market"], context["symbol"])
+    except ValueError as exc:
+        return jsonify({"code": 0, "msg": str(exc), "data": None}), 400
+
+    try:
         attachments = _normalize_attachments(data.get("attachments") or [])
     except ValueError as e:
         return jsonify({"code": 0, "msg": str(e), "data": None}), 400
@@ -2487,7 +2547,10 @@ def chat_message_stream():
     context["intent"] = intent
     context["agent_intent"] = agent_plan
     context["language"] = language
-    context = _enrich_context(context, has_image=bool(attachments))
+    try:
+        context = _enrich_context(context, has_image=bool(attachments))
+    except ValueError as exc:
+        return jsonify({"code": 0, "msg": str(exc), "data": None}), 400
 
     @stream_with_context
     def generate():

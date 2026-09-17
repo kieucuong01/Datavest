@@ -50,3 +50,37 @@ def test_initial_sync_respects_disabled_setting(monkeypatch):
     result = market_catalog_sync.start_market_catalog_sync_on_boot()
 
     assert result == {"started": False, "reason": "disabled"}
+
+
+def test_catalog_worker_syncs_hose_as_a_safe_full_snapshot(monkeypatch):
+    from app.services import market_catalog_sync
+    from app.services.symbol_master_sync import SymbolMasterRow
+
+    hose_rows = [
+        SymbolMasterRow("VNStock", f"A{i:03}", f"Company {i}", "HOSE", "VND", asset_class="equity")
+        for i in range(100)
+    ]
+    calls = []
+    finished = []
+    monkeypatch.setattr(
+        market_catalog_sync,
+        "fetch_crypto_symbols_with_diagnostics",
+        lambda: ([], [{"exchange": "binance", "market_type": "spot", "ok": True, "rows": 0}]),
+    )
+    monkeypatch.setattr(market_catalog_sync, "fetch_vn_stock_symbols", lambda: hose_rows)
+    monkeypatch.setattr(
+        market_catalog_sync,
+        "upsert_symbol_master",
+        lambda rows, **kwargs: calls.append((rows, kwargs)) or len(rows),
+    )
+    monkeypatch.setattr(
+        market_catalog_sync,
+        "_finish_run",
+        lambda run_id, status, result: finished.append((run_id, status, result)),
+    )
+
+    market_catalog_sync._run_sync(7)
+
+    assert calls == [(hose_rows, {"full_snapshot_markets": {"VNStock"}})]
+    assert finished[0][0:2] == (7, "success")
+    assert finished[0][2]["hose"] == {"ok": True, "rows": 100, "upserted": 100}

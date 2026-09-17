@@ -25,6 +25,16 @@ def test_factory_exposes_vietnamese_stock_source():
     assert source.name.startswith("VNStock/")
 
 
+def test_vietnam_market_uses_keyless_vndirect_and_yahoo_requirements():
+    from app.markets.registry import list_market_modules
+
+    module = next(item for item in list_market_modules({}) if item["key"] == "VNStock")
+
+    assert [item["key"] for item in module["data_sources"]] == ["vndirect", "yahoo_vn"]
+    assert all(item["built_in"] and item["configured"] for item in module["data_sources"])
+    assert all(item["setting_keys"] == [] for item in module["data_sources"])
+
+
 def test_forex_namespace_accepts_gold_only():
     from app.data_sources.forex import normalize_forex_pair_symbol
 

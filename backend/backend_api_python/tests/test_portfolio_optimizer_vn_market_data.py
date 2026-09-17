@@ -1,159 +1,106 @@
-"""KBS public daily market-data contracts for VN optimizer inputs."""
+"""Vietnam optimizer inputs use the shared VNDIRECT/Yahoo adapter."""
 
-from __future__ import annotations
-
-from datetime import datetime, timezone
-import json
+from datetime import date, datetime, time, timezone
 
 import pytest
 
-from app.services.smart_insights.transport import HttpResponse
+from app.services.portfolio_optimizer.market_data import Instrument
+from app.services.portfolio_optimizer.quantdinger_gateway import QuantDingerOptimizerGateway
 
 
-class FakeTransport:
-    def __init__(self, payload, *, status=200, response_url=None, error=None):
-        self.payload = payload
-        self.status = status
-        self.response_url = response_url
-        self.error = error
-        self.requests = []
-
-    def fetch(self, url, *, timeout_seconds, max_bytes, headers=None):
-        self.requests.append({"url": url, "timeout_seconds": timeout_seconds, "max_bytes": max_bytes, "headers": headers})
-        if self.error is not None:
-            raise self.error
-        return HttpResponse(self.status, self.response_url or url, json.dumps(self.payload).encode("utf-8"))
+def unix(day: date, *, end=False):
+    return int(datetime.combine(day, time.max if end else time.min, tzinfo=timezone.utc).timestamp())
 
 
-def gateway_for(payload, **transport_options):
-    from app.services.portfolio_optimizer.quantdinger_gateway import QuantDingerOptimizerGateway
+class FakeVNSource:
+    def __init__(self, bars, provider="yahoo-vn", attempts=("vndirect", "yahoo-vn")):
+        self.bars = bars
+        self.last_kline_provider = provider
+        self.last_kline_attempts = attempts
+        self.calls = []
 
-    transport = FakeTransport(payload, **transport_options)
-    return QuantDingerOptimizerGateway(vn_transport=transport), transport
+    def get_kline(
+        self, symbol, timeframe, limit, before_time=None, after_time=None, *, price_mode="raw"
+    ):
+        self.calls.append((symbol, timeframe, limit, before_time, after_time, price_mode))
+        return self.bars
 
 
-def test_vn_equity_daily_contract_uses_fixed_kbs_url_and_vnd_prices():
-    from app.services.portfolio_optimizer.market_data import Instrument
+def test_vn_daily_uses_shared_adapter_and_preserves_winning_fallback_provider():
+    source = FakeVNSource([
+        {"time": unix(date(2025, 1, 2)), "close": 101250.0},
+        {"time": unix(date(2025, 1, 3)), "close": 102500.0},
+    ])
+    gateway = QuantDingerOptimizerGateway(vn_source_factory=lambda: source)
 
-    gateway, transport = gateway_for({"data_day": [
-        {"t": "2025-01-03 07:00", "o": 101000, "h": 103000, "l": 100500, "c": 102500, "v": 1200},
-        {"t": "2025-01-02 07:00", "o": 100000, "h": 102000, "l": 99500, "c": 101250, "v": 1000},
-        {"t": "2025-01-01 07:00", "o": 98000, "h": 100000, "l": 97500, "c": 99000, "v": 900},
-    ]})
     series = gateway.fetch_daily(
         Instrument(market="VNStock", symbol="FPT", currency="VND"),
-        start_date="2025-01-02", end_date="2025-01-03",
+        start_date="2025-01-02",
+        end_date="2025-01-03",
     )
 
-    assert transport.requests == [{
-        "url": "https://kbbuddywts.kbsec.com.vn/iis-server/investment/stocks/FPT/data_day?sdate=02-01-2025&edate=03-01-2025",
-        "timeout_seconds": 20,
-        "max_bytes": 5_000_000,
-        "headers": {
-            "Accept": "application/json",
-            "User-Agent": "Mozilla/5.0 (compatible; DataVest-MarketData/1.0)",
-        },
-    }]
-    assert series.timestamps == (
-        int(datetime(2025, 1, 2, 0, tzinfo=timezone.utc).timestamp()),
-        int(datetime(2025, 1, 3, 0, tzinfo=timezone.utc).timestamp()),
-    )
+    assert source.calls == [(
+        "FPT", "1D", 31, unix(date(2025, 1, 3), end=True) + 1,
+        unix(date(2025, 1, 2)), "total_return",
+    )]
     assert series.closes == (101250.0, 102500.0)
-    assert series.currency == "VND"
-    assert series.provider == "kbs-public"
-    assert series.fallback_chain == ("kbs-public",)
-    assert series.coverage == 1.0
-    assert len(series.checksum) == 64
-    assert series.data_class == "LIVE"
+    assert series.provider == "yahoo-vn"
+    assert series.fallback_chain == ("vndirect", "yahoo-vn")
     assert series.price_unit == "VND"
     assert series.mark_to_market_supported is True
+    assert series.price_mode == "total_return"
 
 
-def test_vn_index_daily_contract_uses_index_path_and_disables_mark_to_market():
-    from app.services.portfolio_optimizer.market_data import Instrument
+def test_vn_optimizer_rejects_undercovered_history():
+    source = FakeVNSource([
+        {"time": unix(date(2025, 1, 2)), "close": 101250.0},
+        {"time": unix(date(2025, 1, 3)), "close": 102500.0},
+    ])
+    source.last_kline_quality = {"coverage": 0.50, "flags": ["large_gap"]}
+    source.last_price_mode = "total_return"
+    gateway = QuantDingerOptimizerGateway(vn_source_factory=lambda: source)
 
-    gateway, transport = gateway_for({"data_day": [
-        {"t": "2025-01-02 07:00", "o": 1260, "h": 1265, "l": 1258, "c": 1263.5, "v": 500000}
-    ]})
-    series = gateway.fetch_daily(
-        Instrument(market="VNStock", symbol="VNINDEX", currency="VND"),
-        start_date="2025-01-02", end_date="2025-01-02",
-    )
-
-    assert "/investment/index/VNINDEX/data_day?" in transport.requests[0]["url"]
-    assert series.closes == (1263.5,)
-    assert series.provider == "kbs-public"
-    assert series.fallback_chain == ("kbs-public",)
-    assert series.price_unit == "INDEX_POINTS"
-    assert series.mark_to_market_supported is False
-
-
-@pytest.mark.parametrize(("instrument", "start_date", "end_date", "payload", "error"), [
-    ({"symbol": "FPT.HM", "currency": "VND"}, "2025-01-02", "2025-01-03", {}, "invalid_symbol"),
-    ({"symbol": "FPT", "currency": "USD"}, "2025-01-02", "2025-01-03", {}, "invalid_currency"),
-    ({"symbol": "FPT", "currency": "VND"}, "2025-01-03", "2025-01-02", {}, "invalid_date_range"),
-    ({"symbol": "FPT", "currency": "VND"}, "2025-01-02", "2025-01-03", {"data_day": []}, "no_bars"),
-    ({"symbol": "FPT", "currency": "VND"}, "2025-01-02", "2025-01-03", {"wrong": []}, "invalid_schema"),
-    ({"symbol": "FPT", "currency": "VND"}, "2025-01-02", "2025-01-03", {"data_day": [{"t": "2025-01-02 07:00", "o": 100, "h": 102, "l": 99, "c": 101}]}, "invalid_schema"),
-    ({"symbol": "FPT", "currency": "VND"}, "2025-01-02", "2025-01-03", {"data_day": [{"t": "2025-01-02 07:00", "o": 100, "h": 102, "l": 99, "c": -1, "v": 5}]}, "invalid_schema"),
-])
-def test_vn_daily_fails_closed_for_invalid_inputs_or_bars(instrument, start_date, end_date, payload, error):
-    from app.services.portfolio_optimizer.market_data import Instrument
-
-    gateway, _ = gateway_for(payload)
-    with pytest.raises(ValueError, match=f"vn_market_data_unavailable: {error}"):
-        gateway.fetch_daily(Instrument(market="VNStock", **instrument), start_date=start_date, end_date=end_date)
-
-
-@pytest.mark.parametrize(("options", "error"), [
-    ({"error": RuntimeError("upstream detail")}, "provider_request_failed"),
-    ({"status": 503}, "provider_request_failed"),
-    ({"response_url": "https://example.com/redirected"}, "provider_request_failed"),
-])
-def test_vn_daily_sanitizes_transport_status_and_redirect_failures(options, error):
-    from app.services.portfolio_optimizer.market_data import Instrument
-
-    gateway, _ = gateway_for({"data_day": []}, **options)
-    with pytest.raises(ValueError, match=f"vn_market_data_unavailable: {error}"):
+    with pytest.raises(ValueError, match="vn_market_data_unavailable: insufficient_coverage"):
         gateway.fetch_daily(
             Instrument(market="VNStock", symbol="FPT", currency="VND"),
             start_date="2025-01-02", end_date="2025-01-03",
         )
 
 
-def test_vn_daily_rejects_duplicate_local_trading_day():
-    from app.services.portfolio_optimizer.market_data import Instrument
+def test_vn_index_keeps_index_points_semantics():
+    source = FakeVNSource([{"time": unix(date(2025, 1, 2)), "close": 1263.5}], provider="vndirect", attempts=("vndirect",))
+    gateway = QuantDingerOptimizerGateway(vn_source_factory=lambda: source)
 
-    gateway, _ = gateway_for({"data_day": [
-        {"t": "2025-01-02 07:00", "o": 100, "h": 102, "l": 99, "c": 101, "v": 5},
-        {"t": "2025-01-02 14:00", "o": 101, "h": 103, "l": 100, "c": 102, "v": 7},
-    ]})
-    with pytest.raises(ValueError, match="vn_market_data_unavailable: invalid_schema"):
+    series = gateway.fetch_daily(
+        Instrument(market="VNStock", symbol="VNINDEX", currency="VND"),
+        start_date="2025-01-02",
+        end_date="2025-01-02",
+    )
+
+    assert series.price_unit == "INDEX_POINTS"
+    assert series.mark_to_market_supported is False
+
+
+@pytest.mark.parametrize(
+    ("instrument", "start_date", "end_date", "error"),
+    [
+        ({"symbol": "../FPT", "currency": "VND"}, "2025-01-02", "2025-01-03", "invalid_symbol"),
+        ({"symbol": "FPT", "currency": "USD"}, "2025-01-02", "2025-01-03", "invalid_currency"),
+        ({"symbol": "FPT", "currency": "VND"}, "2025-01-03", "2025-01-02", "invalid_date_range"),
+    ],
+)
+def test_vn_daily_fails_closed_for_invalid_inputs(instrument, start_date, end_date, error):
+    gateway = QuantDingerOptimizerGateway(vn_source_factory=lambda: FakeVNSource([]))
+    with pytest.raises(ValueError, match=f"vn_market_data_unavailable: {error}"):
+        gateway.fetch_daily(Instrument(market="VNStock", **instrument), start_date=start_date, end_date=end_date)
+
+
+def test_vn_daily_fails_closed_when_all_free_providers_return_no_bars():
+    gateway = QuantDingerOptimizerGateway(vn_source_factory=lambda: FakeVNSource([], provider="", attempts=("vndirect", "yahoo-vn")))
+
+    with pytest.raises(ValueError, match="vn_market_data_unavailable: no_bars"):
         gateway.fetch_daily(
             Instrument(market="VNStock", symbol="FPT", currency="VND"),
-            start_date="2025-01-02", end_date="2025-01-02",
+            start_date="2025-01-02",
+            end_date="2025-01-03",
         )
-
-
-def test_vn_daily_does_not_import_vnstock_or_vnai(monkeypatch):
-    import builtins
-    from app.services.portfolio_optimizer.market_data import Instrument
-
-    gateway, _ = gateway_for({"data_day": [
-        {"t": "2025-01-02 07:00", "o": 100, "h": 102, "l": 99, "c": 101, "v": 5}
-    ]})
-    imported = []
-    original_import = builtins.__import__
-
-    def observe(name, *args, **kwargs):
-        if name == "vnai" or name.startswith("vnstock"):
-            imported.append(name)
-        return original_import(name, *args, **kwargs)
-
-    monkeypatch.setattr(builtins, "__import__", observe)
-    series = gateway.fetch_daily(
-        Instrument(market="VNStock", symbol="FPT", currency="VND"),
-        start_date="2025-01-02", end_date="2025-01-02",
-    )
-    assert series.provider == "kbs-public"
-    assert imported == []

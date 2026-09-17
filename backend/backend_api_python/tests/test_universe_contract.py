@@ -4,6 +4,7 @@ import pytest
 
 from app.services.universe import (
     UniverseError,
+    UniverseService,
     member_content_hash,
     normalize_members,
     normalize_universe_code,
@@ -69,3 +70,84 @@ def test_invalid_market_and_empty_symbol_are_rejected():
 def test_user_universe_code_has_safe_fallback():
     assert normalize_universe_code("Quality + Momentum") == "quality-momentum"
     assert normalize_universe_code("沪深轮动") == "manual"
+
+
+def test_symbol_master_historical_members_use_listing_interval_not_current_active(monkeypatch):
+    from app.services import universe as universe_module
+
+    executions = []
+    rows = [{
+        "market": "VNStock", "symbol": "OLD", "name": "Old Company",
+        "exchange_id": "HOSE", "market_type": "spot", "instrument_id": "",
+        "settle_currency": "VND",
+    }]
+
+    class Cursor:
+        def execute(self, query, params):
+            executions.append((" ".join(query.split()), params))
+
+        def fetchall(self):
+            return rows
+
+        def close(self):
+            return None
+
+    class Database:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return None
+
+        def cursor(self):
+            return Cursor()
+
+    monkeypatch.setattr(universe_module, "get_db_connection", lambda: Database())
+
+    members = UniverseService._symbol_master_members(
+        "VNStock:all:equity", as_of=date(2019, 6, 30)
+    )
+
+    assert [item["symbol"] for item in members] == ["OLD"]
+    sql, params = executions[0]
+    assert "listed_date IS NULL OR listed_date <= ?" in sql
+    assert "delisted_date IS NULL OR delisted_date > ?" in sql
+    assert "is_active = 1" not in sql
+    assert params == ("VNStock", "equity", date(2019, 6, 30), date(2019, 6, 30))
+
+
+def test_symbol_master_range_candidates_include_any_overlapping_listing(monkeypatch):
+    from app.services import universe as universe_module
+
+    executions = []
+
+    class Cursor:
+        def execute(self, query, params):
+            executions.append((" ".join(query.split()), params))
+
+        def fetchall(self):
+            return []
+
+        def close(self):
+            return None
+
+    class Database:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return None
+
+        def cursor(self):
+            return Cursor()
+
+    monkeypatch.setattr(universe_module, "get_db_connection", lambda: Database())
+
+    UniverseService._symbol_master_candidates(
+        "VNStock:all:equity", start=date(2018, 1, 1), end=date(2020, 12, 31)
+    )
+
+    sql, params = executions[0]
+    assert "listed_date IS NULL OR listed_date <= ?" in sql
+    assert "delisted_date IS NULL OR delisted_date > ?" in sql
+    assert params == ("VNStock", "equity", date(2020, 12, 31), date(2018, 1, 1))

@@ -23,6 +23,52 @@ def _get_db_connection():
         return None
 
 
+def get_active_hose_symbol(symbol: str) -> Optional[Dict]:
+    """Return an AI-eligible HOSE equity/ETF, or ``None`` (fail closed)."""
+    clean_symbol = str(symbol or "").strip().upper()
+    if not clean_symbol:
+        return None
+    try:
+        with _get_db_connection() as db:
+            cur = db.cursor()
+            cur.execute(
+                """
+                SELECT market, symbol, name, exchange, asset_class, trading_status, delisted_date
+                FROM qd_market_symbols
+                WHERE market = 'VNStock'
+                  AND exchange = 'HOSE'
+                  AND UPPER(symbol) = ?
+                  AND is_active = 1
+                  AND trading_status = 'ACTIVE'
+                  AND asset_class IN ('equity', 'etf')
+                  AND source = 'vndirect'
+                  AND source_updated_at IS NOT NULL
+                  AND (delisted_date IS NULL OR delisted_date > CURRENT_DATE)
+                LIMIT 1
+                """,
+                (clean_symbol,),
+            )
+            row = cur.fetchone()
+            cur.close()
+            return dict(row) if row else None
+    except Exception as exc:
+        logger.warning("HOSE symbol validation unavailable for %s: %s", clean_symbol, exc)
+        return None
+
+
+def validate_hose_ai_target(market: str, symbol: str) -> str:
+    """Normalize VN symbols and reject targets outside the active HOSE catalog."""
+    clean_symbol = str(symbol or "").strip()
+    if str(market or "").strip().lower() != "vnstock":
+        return clean_symbol
+    clean_symbol = clean_symbol.upper()
+    if clean_symbol.endswith(".VN"):
+        clean_symbol = clean_symbol[:-3]
+    if not get_active_hose_symbol(clean_symbol):
+        raise ValueError("unsupported_or_inactive_vn_symbol")
+    return clean_symbol
+
+
 def get_hot_symbols(market: str, limit: int = 10) -> List[Dict]:
     """
     Get hot symbols for a market.

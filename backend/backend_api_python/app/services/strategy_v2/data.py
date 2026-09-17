@@ -192,6 +192,8 @@ class MultiAssetDataPortal:
                 "limit_down",
                 "is_limit_down",
                 "lot_size",
+                "settlement_sessions",
+                "sell_tax_rate",
                 "industry",
             ):
                 if name in row.index:

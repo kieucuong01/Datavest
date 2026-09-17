@@ -11,9 +11,10 @@ from decimal import Decimal, ROUND_HALF_UP
 from app.utils.logger import get_logger
 from app.services.llm import LLMService
 from app.services.market_data_collector import get_market_data_collector
-from app.services.fast_analysis_formatters import build_trend_outlook_summary, safe_float_price
+from app.services.fast_analysis_formatters import build_trend_outlook_summary, enrich_vietnam_provenance, safe_float_price
 from app.services.fast_analysis_geo import is_major_geopolitical_news_text
 from app.services.fast_analysis_scoring import FastAnalysisScoringMixin
+from app.data.market_symbols_seed import validate_hose_ai_target
 from app.utils.language import normalize_product_language
 
 logger = get_logger(__name__)
@@ -97,12 +98,12 @@ class FastAnalysisService(FastAnalysisScoringMixin):
                     kline_at = str(latest_bar[key])
                     break
 
-        snapshot = {
+        snapshot = enrich_vietnam_provenance({
             "price_source": str(price.get("source") or "unknown"),
             "timeframe": str(timeframe or data.get("timeframe") or ""),
             "kline_at": kline_at,
             "components": components,
-        }
+        }, data, components)
         checksum_payload = {
             **snapshot,
             "price": price.get("price"),
@@ -800,9 +801,9 @@ IMPORTANT:
         Returns:
             Complete analysis result with actionable recommendations.
         """
+        symbol = validate_hose_ai_target(market, symbol)
         start_time = time.time()
         language = normalize_product_language(language)
-
         fallback_copy = {
             "summary": "Không thể hoàn tất phân tích." if language == "vi-VN" else "Analysis failed",
             "reason": "Chưa thể phân tích dữ liệu." if language == "vi-VN" else "Unable to analyze",
@@ -811,7 +812,6 @@ IMPORTANT:
             "exception": "Không thể hoàn tất phân tích lúc này." if language == "vi-VN" else "Unable to complete analysis at this time",
         }
         
-        # Get default model if not specified
         if not model:
             model = self.llm_service.get_default_model()
             logger.debug(f"Using default model: {model}")
