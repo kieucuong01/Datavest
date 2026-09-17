@@ -12,6 +12,7 @@ if str(SERVICE_ROOT) not in sys.path:
 import pytest
 
 from app.runner import FULL_UPSTREAM_ROLES, RunCancelled, TradingAgentsRunRequest, run_full_graph
+from test_vietnam_evidence import _evidence
 
 
 class _FakePropagator:
@@ -173,6 +174,31 @@ def test_run_locale_controls_native_report_language(tmp_path: Path) -> None:
     run_full_graph(request, state_root=tmp_path, graph_factory=graph_factory)
 
     assert created[0].config["output_language"] == "Vietnamese"
+
+
+def test_vietnam_evidence_is_injected_into_native_instrument_context(tmp_path: Path) -> None:
+    created: list[_FakeUpstreamGraph] = []
+
+    def graph_factory(**kwargs: Any) -> _FakeUpstreamGraph:
+        graph = _FakeUpstreamGraph(**kwargs)
+        created.append(graph)
+        return graph
+
+    request = TradingAgentsRunRequest(
+        run_id="run-vn",
+        user_id="user-a",
+        ticker="FPT.VN",
+        asset_type="stock",
+        analysis_date="2026-09-16",
+        vietnam_evidence=_evidence(),
+    )
+
+    run_full_graph(request, state_root=tmp_path, graph_factory=graph_factory)
+
+    context = created[0].graph_input["instrument_context"]
+    assert "FPT.VN:stock" in context
+    assert "DATAVEST_VIETNAM_EVIDENCE" in context
+    assert '"price":123.0' in context
 
 
 def test_cancellation_keeps_native_checkpoint_and_does_not_write_report(tmp_path: Path) -> None:

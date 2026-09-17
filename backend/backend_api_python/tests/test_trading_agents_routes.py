@@ -44,6 +44,7 @@ def _install_route_dependencies() -> None:
         return wrapped
 
     auth_module.login_required = login_required
+    auth_module.admin_required = login_required
     sys.modules["app.utils.auth"] = auth_module
 
     tasks_module = types.ModuleType("app.tasks.trading_agents")
@@ -98,6 +99,15 @@ def test_run_history_is_filtered_to_the_current_owner_asset_and_day(monkeypatch)
                     "analysis_date": "2026-09-05",
                 },
                 "source_pin": "9dee508",
+                "evidence_version": "vietnam-evidence-v1",
+                "evidence_checksum": "a" * 64,
+                "evidence_as_of": "2026-09-05T16:59:59+00:00",
+                "evidence_sources": [
+                    {"provider": "vndirect", "url": "https://private.example/financials"},
+                    {"provider": "yahoo", "url": "https://private.example/prices"},
+                    {"provider": "vndirect", "url": "https://private.example/events"},
+                ],
+                "evidence_gap_count": 2,
             }]
 
     monkeypatch.setattr(route_module, "get_repository", lambda: Repository())
@@ -121,6 +131,14 @@ def test_run_history_is_filtered_to_the_current_owner_asset_and_day(monkeypatch)
     assert public_run["symbol"] == "BTC/USDT"
     assert public_run["analysis_date"] == "2026-09-05"
     assert public_run["source_pin"] == "9dee508"
+    assert public_run["evidence"] == {
+        "version": "vietnam-evidence-v1",
+        "checksum": "a" * 64,
+        "asOf": "2026-09-05T16:59:59+00:00",
+        "providers": ["vndirect", "yahoo"],
+        "gapCount": 2,
+    }
+    assert "private.example" not in response.get_data(as_text=True)
     assert public_run["events"] == []
     assert public_run["progress"]["percent"] < 100
 

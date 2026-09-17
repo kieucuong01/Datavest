@@ -31,10 +31,10 @@
 - Produces `build_trading_agents_vietnam_evidence(symbol: str, analysis_date: str) -> dict[str, Any]`.
 - Consumes `DataSourceFactory.get_kline(..., price_mode="adjusted")`, `calculate_indicators`, and `VietnamEvidenceService.build`.
 
-- [ ] Write failing tests for adjusted bar requests, analysis-date cutoff, deterministic price/technical payloads, and fail-closed missing prices.
-- [ ] Run the tests and confirm the missing builder causes the failures.
-- [ ] Implement the builder with a Vietnam end-of-day cutoff and no current-data fallback.
-- [ ] Run the focused tests.
+- [x] Write failing tests for adjusted bar requests, analysis-date cutoff, deterministic price/technical payloads, and fail-closed missing prices.
+- [x] Run the tests and confirm the missing builder causes the failures.
+- [x] Implement the builder with a Vietnam end-of-day cutoff and no current-data fallback.
+- [x] Run the focused tests.
 
 ### Task 2: Immutable run evidence persistence
 
@@ -47,10 +47,10 @@
 - Produces `TradingAgentsRepository.store_evidence(run_id, evidence)`.
 - `get_run_for_worker` and owner-scoped readers expose checksum/as-of metadata; only the worker reader exposes `evidence_json`.
 
-- [ ] Write failing migration/repository tests for the evidence columns, write-once update, and worker retrieval.
-- [ ] Verify the tests fail for the missing schema and method.
-- [ ] Add idempotent schema changes and guarded persistence.
-- [ ] Run repository and DB bootstrap regressions.
+- [x] Write failing migration/repository tests for the evidence columns, write-once update, and worker retrieval.
+- [x] Verify the tests fail for the missing schema and method.
+- [x] Add idempotent schema changes and guarded persistence.
+- [x] Run repository and DB bootstrap regressions.
 
 ### Task 3: Worker dispatch and resume reuse
 
@@ -62,10 +62,10 @@
 - Produces signed payload key `vietnam_evidence` for VNStock only.
 - Reuses stored `evidence_json`; otherwise builds and persists exactly once.
 
-- [ ] Write failing tests for first-run construction, resume reuse, non-Vietnam isolation, and safe evidence failure.
-- [ ] Verify expected failures.
-- [ ] Implement snapshot resolution and dispatch failure handling.
-- [ ] Run task tests.
+- [x] Write failing tests for first-run construction, resume reuse, non-Vietnam isolation, and safe evidence failure.
+- [x] Verify expected failures.
+- [x] Implement snapshot resolution and dispatch failure handling.
+- [x] Run task tests.
 
 ### Task 4: Private-service validation and context injection
 
@@ -81,10 +81,10 @@
 - Produces `validate_vietnam_evidence(...)`, `format_vietnam_evidence_context(...)`, and `evidence_provenance(...)`.
 - `TradingAgentsRunRequest` gains `vietnam_evidence: Mapping[str, Any] | None`.
 
-- [ ] Write failing tests for checksum/symbol/cutoff/size validation and non-Vietnam rejection.
-- [ ] Write a failing runner test proving validated evidence reaches `instrument_context`.
-- [ ] Implement bounded validation, formatting, request propagation, and one provenance event.
-- [ ] Run private-service tests.
+- [x] Write failing tests for checksum/symbol/cutoff/size validation and non-Vietnam rejection.
+- [x] Write a failing runner test proving validated evidence reaches `instrument_context`.
+- [x] Implement bounded validation, formatting, request propagation, and one provenance event.
+- [x] Run private-service tests.
 
 ### Task 5: HOSE source-priority prompts
 
@@ -96,10 +96,10 @@
 **Interfaces:**
 - Consumes the `DATAVEST_VIETNAM_EVIDENCE` marker embedded in `instrument_context`.
 
-- [ ] Add failing source-contract tests for conditional DataVest evidence precedence.
-- [ ] Verify the prompt tests fail before the instruction exists.
-- [ ] Add the minimal conditional source-priority language to both analysts.
-- [ ] Run the vendored prompt and analyst regressions.
+- [x] Add failing source-contract tests for conditional DataVest evidence precedence.
+- [x] Verify the prompt tests fail before the instruction exists.
+- [x] Add the minimal conditional source-priority language to both analysts.
+- [x] Run the vendored prompt and analyst regressions.
 
 ### Task 6: Public provenance and integrated verification
 
@@ -111,7 +111,7 @@
 **Interfaces:**
 - Public run responses expose `evidence: {version, checksum, asOf, providers, gapCount}` only.
 
-- [ ] Add a failing route test proving public provenance is exposed without raw evidence.
-- [ ] Implement the bounded public projection.
-- [ ] Run backend TradingAgents, Vietnam Evidence, route, callback and quality suites.
-- [ ] Run private-service and vendored TradingAgents focused suites, `py_compile`, and `git diff --check`.
+- [x] Add a failing route test proving public provenance is exposed without raw evidence.
+- [x] Implement the bounded public projection.
+- [x] Run backend TradingAgents, Vietnam Evidence, route, callback and quality suites.
+- [x] Run private-service and vendored TradingAgents focused suites, `py_compile`, and `git diff --check`.

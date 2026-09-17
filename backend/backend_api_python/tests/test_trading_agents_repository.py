@@ -5,6 +5,8 @@ from __future__ import annotations
 import sys
 import types
 from pathlib import Path
+import hashlib
+import json
 
 
 BACKEND_ROOT = Path(__file__).resolve().parents[1]
@@ -43,6 +45,11 @@ def test_migration_defines_owner_scoped_immutable_run_tables():
     assert "NEW.request_json IS DISTINCT FROM OLD.request_json" in migration
     assert "NEW.config_checksum IS DISTINCT FROM OLD.config_checksum" in migration
     assert "NEW.source_pin IS DISTINCT FROM OLD.source_pin" in migration
+    assert "evidence_json JSONB" in migration
+    assert "evidence_checksum VARCHAR(64)" in migration
+    assert "evidence_as_of TIMESTAMPTZ" in migration
+    assert "OLD.evidence_json IS NOT NULL" in migration
+    assert "NEW.evidence_json IS DISTINCT FROM OLD.evidence_json" in migration
 
 
 def test_database_bootstrap_resolves_trading_agents_migration():
@@ -105,6 +112,69 @@ def test_repository_persists_ordered_event_without_callback_user_id(monkeypatch)
     assert "INSERT INTO trading_agents_events" in query
     assert "SELECT ?, user_id" in query
     assert params[:3] == ("run-123", 1, "tool")
+    assert connection.commits == 1
+
+
+def test_repository_attaches_canonical_evidence_once_and_returns_persisted_snapshot(monkeypatch):
+    _enable_lightweight_app_imports()
+    from app.services import trading_agents_repository as repository_module
+    from app.services.trading_agents_repository import TradingAgentsRepository
+
+    unsigned = {
+        "version": "vietnam-evidence-v1",
+        "asOf": "2026-09-16T16:59:59.999999+00:00",
+        "instrument": {"market": "VNStock", "exchange": "HOSE", "symbol": "FPT"},
+        "price": {"price": 123.0},
+    }
+    checksum = hashlib.sha256(
+        json.dumps(unsigned, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    ).hexdigest()
+    evidence = {**unsigned, "checksum": checksum}
+
+    class Cursor:
+        def __init__(self):
+            self.calls = []
+            self.row = None
+
+        def execute(self, query, params=()):
+            self.calls.append((query, params))
+            self.row = {"evidence_json": params[0], "evidence_checksum": params[1]}
+
+        def fetchone(self):
+            return self.row
+
+        def close(self):
+            return None
+
+    class Connection:
+        def __init__(self):
+            self.cursor_instance = Cursor()
+            self.commits = 0
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def cursor(self):
+            return self.cursor_instance
+
+        def commit(self):
+            self.commits += 1
+
+    connection = Connection()
+    monkeypatch.setattr(repository_module, "get_db_connection", lambda: connection)
+
+    stored = TradingAgentsRepository().store_evidence(run_id="run-123", evidence=evidence)
+
+    query, params = connection.cursor_instance.calls[0]
+    assert "evidence_json IS NULL" in query
+    assert "RETURNING evidence_json, evidence_checksum" in query
+    assert params[1] == checksum
+    assert params[2] == evidence["asOf"]
+    assert params[3] == "run-123"
+    assert stored == evidence
     assert connection.commits == 1
 
 

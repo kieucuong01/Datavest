@@ -126,6 +126,63 @@ class TradingAgentsRepository:
             finally:
                 cur.close()
 
+    def store_evidence(self, *, run_id: str, evidence: Mapping[str, Any]) -> dict[str, Any]:
+        """Attach one canonical evidence snapshot and return the persisted value."""
+        clean_run_id = self._validate_run_id(run_id)
+        if not isinstance(evidence, Mapping):
+            raise ValueError("evidence must be an object")
+        normalized = dict(evidence)
+        supplied_checksum = str(normalized.pop("checksum", "")).lower()
+        unsigned_json = self._json_mapping(normalized, "evidence")
+        computed_checksum = self._checksum(unsigned_json)
+        if supplied_checksum != computed_checksum:
+            raise ValueError("evidence checksum mismatch")
+        normalized["checksum"] = supplied_checksum
+        evidence_json = self._json_mapping(normalized, "evidence")
+        if len(evidence_json.encode("utf-8")) > 512 * 1024:
+            raise ValueError("evidence is too large")
+        evidence_as_of = self._validate_short_text(str(normalized.get("asOf") or ""), "evidence asOf", 40)
+
+        with get_db_connection() as db:
+            cur = db.cursor()
+            try:
+                cur.execute(
+                    """
+                    UPDATE trading_agents_runs
+                    SET evidence_json = ?::jsonb,
+                        evidence_checksum = ?,
+                        evidence_as_of = ?
+                    WHERE run_id = ? AND evidence_json IS NULL
+                    RETURNING evidence_json, evidence_checksum
+                    """,
+                    (evidence_json, supplied_checksum, evidence_as_of, clean_run_id),
+                )
+                row = cur.fetchone()
+                if row is None:
+                    cur.execute(
+                        """
+                        SELECT evidence_json, evidence_checksum
+                        FROM trading_agents_runs
+                        WHERE run_id = ?
+                        """,
+                        (clean_run_id,),
+                    )
+                    row = cur.fetchone()
+                if not row:
+                    raise ValueError("TradingAgents run not found")
+                stored_checksum = str(row.get("evidence_checksum") or "")
+                if stored_checksum != supplied_checksum:
+                    raise ValueError("TradingAgents evidence is already attached")
+                stored = row.get("evidence_json")
+                if isinstance(stored, str):
+                    stored = json.loads(stored)
+                if not isinstance(stored, Mapping):
+                    raise ValueError("stored TradingAgents evidence is invalid")
+                db.commit()
+                return dict(stored)
+            finally:
+                cur.close()
+
     def store_artifact(
         self,
         *,
@@ -272,6 +329,11 @@ class TradingAgentsRepository:
                 cur.execute(
                     """
                     SELECT run_id, user_id, status, request_json, config_json, config_checksum, source_pin,
+                           evidence_json->>'version' AS evidence_version,
+                           evidence_checksum, evidence_as_of,
+                           evidence_json->'sources' AS evidence_sources,
+                           CASE WHEN jsonb_typeof(evidence_json->'dataGaps') = 'array'
+                                THEN jsonb_array_length(evidence_json->'dataGaps') ELSE 0 END AS evidence_gap_count,
                            failure_code, failure_message, created_at, started_at, finished_at
                     FROM trading_agents_runs
                     WHERE run_id = ? AND user_id = ?
@@ -346,6 +408,11 @@ class TradingAgentsRepository:
                 cur.execute(
                     """
                     SELECT run_id, user_id, status, request_json, config_checksum, source_pin,
+                           evidence_json->>'version' AS evidence_version,
+                           evidence_checksum, evidence_as_of,
+                           evidence_json->'sources' AS evidence_sources,
+                           CASE WHEN jsonb_typeof(evidence_json->'dataGaps') = 'array'
+                                THEN jsonb_array_length(evidence_json->'dataGaps') ELSE 0 END AS evidence_gap_count,
                            failure_code, failure_message, created_at, started_at, finished_at
                     FROM trading_agents_runs
                     WHERE user_id = ?
@@ -381,6 +448,11 @@ class TradingAgentsRepository:
                 cur.execute(
                     """
                     SELECT run_id, user_id, status, request_json, config_checksum, source_pin,
+                           evidence_json->>'version' AS evidence_version,
+                           evidence_checksum, evidence_as_of,
+                           evidence_json->'sources' AS evidence_sources,
+                           CASE WHEN jsonb_typeof(evidence_json->'dataGaps') = 'array'
+                                THEN jsonb_array_length(evidence_json->'dataGaps') ELSE 0 END AS evidence_gap_count,
                            failure_code, failure_message, created_at, started_at, finished_at
                     FROM trading_agents_runs r
                     WHERE user_id = ?
@@ -422,6 +494,11 @@ class TradingAgentsRepository:
                 cur.execute(
                     """
                     SELECT run_id, user_id, status, request_json, config_checksum, source_pin,
+                           evidence_json->>'version' AS evidence_version,
+                           evidence_checksum, evidence_as_of,
+                           evidence_json->'sources' AS evidence_sources,
+                           CASE WHEN jsonb_typeof(evidence_json->'dataGaps') = 'array'
+                                THEN jsonb_array_length(evidence_json->'dataGaps') ELSE 0 END AS evidence_gap_count,
                            failure_code, failure_message, created_at, started_at, finished_at
                     FROM trading_agents_runs
                     WHERE user_id = ?
@@ -459,6 +536,11 @@ class TradingAgentsRepository:
                 cur.execute(
                     """
                     SELECT run_id, user_id, status, request_json, config_checksum, source_pin,
+                           evidence_json->>'version' AS evidence_version,
+                           evidence_checksum, evidence_as_of,
+                           evidence_json->'sources' AS evidence_sources,
+                           CASE WHEN jsonb_typeof(evidence_json->'dataGaps') = 'array'
+                                THEN jsonb_array_length(evidence_json->'dataGaps') ELSE 0 END AS evidence_gap_count,
                            failure_code, failure_message, created_at, started_at, finished_at
                     FROM trading_agents_runs
                     WHERE user_id = ?
@@ -490,6 +572,7 @@ class TradingAgentsRepository:
                 cur.execute(
                     """
                     SELECT r.run_id, r.user_id, r.status, r.request_json, r.config_json, r.config_checksum, r.source_pin,
+                           r.evidence_json, r.evidence_checksum, r.evidence_as_of,
                            r.failure_code, r.failure_message, r.created_at, r.started_at, r.finished_at,
                            (SELECT COALESCE(MAX(e.sequence), 0) FROM trading_agents_events e WHERE e.run_id = r.run_id) AS event_sequence
                     FROM trading_agents_runs r

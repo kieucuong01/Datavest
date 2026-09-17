@@ -161,6 +161,7 @@ def _public_run(record: Mapping[str, Any]) -> dict[str, Any]:
             request_json = {}
     events = [public_event(event) for event in (record.get("events") or [])]
     artifacts = record.get("artifacts") or []
+    evidence = _public_evidence_provenance(record)
     return {
         "run_id": record.get("run_id"),
         "status": record.get("status"),
@@ -172,6 +173,7 @@ def _public_run(record: Mapping[str, Any]) -> dict[str, Any]:
         # not label an old artifact as Vietnamese merely because the UI changed.
         "language": _normalize_language(request_json.get("language")) if request_json.get("language") else "en-US",
         "source_pin": record.get("source_pin"),
+        "evidence": evidence,
         "created_at": record.get("created_at"),
         "started_at": record.get("started_at"),
         "finished_at": record.get("finished_at"),
@@ -186,6 +188,45 @@ def _public_run(record: Mapping[str, Any]) -> dict[str, Any]:
             events=record.get("events") or [],
             artifacts=artifacts,
         ),
+    }
+
+
+def _public_evidence_provenance(record: Mapping[str, Any]) -> dict[str, Any] | None:
+    checksum = str(record.get("evidence_checksum") or "").strip().lower()
+    version = str(record.get("evidence_version") or "").strip()
+    if not checksum or not version:
+        return None
+
+    sources = record.get("evidence_sources") or []
+    if isinstance(sources, str):
+        try:
+            sources = json.loads(sources)
+        except (TypeError, ValueError):
+            sources = []
+    providers: list[str] = []
+    if isinstance(sources, list):
+        for source in sources:
+            if not isinstance(source, Mapping):
+                continue
+            provider = str(source.get("provider") or "").strip().lower()[:80]
+            if provider and provider not in providers:
+                providers.append(provider)
+            if len(providers) >= 12:
+                break
+
+    try:
+        gap_count = max(0, min(10_000, int(record.get("evidence_gap_count") or 0)))
+    except (TypeError, ValueError):
+        gap_count = 0
+    evidence_as_of = record.get("evidence_as_of")
+    if isinstance(evidence_as_of, (datetime, date)):
+        evidence_as_of = evidence_as_of.isoformat()
+    return {
+        "version": version[:80],
+        "checksum": checksum[:64],
+        "asOf": str(evidence_as_of or "")[:40],
+        "providers": providers,
+        "gapCount": gap_count,
     }
 
 

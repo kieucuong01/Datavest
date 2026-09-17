@@ -5,6 +5,7 @@ import sys
 from pathlib import Path, PurePosixPath
 from types import MappingProxyType
 
+import pytest
 from fastapi.testclient import TestClient
 
 
@@ -14,6 +15,7 @@ if str(SERVICE_ROOT) not in sys.path:
 
 from app.config import Settings
 from app.main import _run_payload, _signature, create_app
+from test_vietnam_evidence import _evidence
 
 
 def _settings() -> Settings:
@@ -93,6 +95,47 @@ def test_private_run_payload_preserves_supported_locale():
     })
 
     assert request.language == "vi-VN"
+
+
+def test_private_run_payload_requires_valid_evidence_for_vietnam_stock():
+    request = _run_payload({
+        "run_id": "run-vn",
+        "user_id": "7",
+        "market": "VNStock",
+        "symbol": "FPT",
+        "analysis_date": "2026-09-16",
+        "selected_analysts": ["market", "social", "news", "fundamentals"],
+        "native_config": {},
+        "vietnam_evidence": _evidence(),
+    })
+
+    assert request.vietnam_evidence["instrument"]["symbol"] == "FPT"
+
+    without_evidence = {
+        "run_id": "run-vn-missing",
+        "user_id": "7",
+        "market": "VNStock",
+        "symbol": "FPT",
+        "analysis_date": "2026-09-16",
+        "selected_analysts": ["market", "social", "news", "fundamentals"],
+        "native_config": {},
+    }
+    with pytest.raises(ValueError, match="evidence"):
+        _run_payload(without_evidence)
+
+
+def test_private_run_payload_rejects_vietnam_evidence_for_non_vietnam_market():
+    with pytest.raises(ValueError, match="evidence"):
+        _run_payload({
+            "run_id": "run-crypto",
+            "user_id": "7",
+            "market": "Crypto",
+            "symbol": "BTC/USDT",
+            "analysis_date": "2026-09-16",
+            "selected_analysts": ["market", "social", "news", "fundamentals"],
+            "native_config": {},
+            "vietnam_evidence": _evidence(),
+        })
 
 
 def test_callback_transient_failure_retries_same_signed_event(monkeypatch):
