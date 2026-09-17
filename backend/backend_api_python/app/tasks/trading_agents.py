@@ -13,6 +13,10 @@ from urllib.parse import quote, urljoin
 from urllib.request import Request, urlopen
 
 from app.celery_app import celery_app
+from app.services.trading_agents_vietnam import (
+    TradingAgentsVietnamEvidenceUnavailable,
+    build_trading_agents_vietnam_evidence,
+)
 
 
 REQUEST_TIMESTAMP_HEADER = "X-DataVest-Trading-Agents-Request-Timestamp"
@@ -132,10 +136,36 @@ def _json_object(value: Any) -> dict[str, Any]:
     return {}
 
 
-def _service_run_payload(record: Mapping[str, Any]) -> dict[str, Any]:
+def _vietnam_evidence_for_record(
+    record: Mapping[str, Any],
+    repository: Any,
+) -> dict[str, Any] | None:
+    request = _json_object(record.get("request_json"))
+    if str(request.get("market") or "") != "VNStock":
+        return None
+    existing = _json_object(record.get("evidence_json"))
+    if existing:
+        return existing
+    try:
+        evidence = build_trading_agents_vietnam_evidence(
+            str(request.get("symbol") or ""),
+            str(request.get("analysis_date") or ""),
+        )
+        return repository.store_evidence(run_id=str(record["run_id"]), evidence=evidence)
+    except TradingAgentsVietnamEvidenceUnavailable:
+        raise
+    except Exception as exc:
+        raise TradingAgentsVietnamEvidenceUnavailable("Vietnam evidence persistence failed") from exc
+
+
+def _service_run_payload(
+    record: Mapping[str, Any],
+    *,
+    vietnam_evidence: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
     request = _json_object(record.get("request_json"))
     config = _json_object(record.get("config_json"))
-    return {
+    payload = {
         "run_id": str(record["run_id"]),
         "user_id": str(record["user_id"]),
         "market": str(request.get("market") or ""),
@@ -146,6 +176,9 @@ def _service_run_payload(record: Mapping[str, Any]) -> dict[str, Any]:
         "selected_analysts": config.get("selected_analysts") or [],
         "event_sequence": int(record.get("event_sequence") or 0),
     }
+    if vietnam_evidence is not None:
+        payload["vietnam_evidence"] = dict(vietnam_evidence)
+    return payload
 
 
 @celery_app.task(name="datavest.tasks.trading_agents_run", acks_late=True)
@@ -155,8 +188,19 @@ def execute_trading_agents_run(run_id: str) -> None:
     if not record or str(record.get("status")) in _TERMINAL_STATUSES:
         return
     try:
+        vietnam_evidence = _vietnam_evidence_for_record(record, repository)
         repository.transition_run(run_id=str(run_id), status="running")
-        post_to_service(path="/internal/runs", payload=_service_run_payload(record))
+        post_to_service(
+            path="/internal/runs",
+            payload=_service_run_payload(record, vietnam_evidence=vietnam_evidence),
+        )
+    except TradingAgentsVietnamEvidenceUnavailable:
+        repository.transition_run(
+            run_id=str(run_id),
+            status="failed",
+            failure_code="evidence_unavailable",
+            failure_message="Vietnam evidence is unavailable for this TradingAgents run",
+        )
     except TradingAgentsServiceRejected:
         repository.transition_run(
             run_id=str(run_id),
@@ -185,10 +229,20 @@ def execute_trading_agents_control(run_id: str, action: str) -> None:
     if clean_action == "cancel":
         repository.transition_run(run_id=str(run_id), status="cancelled")
     try:
+        vietnam_evidence = _vietnam_evidence_for_record(record, repository)
         post_to_service(
             path=f"/internal/runs/{quote(str(run_id), safe='')}/{clean_action}",
-            payload=_service_run_payload(record),
+            payload=_service_run_payload(record, vietnam_evidence=vietnam_evidence),
         )
+    except TradingAgentsVietnamEvidenceUnavailable:
+        if clean_action == "resume":
+            repository.transition_run(
+                run_id=str(run_id),
+                status="failed",
+                failure_code="evidence_unavailable",
+                failure_message="Vietnam evidence is unavailable for this TradingAgents run",
+            )
+        return
     except TradingAgentsServiceRejected:
         if clean_action == "resume":
             repository.transition_run(run_id=str(run_id), status="failed", failure_code="resume_rejected")

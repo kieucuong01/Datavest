@@ -8,8 +8,10 @@ from datetime import datetime, timezone
 
 from app.services.symbol_master_sync import (
     fetch_crypto_symbols_with_diagnostics,
+    fetch_vn_stock_symbols,
     upsert_symbol_master,
 )
+from app.data_sources.vn_market_providers import VietnamMarketDataSettings
 from app.utils.db import get_db_connection
 from app.utils.logger import get_logger
 
@@ -77,13 +79,17 @@ def _finish_run(run_id: int, status: str, result: dict) -> None:
 
 
 def _run_sync(run_id: int) -> None:
+    result: dict = {}
+    source_outcomes: list[bool] = []
+
     try:
         rows, contexts = fetch_crypto_symbols_with_diagnostics()
         written = upsert_symbol_master(rows) if rows else 0
         succeeded = sum(1 for item in contexts if item.get("ok"))
         failed = len(contexts) - succeeded
-        status = "success" if failed == 0 else ("partial" if succeeded else "failed")
-        _finish_run(run_id, status, {
+        crypto_ok = failed == 0
+        source_outcomes.append(crypto_ok)
+        result.update({
             "rows": len(rows),
             "upserted": written,
             "contexts_total": len(contexts),
@@ -91,13 +97,48 @@ def _run_sync(run_id: int) -> None:
             "contexts_failed": failed,
             "contexts": contexts,
         })
-        logger.info(
-            "Market catalog sync finished status=%s rows=%s contexts=%s/%s",
-            status, written, succeeded, len(contexts),
-        )
     except Exception as exc:
-        logger.error("Market catalog sync failed: %s", exc, exc_info=True)
-        _finish_run(run_id, "failed", {"error": str(exc)})
+        logger.error("Crypto catalog sync failed: %s", exc, exc_info=True)
+        source_outcomes.append(False)
+        result.update({
+            "rows": 0,
+            "upserted": 0,
+            "contexts_total": 0,
+            "contexts_succeeded": 0,
+            "contexts_failed": 1,
+            "contexts": [],
+            "crypto_error": str(exc),
+        })
+
+    try:
+        hose_rows = fetch_vn_stock_symbols()
+        hose_written = upsert_symbol_master(
+            hose_rows, full_snapshot_markets={"VNStock"}
+        )
+        result["hose"] = {
+            "ok": True,
+            "rows": len(hose_rows),
+            "upserted": hose_written,
+        }
+        source_outcomes.append(True)
+    except Exception as exc:
+        logger.warning("HOSE catalog sync unavailable: %s", exc)
+        result["hose"] = {"ok": False, "rows": 0, "upserted": 0, "error": str(exc)}
+        source_outcomes.append(False)
+
+    succeeded_sources = sum(source_outcomes)
+    status = (
+        "success"
+        if succeeded_sources == len(source_outcomes)
+        else ("partial" if succeeded_sources else "failed")
+    )
+    _finish_run(run_id, status, result)
+    logger.info(
+        "Market catalog sync finished status=%s crypto_rows=%s hose_rows=%s",
+        status,
+        result.get("upserted", 0),
+        result.get("hose", {}).get("upserted", 0),
+    )
 
 
 def start_market_catalog_sync(trigger: str = "manual") -> dict:
@@ -139,12 +180,20 @@ def _market_catalog_is_initialized() -> bool:
                        ) AS has_success,
                        COUNT(*) FILTER (
                            WHERE market = 'Crypto' AND is_active = 1
-                       ) AS active_crypto
+                       ) AS active_crypto,
+                       COUNT(*) FILTER (
+                           WHERE market = 'VNStock' AND exchange = 'HOSE' AND is_active = 1
+                       ) AS active_hose
                   FROM qd_market_symbols
                 """
             )
             row = dict(cur.fetchone() or {})
-            return bool(row.get("has_success")) and int(row.get("active_crypto") or 0) > 0
+            hose_required = VietnamMarketDataSettings.from_env().configured
+            return (
+                bool(row.get("has_success"))
+                and int(row.get("active_crypto") or 0) > 0
+                and (not hose_required or int(row.get("active_hose") or 0) > 0)
+            )
         finally:
             cur.close()
 

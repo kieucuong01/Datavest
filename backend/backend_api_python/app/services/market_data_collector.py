@@ -16,7 +16,7 @@
 
 import time
 from typing import Dict, List, Any, Optional
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from concurrent.futures import ThreadPoolExecutor, as_completed, TimeoutError
 
 import yfinance as yf
@@ -120,6 +120,10 @@ class MarketDataCollector:
             "macro": {},
             "news": [],
             "sentiment": {},
+            "vietnam_evidence": {},
+            "corporate_actions": [],
+            "disclosures": [],
+            "market_context": {},
             "_meta": {
                 "success_items": [],
                 "failed_items": [],
@@ -158,6 +162,36 @@ class MarketDataCollector:
         if data.get("kline"):
             data["indicators"] = self._calculate_indicators(data["kline"])
             data["_meta"]["success_items"].append("indicators")
+
+        if market == "VNStock":
+            try:
+                evidence = self._get_vietnam_evidence(symbol, data)
+                data["vietnam_evidence"] = evidence
+                fundamentals = evidence.get("fundamentals") or {}
+                derived = dict(fundamentals.get("derivedMetrics") or {})
+                if derived.get("return_on_equity") is not None:
+                    derived["roe"] = derived["return_on_equity"]
+                derived["financial_statements"] = {
+                    "observations": fundamentals.get("observations") or [],
+                    "point_in_time": True,
+                }
+                sources = evidence.get("sources") or []
+                derived["source"] = "+".join(
+                    dict.fromkeys(str(item.get("provider") or "") for item in sources if item.get("provider"))
+                )
+                data["fundamental"] = derived
+                data["company"] = evidence.get("instrument") or {}
+                data["corporate_actions"] = evidence.get("corporateActions") or []
+                data["disclosures"] = evidence.get("disclosures") or []
+                data["market_context"] = evidence.get("marketContext") or {}
+                data["_meta"]["success_items"].append("vietnam_evidence")
+                if fundamentals.get("observations"):
+                    data["_meta"]["success_items"].append("fundamental")
+                if data["company"]:
+                    data["_meta"]["success_items"].append("company")
+            except Exception as exc:
+                logger.warning("Vietnam evidence failed for %s: %s", symbol, exc)
+                data["_meta"]["failed_items"].append("vietnam_evidence")
 
         if market == 'Crypto':
             try:
@@ -205,6 +239,17 @@ class MarketDataCollector:
         logger.info(f"  Failed: {data['_meta']['failed_items']}")
         
         return data
+
+    @staticmethod
+    def _get_vietnam_evidence(symbol: str, data: Dict[str, Any]) -> Dict[str, Any]:
+        from app.services.vietnam_evidence import get_vietnam_evidence_service
+
+        return get_vietnam_evidence_service().build(
+            symbol=symbol,
+            price=data.get("price") or {},
+            technical=data.get("indicators") or {},
+            as_of=datetime.now(timezone.utc),
+        )
     
     
     def _get_price(self, market: str, symbol: str) -> Optional[Dict[str, Any]]:

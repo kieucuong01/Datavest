@@ -13,6 +13,7 @@ from .events import RunEvent, event_from_chunk
 from .reporting import RunArtifact, save_native_report
 from .state import UserStatePaths, require_safe_identifier, resolve_user_state
 from .upstream_config import NativeToolEvent, NativeToolObserver
+from .vietnam_evidence import format_vietnam_evidence_context
 
 
 FULL_ANALYST_SELECTION = ("market", "social", "news", "fundamentals")
@@ -52,6 +53,7 @@ class TradingAgentsRunRequest:
     language: str = "vi-VN"
     selected_analysts: tuple[str, ...] = FULL_ANALYST_SELECTION
     native_config: Mapping[str, Any] = field(default_factory=dict)
+    vietnam_evidence: Mapping[str, Any] | None = None
     event_sequence: int = 0
 
 
@@ -102,6 +104,8 @@ def _validate_request(request: TradingAgentsRunRequest) -> None:
         raise RunRequestError("the private runtime always executes all TradingAgents analysts")
     if not isinstance(request.native_config, Mapping):
         raise RunRequestError("native_config must be a mapping")
+    if request.vietnam_evidence is not None and not isinstance(request.vietnam_evidence, Mapping):
+        raise RunRequestError("vietnam_evidence must be a mapping")
 
 
 def _default_graph_factory(
@@ -190,6 +194,11 @@ def run_full_graph(
     )
 
     instrument_context = graph.resolve_instrument_context(request.ticker, request.asset_type)
+    if request.vietnam_evidence is not None:
+        instrument_context = (
+            f"{instrument_context} "
+            f"{format_vietnam_evidence_context(request.vietnam_evidence)}"
+        )
     initial_state = graph.propagator.create_initial_state(
         request.ticker,
         request.analysis_date,

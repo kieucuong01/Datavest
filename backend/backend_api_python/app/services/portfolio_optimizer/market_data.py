@@ -31,6 +31,8 @@ class PriceSeries:
     data_class: str = "LIVE"
     price_unit: str = ""
     mark_to_market_supported: bool = True
+    price_mode: str = "raw"
+    quality_flags: tuple[str, ...] = ()
 
 
 class MarketDataGateway(Protocol):

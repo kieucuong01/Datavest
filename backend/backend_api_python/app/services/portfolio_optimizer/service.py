@@ -50,6 +50,8 @@ def _series_dict(series: PriceSeries) -> dict[str, Any]:
         "dataClass": series.data_class,
         "priceUnit": series.price_unit or series.currency,
         "markToMarketSupported": series.mark_to_market_supported,
+        "priceMode": series.price_mode,
+        "qualityFlags": list(series.quality_flags),
     }
 
 
@@ -92,7 +94,7 @@ class PortfolioOptimizerService:
             raise ValueError("invalid_optimizer_date_range") from exc
         if end < start:
             raise ValueError("invalid_optimizer_date_range")
-        if (end - start).days + 1 > 3_650:
+        if (end - start).days + 1 > 3_660:
             raise ValueError("optimizer_window_too_large")
 
         raw_instruments = payload.get("instruments")

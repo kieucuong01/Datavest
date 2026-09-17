@@ -3,13 +3,12 @@
 from __future__ import annotations
 
 from datetime import date, datetime, time, timezone
-import json
 import math
+import os
 import re
-from zoneinfo import ZoneInfo
+from typing import Callable
 
 from app.data_sources import DataSourceFactory
-from app.services.smart_insights.transport import RequestsTransport, Transport
 
 from .market_data import Instrument, PriceSeries, series_checksum
 
@@ -25,9 +24,13 @@ class QuantDingerOptimizerGateway:
     def __init__(
         self,
         *,
-        vn_transport: Transport | None = None,
+        vn_source_factory: Callable[[], object] | None = None,
     ) -> None:
-        self.vn_transport = vn_transport or RequestsTransport()
+        if vn_source_factory is None:
+            from app.data_sources.vn_stock import VNStockDataSource
+
+            vn_source_factory = VNStockDataSource
+        self.vn_source_factory = vn_source_factory
 
     @staticmethod
     def _provider(source) -> str:
@@ -56,71 +59,38 @@ class QuantDingerOptimizerGateway:
         if currency != "VND":
             raise ValueError("vn_market_data_unavailable: invalid_currency")
         is_index = symbol in {"VNINDEX", "VN30"}
-        instrument_kind = "index" if is_index else "stocks"
-        request_url = (
-            "https://kbbuddywts.kbsec.com.vn/iis-server/investment/"
-            f"{instrument_kind}/{symbol}/data_day"
-            f"?sdate={start.strftime('%d-%m-%Y')}&edate={end.strftime('%d-%m-%Y')}"
-        )
+        days = (end - start).days + 1
+        limit = min(3_650, max(31, days + 16))
+        source = self.vn_source_factory()
         try:
-            response = self.vn_transport.fetch(
-                request_url,
-                timeout_seconds=20,
-                max_bytes=5_000_000,
-                headers={
-                    "Accept": "application/json",
-                    "User-Agent": "Mozilla/5.0 (compatible; DataVest-MarketData/1.0)",
-                },
+            bars = source.get_kline(
+                symbol,
+                "1D",
+                limit,
+                before_time=_unix(end, end=True) + 1,
+                after_time=_unix(start),
+                price_mode="total_return",
             )
         except Exception as exc:
             raise ValueError("vn_market_data_unavailable: provider_request_failed") from exc
-        if response.status != 200 or response.url != request_url:
-            raise ValueError("vn_market_data_unavailable: provider_request_failed")
-        try:
-            payload = json.loads(response.body)
-            records = payload["data_day"]
-        except (KeyError, TypeError, UnicodeDecodeError, json.JSONDecodeError) as exc:
-            raise ValueError("vn_market_data_unavailable: invalid_schema") from exc
-
-        if not isinstance(records, list):
-            raise ValueError("vn_market_data_unavailable: invalid_schema")
-        if not records:
+        if not bars:
             raise ValueError("vn_market_data_unavailable: no_bars")
 
-        required = {"t", "o", "h", "l", "c", "v"}
-        local_zone = ZoneInfo("Asia/Ho_Chi_Minh")
         rows: list[tuple[int, float]] = []
-        seen_local_days: set[date] = set()
+        seen_timestamps: set[int] = set()
         try:
-            for record in records:
-                if not isinstance(record, dict) or not required <= record.keys():
-                    raise ValueError("invalid record")
-                timestamp = datetime.strptime(str(record["t"]), "%Y-%m-%d %H:%M").replace(
-                    tzinfo=local_zone
-                )
-                local_day = timestamp.astimezone(local_zone).date()
-
-                prices = tuple(float(record[field]) for field in ("o", "h", "l", "c"))
-                if any(not math.isfinite(value) or value <= 0 for value in prices):
-                    raise ValueError("invalid price")
-                volume = float(record["v"])
-                if not math.isfinite(volume) or volume < 0:
-                    raise ValueError("invalid volume")
-                open_price, high_price, low_price, close_price = prices
-                if not (
-                    low_price <= open_price <= high_price
-                    and low_price <= close_price <= high_price
-                ):
-                    raise ValueError("invalid OHLC ordering")
-                if not start <= local_day <= end:
+            for record in bars:
+                timestamp = int(record["time"])
+                close_price = float(record["close"])
+                if not math.isfinite(close_price) or close_price <= 0:
+                    raise ValueError("invalid close")
+                if not _unix(start) <= timestamp <= _unix(end, end=True):
                     continue
-
-                unix_time = int(timestamp.astimezone(timezone.utc).timestamp())
-                if local_day in seen_local_days:
-                    raise ValueError("duplicate local trading day")
-                seen_local_days.add(local_day)
-                rows.append((unix_time, close_price))
-        except (ArithmeticError, TypeError, ValueError, OverflowError) as exc:
+                if timestamp in seen_timestamps:
+                    raise ValueError("duplicate timestamp")
+                seen_timestamps.add(timestamp)
+                rows.append((timestamp, close_price))
+        except (ArithmeticError, KeyError, TypeError, ValueError, OverflowError) as exc:
             raise ValueError("vn_market_data_unavailable: invalid_schema") from exc
 
         if not rows:
@@ -128,13 +98,27 @@ class QuantDingerOptimizerGateway:
         rows.sort(key=lambda item: item[0])
         timestamps = tuple(item[0] for item in rows)
         closes = tuple(item[1] for item in rows)
-        provider = "kbs-public"
-        days = (end - start).days + 1
+        provider = str(getattr(source, "last_kline_provider", "") or "").strip()
+        if not provider:
+            raise ValueError("vn_market_data_unavailable: provider_unknown")
+        attempts = tuple(str(value) for value in (getattr(source, "last_kline_attempts", ()) or ()) if value)
+        fallback_chain = attempts or (provider,)
         expected = sum(
             1
             for offset in range(days)
             if date.fromordinal(start.toordinal() + offset).weekday() < 5
         )
+        computed_coverage = min(1.0, len(rows) / max(expected, 1))
+        source_quality = getattr(source, "last_kline_quality", {}) or {}
+        coverage = float(source_quality.get("coverage", computed_coverage))
+        try:
+            minimum_coverage = float(os.getenv("VN_OPTIMIZER_MIN_COVERAGE", "0.90"))
+        except ValueError:
+            minimum_coverage = 0.90
+        if coverage < max(0.0, min(1.0, minimum_coverage)):
+            raise ValueError("vn_market_data_unavailable: insufficient_coverage")
+        quality_flags = tuple(str(value) for value in source_quality.get("flags", ()) if value)
+        price_mode = str(getattr(source, "last_price_mode", "") or "total_return")
         return PriceSeries(
             market="VNStock",
             symbol=symbol,
@@ -142,14 +126,16 @@ class QuantDingerOptimizerGateway:
             timestamps=timestamps,
             closes=closes,
             provider=provider,
-            fallback_chain=(provider,),
-            coverage=min(1.0, len(rows) / max(expected, 1)),
+            fallback_chain=fallback_chain,
+            coverage=coverage,
             checksum=series_checksum(
                 provider=provider, timestamps=timestamps, closes=closes
             ),
             data_class="LIVE",
             price_unit="INDEX_POINTS" if is_index else "VND",
             mark_to_market_supported=not is_index,
+            price_mode=price_mode,
+            quality_flags=quality_flags,
         )
 
     def _fetch(

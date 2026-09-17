@@ -385,6 +385,45 @@ def test_explicit_backtest_quantity_is_not_scaled_by_leverage():
     assert target == 2.5
 
 
+def test_vietnam_position_cannot_be_sold_before_settlement_and_sell_tax_is_charged():
+    symbol = "VNStock:FPT"
+    index = pd.date_range("2026-01-05", periods=4, freq="B")
+    frame = pd.DataFrame({
+        "open": [10.0] * 4,
+        "high": [10.0] * 4,
+        "low": [10.0] * 4,
+        "close": [10.0] * 4,
+        "volume": [100_000] * 4,
+        "lot_size": [100.0] * 4,
+        "settlement_sessions": [2] * 4,
+        "sell_tax_rate": [0.001] * 4,
+    }, index=index)
+    portal = MultiAssetDataPortal({symbol: frame})
+    broker = MultiAssetSimulationBroker(
+        initial_capital=10_000,
+        commission=0.0005,
+        slippage=0,
+    )
+
+    broker.execute([OrderIntent(symbol, "quantity", 100)], portal, index[0])
+    deferred = broker.execute(
+        [OrderIntent(symbol, "target_quantity", 0)], portal, index[1]
+    )
+
+    assert len(broker.executions) == 1
+    assert deferred and deferred[0].attempts == 1
+    assert broker.order_ledger[-1]["statusReason"] == "unsettled_position"
+
+    broker.execute(deferred, portal, index[2])
+
+    assert len(broker.executions) == 2
+    sell = broker.executions[-1]
+    assert sell["side"] == "sell"
+    assert sell["quantity"] == 100
+    assert sell["sell_tax"] == pytest.approx(1.0)
+    assert sell["commission"] == pytest.approx(1.5)
+
+
 def test_leveraged_backtest_force_closes_and_stops_after_insolvency():
     code = """
 def initialize(context):

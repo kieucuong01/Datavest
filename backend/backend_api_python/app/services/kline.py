@@ -136,7 +136,7 @@ class KlineService:
                     'low': ticker.get('low', 0),
                     'open': ticker.get('open', 0),
                     'previousClose': ticker.get('previousClose', 0),
-                    'source': 'ticker'
+                    'source': ticker.get('provider') or ticker.get('source') or 'ticker'
                 }
                 self.cache.set(cache_key, result, 30)
                 return result
@@ -163,7 +163,7 @@ class KlineService:
                     'low': latest.get('low', 0),
                     'open': latest.get('open', 0),
                     'previousClose': prev_close,
-                    'source': 'kline_1m'
+                    'source': self._resolved_kline_provider(market, 'kline_1m')
                 }
                 self.cache.set(cache_key, result, 30)
                 return result
@@ -195,7 +195,7 @@ class KlineService:
                     'low': latest.get('low', 0),
                     'open': latest.get('open', 0),
                     'previousClose': prev_close,
-                    'source': 'kline_1d'
+                    'source': self._resolved_kline_provider(market, 'kline_1d')
                 }
                 self.cache.set(cache_key, result, 300)
                 return result
@@ -203,4 +203,12 @@ class KlineService:
             logger.error(f"All price sources failed for {market}:{symbol}: {e}")
         
         return result
+
+    @staticmethod
+    def _resolved_kline_provider(market: str, fallback: str) -> str:
+        try:
+            source = DataSourceFactory.get_source(market)
+            return str(getattr(source, "last_kline_provider", "") or fallback)
+        except Exception:
+            return fallback
 

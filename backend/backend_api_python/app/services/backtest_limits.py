@@ -54,6 +54,9 @@ _DEFAULT_LIMITS: Dict[str, BacktestRangePolicy] = {
 
 
 _MARKET_LIMITS: Dict[str, Dict[str, BacktestRangePolicy]] = {
+    "VNStock": {
+        "1D": BacktestRangePolicy(3660, "10 years", "Vietnam daily research-data limit"),
+    },
     # yfinance intraday endpoints are much narrower than daily/weekly history.
     # Keep the cap below the upstream hard edge so indicator warmup does not
     # push an apparently valid user window into an upstream 400.

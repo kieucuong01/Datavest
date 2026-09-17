@@ -14,6 +14,8 @@ import inspect
 from unittest.mock import MagicMock
 
 import pytest
+from langchain_core.messages import AIMessage, HumanMessage
+from langchain_core.runnables import RunnableLambda
 
 import tradingagents.agents.analysts.sentiment_analyst as sentiment
 from tradingagents.agents.managers.portfolio_manager import create_portfolio_manager
@@ -38,9 +40,21 @@ def _prompt_text(prompt) -> str:
     if isinstance(prompt, str):
         return prompt
     parts = []
-    for m in prompt:
+    messages = prompt.to_messages() if hasattr(prompt, "to_messages") else prompt
+    for m in messages:
         parts.append(m.get("content", "") if isinstance(m, dict) else getattr(m, "content", ""))
     return "\n".join(str(p) for p in parts)
+
+
+def _tool_capturing_llm(captured: dict):
+    class ToolLLM:
+        def bind_tools(self, _tools):
+            return RunnableLambda(
+                lambda prompt: captured.__setitem__("prompt", prompt)
+                or AIMessage(content="report", tool_calls=[])
+            )
+
+    return ToolLLM()
 
 
 @pytest.mark.unit
@@ -146,3 +160,33 @@ def test_constraint_text_is_unambiguous():
     # No template braces: it is embedded in ChatPromptTemplate strings, where
     # braces would be parsed as input variables.
     assert "{" not in NO_EXTERNAL_TOOLS and "}" not in NO_EXTERNAL_TOOLS
+
+
+@pytest.mark.unit
+def test_hose_market_and_fundamental_prompts_do_not_override_datavest_evidence():
+    from tradingagents.agents.analysts.market_analyst import create_market_analyst
+    from tradingagents.agents.analysts.fundamentals_analyst import create_fundamentals_analyst
+
+    context = (
+        "The instrument is `FPT.VN`. DATAVEST_VIETNAM_EVIDENCE: authoritative point-in-time "
+        '{"price":{"price":123.0},"fundamentals":{"derivedMetrics":{"pe_ratio":20.5}}}'
+    )
+    state = {
+        "company_of_interest": "FPT.VN",
+        "trade_date": "2026-09-16",
+        "asset_type": "stock",
+        "instrument_context": context,
+        "messages": [HumanMessage(content="FPT.VN")],
+    }
+
+    market_capture = {}
+    fundamental_capture = {}
+    create_market_analyst(_tool_capturing_llm(market_capture))(state)
+    create_fundamentals_analyst(_tool_capturing_llm(fundamental_capture))(state)
+
+    market_prompt = _prompt_text(market_capture["prompt"])
+    fundamental_prompt = _prompt_text(fundamental_capture["prompt"])
+    assert "Do not let get_verified_market_snapshot override it" in market_prompt
+    assert "Do not let generic fundamental tools override it" in fundamental_prompt
+    assert '"price":123.0' in market_prompt
+    assert '"pe_ratio":20.5' in fundamental_prompt

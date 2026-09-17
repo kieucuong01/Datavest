@@ -669,6 +669,7 @@ class MultiAssetSimulationBroker:
         self.bankrupt = False
         self.liquidation_events: list[dict[str, Any]] = []
         self.liquidation_adjustment = 0.0
+        self._settlement_lots: dict[str, list[dict[str, Any]]] = {}
 
     def execute(
         self,
@@ -788,6 +789,27 @@ class MultiAssetSimulationBroker:
                     requested_quantity=abs(requested_delta),
                 )))
                 continue
+            settlement_reason = ""
+            if not forced_liquidation and delta < 0 and current.amount > 0:
+                long_reduction = min(abs(delta), current.amount)
+                settled_quantity = self._settled_quantity(position_key, current, timestamp)
+                if settled_quantity + 1e-12 < long_reduction:
+                    permitted_reduction = self._round_to_lot(settled_quantity, lot_size)
+                    if permitted_reduction < lot_size - 1e-12:
+                        status = "rejected" if order.attempts >= 4 else "deferred"
+                        batch_event_indexes.append(self._append_order_event(self._order_event(
+                            order_id,
+                            order,
+                            timestamp,
+                            status,
+                            "unsettled_position",
+                            requested_quantity=abs(requested_delta),
+                        )))
+                        if status == "deferred":
+                            deferred.append(replace(order, attempts=order.attempts + 1))
+                        continue
+                    delta = -permitted_reduction
+                    settlement_reason = "unsettled_position"
             liquidity_cap = None if forced_liquidation else self._liquidity_cap(bar, lot_size)
             if liquidity_cap is not None and abs(delta) > liquidity_cap:
                 delta = math.copysign(liquidity_cap, delta)
@@ -821,7 +843,14 @@ class MultiAssetSimulationBroker:
             )
             execution_status = "partial" if has_tradable_remainder else "filled"
             notional = abs(delta * fill_price)
-            fee = notional * self.commission
+            broker_commission = notional * self.commission
+            sell_tax_rate = (
+                max(0.0, float((bar or {}).get("sell_tax_rate") or 0.0))
+                if delta < 0
+                else 0.0
+            )
+            sell_tax = notional * sell_tax_rate
+            fee = broker_commission + sell_tax
             projected_cash = self.portfolio.available_cash - delta * fill_price - fee
             old_amount = current.amount
             old_cost = current.avg_cost
@@ -872,6 +901,8 @@ class MultiAssetSimulationBroker:
                 "price": fill_price,
                 "notional": notional,
                 "commission": fee,
+                "broker_commission": broker_commission,
+                "sell_tax": sell_tax,
                 "balance": self.portfolio.total_value,
                 "reason": order.reason,
                 "client_order_id": str(order.client_order_id or ""),
@@ -884,9 +915,26 @@ class MultiAssetSimulationBroker:
                 "requested_quantity": abs(requested_delta),
             }
             self.executions.append(execution)
+            new_long_quantity = max(0.0, target_qty) - max(0.0, old_amount)
+            reduced_long_quantity = max(0.0, old_amount) - max(0.0, target_qty)
+            if new_long_quantity > 1e-12:
+                self._record_unsettled_purchase(
+                    position_key,
+                    new_long_quantity,
+                    timestamp,
+                    portal,
+                    bar,
+                )
+            elif reduced_long_quantity > 1e-12:
+                self._consume_settled_quantity(
+                    position_key,
+                    reduced_long_quantity,
+                    timestamp,
+                    old_amount,
+                )
             reason = "margin_liquidation" if forced_liquidation else "filled"
             if execution_status == "partial":
-                reason = constraint_reason or (
+                reason = settlement_reason or constraint_reason or (
                     "insufficient_liquidity"
                     if liquidity_cap is not None and abs(requested_delta) > liquidity_cap
                     else "partial_fill"
@@ -947,6 +995,70 @@ class MultiAssetSimulationBroker:
             event_indexes=batch_event_indexes,
         )
         return deferred
+
+    def _record_unsettled_purchase(
+        self,
+        position_key: str,
+        quantity: float,
+        timestamp: Any,
+        portal: MultiAssetDataPortal,
+        bar: Mapping[str, Any] | None,
+    ) -> None:
+        sessions = max(0, int(float((bar or {}).get("settlement_sessions") or 0)))
+        if sessions <= 0 or quantity <= 0:
+            return
+        current = pd.Timestamp(timestamp)
+        index = portal.timestamps
+        position = int(index.searchsorted(current, side="left"))
+        unlock_position = position + sessions
+        unlock_at = (
+            pd.Timestamp(index[unlock_position])
+            if unlock_position < len(index)
+            else pd.Timestamp.max
+        )
+        self._settlement_lots.setdefault(position_key, []).append({
+            "unlock_at": unlock_at,
+            "quantity": float(quantity),
+        })
+
+    def _settled_quantity(
+        self,
+        position_key: str,
+        current: Position,
+        timestamp: Any,
+    ) -> float:
+        current_long = max(0.0, float(current.amount))
+        locked = sum(
+            float(lot["quantity"])
+            for lot in self._settlement_lots.get(position_key, [])
+            if pd.Timestamp(lot["unlock_at"]) > pd.Timestamp(timestamp)
+        )
+        return max(0.0, current_long - locked)
+
+    def _consume_settled_quantity(
+        self,
+        position_key: str,
+        quantity: float,
+        timestamp: Any,
+        old_amount: float,
+    ) -> None:
+        lots = self._settlement_lots.get(position_key, [])
+        if not lots:
+            return
+        represented = sum(float(lot["quantity"]) for lot in lots)
+        untracked_settled = max(0.0, float(old_amount) - represented)
+        remaining = max(0.0, float(quantity) - untracked_settled)
+        for lot in sorted(lots, key=lambda item: pd.Timestamp(item["unlock_at"])):
+            if remaining <= 1e-12:
+                break
+            if pd.Timestamp(lot["unlock_at"]) > pd.Timestamp(timestamp):
+                continue
+            consumed = min(float(lot["quantity"]), remaining)
+            lot["quantity"] = float(lot["quantity"]) - consumed
+            remaining -= consumed
+        self._settlement_lots[position_key] = [
+            lot for lot in lots if float(lot["quantity"]) > 1e-12
+        ]
 
     def liquidate_if_insolvent(
         self,

@@ -7,8 +7,10 @@ without requiring users to remember ticker codes.
 from __future__ import annotations
 
 import csv
+from datetime import date, datetime, timezone
 import io
 import json
+import os
 import re
 import time
 from dataclasses import dataclass
@@ -39,6 +41,12 @@ class SymbolMasterRow:
     instrument_id: str = ""
     settle_currency: str = ""
     asset_class: str = ""
+    sector: str = ""
+    listed_date: date | None = None
+    delisted_date: date | None = None
+    trading_status: str = "ACTIVE"
+    source: str = ""
+    source_updated_at: datetime | None = None
 
 
 STATIC_MARKET_ROWS = [
@@ -403,8 +411,34 @@ def fetch_forex_symbols() -> List[SymbolMasterRow]:
 
 
 def fetch_vn_stock_symbols() -> List[SymbolMasterRow]:
-    """Return the curated Vietnamese equity/index catalog."""
-    return _unique_rows(_static_rows("VNStock"))
+    """Fetch the complete active HOSE equity/ETF universe from VNDIRECT."""
+    from app.data_sources.vn_market_providers import VndirectProvider
+
+    securities = VndirectProvider().fetch_universe()
+    minimum_hose_rows = max(1, int(os.getenv("HOSE_SNAPSHOT_MIN_ROWS", "100")))
+    if len(securities) < minimum_hose_rows:
+        raise RuntimeError(
+            f"VNDIRECT HOSE universe snapshot below safety threshold "
+            f"({len(securities)} < {minimum_hose_rows})"
+        )
+    observed_at = datetime.now(timezone.utc)
+    return _unique_rows([
+        SymbolMasterRow(
+            market="VNStock",
+            symbol=item.symbol,
+            name=item.name,
+            exchange=item.exchange,
+            currency="VND",
+            asset_class=item.asset_class,
+            sector=item.sector,
+            listed_date=item.listed_date,
+            delisted_date=item.delisted_date,
+            trading_status=item.trading_status,
+            source=item.source,
+            source_updated_at=observed_at,
+        )
+        for item in securities
+    ])
 
 
 FETCHERS = {
@@ -415,7 +449,9 @@ FETCHERS = {
 }
 
 
-def upsert_symbol_master(rows: Sequence[SymbolMasterRow]) -> int:
+def upsert_symbol_master(
+    rows: Sequence[SymbolMasterRow], *, full_snapshot_markets: set[str] | None = None
+) -> int:
     """Upsert rows while preserving curated hot flags and sort order."""
     active_rows: list[SymbolMasterRow] = []
     for row in rows or []:
@@ -435,6 +471,12 @@ def upsert_symbol_master(rows: Sequence[SymbolMasterRow]) -> int:
                 instrument_id=row.instrument_id,
                 settle_currency=row.settle_currency,
                 asset_class=row.asset_class,
+                sector=row.sector,
+                listed_date=row.listed_date,
+                delisted_date=row.delisted_date,
+                trading_status=row.trading_status,
+                source=row.source,
+                source_updated_at=row.source_updated_at,
             )
         active_rows.append(row)
     if not active_rows:
@@ -452,25 +494,50 @@ def upsert_symbol_master(rows: Sequence[SymbolMasterRow]) -> int:
                 "UPDATE qd_market_symbols SET is_active = 0 WHERE market = 'Crypto' AND exchange = ? AND market_type = ?",
                 (exchange_id, market_type),
             )
+        full_snapshot_markets = full_snapshot_markets or set()
+        vn_rows = [row for row in active_rows if row.market == "VNStock" and row.exchange == "HOSE"]
+        minimum_hose_rows = max(1, int(os.getenv("HOSE_SNAPSHOT_MIN_ROWS", "100")))
+        if "VNStock" in full_snapshot_markets and len(vn_rows) >= minimum_hose_rows:
+            cur.execute(
+                """
+                UPDATE qd_market_symbols
+                SET is_active = 0,
+                    trading_status = 'DELISTED',
+                    delisted_date = COALESCE(delisted_date, CURRENT_DATE)
+                WHERE market = ? AND exchange = ?
+                """,
+                ("VNStock", "HOSE"),
+            )
         for row in active_rows:
             asset_class = row.asset_class or _default_asset_class(row.market)
+            is_active = int(str(row.trading_status or "ACTIVE").upper() == "ACTIVE" and not row.delisted_date)
             cur.execute(
                 """
                 INSERT INTO qd_market_symbols
                     (market, symbol, name, exchange, currency, market_type, instrument_id, settle_currency, asset_class,
+                     sector, listed_date, delisted_date, trading_status, source, source_updated_at,
                      is_active, is_hot, sort_order)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 0, 0)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0)
                 ON CONFLICT (market, symbol, exchange, market_type, instrument_id) DO UPDATE
                   SET name = EXCLUDED.name,
                       exchange = COALESCE(NULLIF(EXCLUDED.exchange, ''), qd_market_symbols.exchange),
                       currency = COALESCE(NULLIF(EXCLUDED.currency, ''), qd_market_symbols.currency),
                       settle_currency = COALESCE(NULLIF(EXCLUDED.settle_currency, ''), qd_market_symbols.settle_currency),
                       asset_class = EXCLUDED.asset_class,
-                      is_active = 1
+                      sector = COALESCE(NULLIF(EXCLUDED.sector, ''), qd_market_symbols.sector),
+                      listed_date = COALESCE(EXCLUDED.listed_date, qd_market_symbols.listed_date),
+                      delisted_date = EXCLUDED.delisted_date,
+                      trading_status = EXCLUDED.trading_status,
+                      source = COALESCE(NULLIF(EXCLUDED.source, ''), qd_market_symbols.source),
+                      source_updated_at = COALESCE(EXCLUDED.source_updated_at, qd_market_symbols.source_updated_at),
+                      is_active = EXCLUDED.is_active
                 """,
                 (
                     row.market, row.symbol, row.name, row.exchange, row.currency,
                     row.market_type, row.instrument_id, row.settle_currency, asset_class,
+                    row.sector, row.listed_date, row.delisted_date,
+                    str(row.trading_status or "ACTIVE").upper(), row.source,
+                    row.source_updated_at or datetime.now(timezone.utc), is_active,
                 ),
             )
             count += 1
@@ -498,7 +565,10 @@ def sync_symbol_master(markets: Optional[Sequence[str]] = None) -> Dict[str, Dic
             continue
         try:
             rows = fetcher()
-            written = upsert_symbol_master(rows)
+            written = upsert_symbol_master(
+                rows,
+                full_snapshot_markets={"VNStock"} if market == "VNStock" else set(),
+            )
             stats[market] = {"ok": True, "rows": len(rows), "upserted": written}
         except Exception as e:
             logger.warning("symbol master sync failed market=%s: %s", market, e)

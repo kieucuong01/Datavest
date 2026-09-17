@@ -272,11 +272,12 @@ def test_public_deep_report_pdf_renders_only_the_sanitized_published_payload(
     rendered = []
 
     class PublicService:
-        def get_public_report(self, *, asset_key, report_kind, locale):
-            assert (asset_key, report_kind, locale) == (
+        def get_public_report(self, *, asset_key, report_kind, locale, effective_date=None):
+            assert (asset_key, report_kind, locale, effective_date) == (
                 "crypto:BTC/USDT",
                 "deep",
                 "en-US",
+                None,
             )
             return {
                 "assetKey": asset_key,
@@ -340,11 +341,12 @@ def test_public_deep_summary_pdf_renders_the_sanitized_published_payload(
     rendered = []
 
     class PublicService:
-        def get_public_report(self, *, asset_key, report_kind, locale):
-            assert (asset_key, report_kind, locale) == (
+        def get_public_report(self, *, asset_key, report_kind, locale, effective_date=None):
+            assert (asset_key, report_kind, locale, effective_date) == (
                 "crypto:BTC/USDT",
                 "deep",
                 "vi-VN",
+                None,
             )
             return {
                 "assetKey": asset_key,

@@ -12,12 +12,19 @@ CREATE TABLE IF NOT EXISTS trading_agents_runs (
     config_json JSONB NOT NULL,
     config_checksum VARCHAR(64) NOT NULL,
     source_pin VARCHAR(160) NOT NULL,
+    evidence_json JSONB,
+    evidence_checksum VARCHAR(64),
+    evidence_as_of TIMESTAMPTZ,
     failure_code VARCHAR(80),
     failure_message TEXT,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     started_at TIMESTAMPTZ,
     finished_at TIMESTAMPTZ
 );
+
+ALTER TABLE trading_agents_runs ADD COLUMN IF NOT EXISTS evidence_json JSONB;
+ALTER TABLE trading_agents_runs ADD COLUMN IF NOT EXISTS evidence_checksum VARCHAR(64);
+ALTER TABLE trading_agents_runs ADD COLUMN IF NOT EXISTS evidence_as_of TIMESTAMPTZ;
 
 CREATE INDEX IF NOT EXISTS idx_trading_agents_runs_user_created
     ON trading_agents_runs(user_id, created_at DESC);
@@ -103,7 +110,10 @@ BEGIN
        OR NEW.config_json IS DISTINCT FROM OLD.config_json
        OR NEW.config_checksum IS DISTINCT FROM OLD.config_checksum
        OR NEW.source_pin IS DISTINCT FROM OLD.source_pin
-       OR NEW.user_id IS DISTINCT FROM OLD.user_id THEN
+       OR NEW.user_id IS DISTINCT FROM OLD.user_id
+       OR (OLD.evidence_json IS NOT NULL AND NEW.evidence_json IS DISTINCT FROM OLD.evidence_json)
+       OR (OLD.evidence_checksum IS NOT NULL AND NEW.evidence_checksum IS DISTINCT FROM OLD.evidence_checksum)
+       OR (OLD.evidence_as_of IS NOT NULL AND NEW.evidence_as_of IS DISTINCT FROM OLD.evidence_as_of) THEN
         RAISE EXCEPTION 'TradingAgents run request/config/source provenance is immutable';
     END IF;
     RETURN NEW;

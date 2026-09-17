@@ -128,6 +128,7 @@ class DataSourceFactory:
         after_time: Optional[int] = None,
         exchange_id: Optional[str] = None,
         market_type: Optional[str] = None,
+        price_mode: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
         """
         获取K线数据的便捷方法
@@ -149,7 +150,13 @@ class DataSourceFactory:
         try:
             assert_fd_available(f"market-data kline {m}:{symbol}")
             source = cls._resolve_source(m, exchange_id=exchange_id, market_type=market_type)
-            klines = source.get_kline(symbol, timeframe, limit, before_time, after_time)
+            if m == "VNStock" and price_mode:
+                klines = source.get_kline(
+                    symbol, timeframe, limit, before_time, after_time,
+                    price_mode=price_mode,
+                )
+            else:
+                klines = source.get_kline(symbol, timeframe, limit, before_time, after_time)
             
             klines.sort(key=lambda x: x['time'])
             

@@ -273,3 +273,24 @@ def test_request_rejects_unsupported_universe_and_excessive_window():
     payload["endDate"] = "2025-12-31"
     with pytest.raises(ValueError, match="optimizer_window_too_large"):
         service.create_run(user_id=7, payload=payload)
+
+
+def test_request_accepts_full_ten_year_vietnam_calendar_window():
+    from app.services.portfolio_optimizer.service import PortfolioOptimizerService
+
+    payload = {
+        "method": "minimum_variance",
+        "baseCurrency": "VND",
+        "startDate": "2016-09-17",
+        "endDate": "2026-09-16",
+        "maxWeight": 1.0,
+        "instruments": [
+            {"market": "VNStock", "symbol": "FPT", "currency": "VND"},
+        ],
+    }
+
+    parsed, instruments = PortfolioOptimizerService._parse(payload)
+
+    assert parsed["startDate"] == "2016-09-17"
+    assert parsed["endDate"] == "2026-09-16"
+    assert instruments[0].market == "VNStock"

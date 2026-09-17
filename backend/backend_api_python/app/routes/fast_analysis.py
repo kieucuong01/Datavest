@@ -17,6 +17,7 @@ from app.services.fast_analysis_tasks import (
 from app.services.fast_analysis import get_fast_analysis_service
 from app.services.analysis_memory import get_analysis_memory
 from app.services.ai_assistant_insights import AiAssistantInsightsService
+from app.data.market_symbols_seed import validate_hose_ai_target
 from app.utils.language import detect_request_language
 
 logger = get_logger(__name__)
@@ -54,6 +55,10 @@ def analyze():
                 'msg': 'market and symbol are required',
                 'data': None
             }), 400
+        try:
+            symbol = validate_hose_ai_target(market, symbol)
+        except ValueError as exc:
+            return jsonify({'code': 0, 'msg': str(exc), 'data': None}), 400
         
         # Get current user's ID to associate analysis with user
         user_id = getattr(g, 'user_id', None)

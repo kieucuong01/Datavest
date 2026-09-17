@@ -1,5 +1,7 @@
 from typing import Any, Dict, Optional
 
+from app.services.vietnam_evidence import enrich_vietnam_provenance
+
 
 def safe_float_price(value: Any, default: Optional[float] = None) -> Optional[float]:
     """Coerce LLM/string prices to float; invalid values return default."""

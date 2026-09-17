@@ -26,6 +26,7 @@ from .progress import StageProgressTracker
 from .reporting import ReportArtifactError, read_native_report
 from .runner import RunCancelled, TradingAgentsRunRequest, clear_native_checkpoint, run_full_graph
 from .state import resolve_user_state
+from .vietnam_evidence import evidence_provenance, validate_vietnam_evidence
 
 
 _REQUEST_TIMESTAMP_HEADER = "x-datavest-trading-agents-request-timestamp"
@@ -89,6 +90,19 @@ def _run_payload(payload: Mapping[str, Any]) -> TradingAgentsRunRequest:
     market = str(payload.get("market") or "")
     symbol = str(payload.get("symbol") or "")
     ticker, asset_type = resolve_instrument(market, symbol)
+    raw_evidence = payload.get("vietnam_evidence")
+    if market == "VNStock":
+        if not isinstance(raw_evidence, Mapping):
+            raise ValueError("Vietnam evidence is required")
+        vietnam_evidence = validate_vietnam_evidence(
+            raw_evidence,
+            ticker=ticker,
+            analysis_date=str(payload.get("analysis_date") or ""),
+        )
+    else:
+        if raw_evidence is not None:
+            raise ValueError("Vietnam evidence is not allowed for this market")
+        vietnam_evidence = None
     selected = tuple(payload.get("selected_analysts") or ())
     native_config = payload.get("native_config") or {}
     if not isinstance(native_config, Mapping):
@@ -102,6 +116,7 @@ def _run_payload(payload: Mapping[str, Any]) -> TradingAgentsRunRequest:
         language=str(payload.get("language") or "vi-VN"),
         selected_analysts=selected,
         native_config=native_config,
+        vietnam_evidence=vietnam_evidence,
         event_sequence=int(payload.get("event_sequence", 0)),
     )
 
@@ -185,6 +200,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
             try:
                 publish("run_status", {"status": "running"})
+                if graph_request.vietnam_evidence is not None:
+                    publish("evidence_snapshot", evidence_provenance(graph_request.vietnam_evidence))
                 tracker.start()
                 heartbeat_thread.start()
                 result = run_full_graph(
