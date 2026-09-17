@@ -36,8 +36,6 @@
         :detail-loading="pulseDetailsLoading"
         :onchain-loading="pulseOnchainLoading"
         :core-ready="pulseCoreReady"
-        :crypto-ready="cryptoTerminalsReady"
-        @near-viewport="scheduleCryptoTerminals"
         @open-evidence="openEvidence"
       />
 
@@ -206,9 +204,6 @@ export default {
         pulseCore: new Map(),
         pulseOnchain: new Map()
       },
-      cryptoTerminalsReady: false,
-      cryptoIdleHandle: null,
-      cryptoReadyTimer: null,
       retryingSection: '',
       heroExpanded: false,
       heroSpeechActive: false,
@@ -285,12 +280,6 @@ export default {
     this.requestSequence++
     this.closeEvidence()
     this.stopHeroSpeech()
-    if (typeof window !== 'undefined') {
-      if (this.cryptoIdleHandle !== null && typeof window.cancelIdleCallback === 'function') window.cancelIdleCallback(this.cryptoIdleHandle)
-      if (this.cryptoReadyTimer !== null) window.clearTimeout(this.cryptoReadyTimer)
-    }
-    this.cryptoIdleHandle = null
-    this.cryptoReadyTimer = null
   },
   methods: {
     isCurrentRequest (requestId) {
@@ -321,20 +310,6 @@ export default {
     cacheKey (asOf = this.asOf) {
       const lang = (this.$i18n && this.$i18n.locale) || 'en-US'
       return `${String(asOf || '')}|${lang}`
-    },
-    scheduleCryptoTerminals () {
-      if (this.cryptoTerminalsReady || typeof window === 'undefined') return
-      const markReady = () => {
-        this.cryptoIdleHandle = null
-        this.cryptoReadyTimer = null
-        this.cryptoTerminalsReady = true
-        this.loadPulseDetails(this.requestSequence).catch(() => {})
-      }
-      if (typeof window.requestIdleCallback === 'function') {
-        this.cryptoIdleHandle = window.requestIdleCallback(markReady, { timeout: 1200 })
-      } else {
-        this.cryptoReadyTimer = window.setTimeout(markReady, 250)
-      }
     },
     async loadAll (force = false) {
       const requestId = ++this.requestSequence
@@ -507,14 +482,17 @@ export default {
     async loadPulse (requestId, force = false) {
       const cacheKey = this.cacheKey()
       if (!force && this.smartInsightsCache.pulse.has(cacheKey)) {
-        if (this.isCurrentRequest(requestId)) this.cryptoPulse = this.smartInsightsCache.pulse.get(cacheKey)
+        if (this.isCurrentRequest(requestId)) {
+          this.cryptoPulse = this.smartInsightsCache.pulse.get(cacheKey)
+          this.loadPulseDetails(requestId, force).catch(() => {})
+        }
         return
       }
       const response = await getSmartInsightsCryptoPulse({ compact: 1, stage: 'summary' })
       if (!this.isCurrentRequest(requestId)) return
       this.smartInsightsCache.pulse.set(cacheKey, response.data)
       this.cryptoPulse = response.data
-      if (this.cryptoTerminalsReady) this.loadPulseDetails(requestId, force).catch(() => {})
+      this.loadPulseDetails(requestId, force).catch(() => {})
     },
     async loadPulseDetails (requestId, force = false) {
       if (!this.isCurrentRequest(requestId) || this.pulseDetailsLoading) return

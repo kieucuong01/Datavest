@@ -44,7 +44,7 @@
           <article class="pulse-tile"><span>{{ $t('smartInsights.analysisDate') }}</span><strong>{{ analysisDate }}</strong><small>{{ $t('smartInsights.equitiesSourceHint') }}</small></article>
         </div>
       </section>
-      <template v-else-if="activeKey === 'crypto' && (!cryptoReady || !coreReady)">
+      <template v-else-if="activeKey === 'crypto' && !coreReady">
         <div class="crypto-terminal-deferred" aria-live="polite">
           <div class="pulse-progress">
             <span class="complete">{{ $t('smartInsights.currentData') }}</span>
@@ -92,12 +92,9 @@ export default {
     loading: { type: Boolean, default: false },
     detailLoading: { type: Boolean, default: false },
     onchainLoading: { type: Boolean, default: false },
-    coreReady: { type: Boolean, default: false },
-    cryptoReady: { type: Boolean, default: false }
+    coreReady: { type: Boolean, default: false }
   },
-  data () { return { tabs: MARKET_PULSE_TABS, activeKey: 'crypto', viewportObserver: null } },
-  mounted () { this.observeCryptoTerminals() },
-  beforeDestroy () { this.disconnectViewportObserver() },
+  data () { return { tabs: MARKET_PULSE_TABS, activeKey: 'crypto' } },
   computed: {
     activeTab () { return this.tabs.find(tab => tab.key === this.activeKey) || this.tabs[0] },
     panel () { return buildPulsePanel(this.pulse, this.activeKey) },
@@ -126,22 +123,6 @@ export default {
     analysisDate () { return String((this.overview && this.overview.asOf) || '—') }
   },
   methods: {
-    observeCryptoTerminals () {
-      if (typeof window === 'undefined' || typeof window.IntersectionObserver !== 'function') {
-        this.$emit('near-viewport')
-        return
-      }
-      this.viewportObserver = new window.IntersectionObserver(entries => {
-        if (!entries.some(entry => entry && entry.isIntersecting)) return
-        this.$emit('near-viewport')
-        this.disconnectViewportObserver()
-      }, { rootMargin: '160px 0px' })
-      this.viewportObserver.observe(this.$el)
-    },
-    disconnectViewportObserver () {
-      if (this.viewportObserver) this.viewportObserver.disconnect()
-      this.viewportObserver = null
-    },
     tabLabel (tab) { return pulseTabLabel(tab, this.locale === 'vi-VN' || this.locale === 'vi' ? 'vi' : 'en') },
     statusLabel (status) {
       const labels = {

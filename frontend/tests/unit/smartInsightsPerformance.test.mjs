@@ -21,12 +21,11 @@ test('Smart Insights caches stable datasets and keys date-scoped data by asOf', 
   assert.doesNotMatch(pageSource, /retryAll|await this\.loadAll\(true\)/u)
 })
 
-test('Smart Insights defers crypto terminals until the first page render is ready', () => {
-  assert.match(pageSource, /cryptoTerminalsReady/u)
-  assert.match(pageSource, /requestIdleCallback|scheduleCryptoTerminals/u)
-  assert.match(pageSource, /crypto-ready/u)
-  assert.match(pulseSource, /cryptoReady/u)
-  assert.match(pulseSource, /activeKey === 'crypto' && \(!cryptoReady \|\| !coreReady\)/u)
+test('Smart Insights prefetches crypto terminals during the initial page load', () => {
+  assert.match(pageSource, /loadPulseDetails\(requestId, force\)/u)
+  assert.doesNotMatch(pageSource, /cryptoTerminalsReady|requestIdleCallback|scheduleCryptoTerminals|near-viewport/u)
+  assert.doesNotMatch(pulseSource, /IntersectionObserver|cryptoReady|near-viewport/u)
+  assert.match(pulseSource, /activeKey === 'crypto' && !coreReady/u)
   assert.match(pulseSource, /onchainLoading/u)
 })
 
