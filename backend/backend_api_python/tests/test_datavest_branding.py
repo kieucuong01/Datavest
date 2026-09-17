@@ -3,7 +3,7 @@
 from app.services.settings.branding import BRAND_DEFAULTS, build_brand_config
 
 
-def test_datavest_brand_defaults_preserve_quantdinger_attribution(monkeypatch):
+def test_datavest_brand_defaults_use_datavest_copy(monkeypatch):
     for key in (
         "BRAND_APP_NAME",
         "BRAND_COPYRIGHT",
@@ -17,6 +17,6 @@ def test_datavest_brand_defaults_preserve_quantdinger_attribution(monkeypatch):
 
     assert BRAND_DEFAULTS["app_name"] == "DataVest"
     assert config["app_name"] == "DataVest"
-    assert "Powered by QuantDinger" in config["copyright"]
+    assert "Powered by DataVest" in config["copyright"]
     assert config["contact"]["email"] == ""
     assert config["contact"]["support_url"] == ""

@@ -1,4 +1,4 @@
-"""DataVest Python API Flask application factory, powered by QuantDinger."""
+"""DataVest Python API Flask application factory, powered by DataVest."""
 from __future__ import annotations
 
 import json

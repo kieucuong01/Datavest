@@ -1,5 +1,5 @@
 """
-QuantDinger Python API entrypoint.
+DataVest Python API entrypoint.
 """
 import os
 import sys
@@ -104,7 +104,7 @@ app = create_app()
 def main():
     """Start the application."""
     # Keep startup messages ASCII-only and short.
-    print("QuantDinger Python API v2.2.2")
+    print("DataVest Python API v2.2.2")
     
     # ========== Critical Security Check for SECRET_KEY ==========
     # Config.SECRET_KEY fails closed when the key is missing, public, or too

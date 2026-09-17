@@ -1,7 +1,8 @@
 # Licence and attribution notice
 
 DataVest contains derivative source from QuantDinger and QuantDinger-Vue.
-Their component-level licence and notice files are preserved without change:
+Their component-level licence texts, copyright notices, and provenance files
+remain in the repository:
 
 - `backend/LICENSE`
 - `frontend/LICENSE`
@@ -9,7 +10,9 @@ Their component-level licence and notice files are preserved without change:
 - `backend/DATAVEST_MODIFICATIONS.md`
 - `frontend/DATAVEST_MODIFICATIONS.md`
 
-The product UI retains the required `Powered by QuantDinger` attribution.
+The product UI and runtime metadata use the DataVest brand. The upstream
+license and notice files remain available for provenance and component-level
+compliance.
 
 ## TradingAgents
 

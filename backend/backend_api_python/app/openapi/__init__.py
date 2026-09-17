@@ -34,7 +34,7 @@ def init_openapi(app: Flask) -> Api:
     app.config.setdefault(
         "OPENAPI_DESCRIPTION",
         (
-            "Human-facing REST API for DataVest, powered by QuantDinger. "
+            "Human-facing REST API for DataVest. "
             "Agent integrations use `/api/agent/v1` — see "
             "`docs/agent/agent-openapi.json`. "
             "Conventions: `docs/architecture/API_CONVENTIONS.md`."
@@ -47,7 +47,7 @@ def init_openapi(app: Flask) -> Api:
             "info": {
                 "description": app.config.get("OPENAPI_DESCRIPTION", ""),
                 "contact": {
-                    "name": "DataVest (Powered by QuantDinger)",
+                    "name": "DataVest",
                     "url": "https://github.com/OpenByteInc/quantdinger",
                 },
                 "license": {

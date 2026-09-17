@@ -1,5 +1,5 @@
 """
-Heuristic quality hints for QuantDinger indicator Python code.
+Heuristic quality hints for DataVest indicator Python code.
 
 Read-only analysis: chart indicator structure checks and common pandas pitfalls.
 Does not execute user code.

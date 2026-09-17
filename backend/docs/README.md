@@ -1,6 +1,6 @@
-# QuantDinger Documentation
+# DataVest Documentation
 
-This directory contains maintained documentation for the current QuantDinger
+This directory contains maintained documentation for the current DataVest
 release. Start with the [project README](../README.md) or the
 [Chinese project README](README_CN.md).
 

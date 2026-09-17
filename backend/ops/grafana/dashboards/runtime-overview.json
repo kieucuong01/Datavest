@@ -85,7 +85,7 @@
   "templating": {"list": []},
   "time": {"from": "now-6h", "to": "now"},
   "timezone": "browser",
-  "title": "QuantDinger Runtime Overview",
+  "title": "DataVest Runtime Overview",
   "uid": "quantdinger-runtime",
   "version": 1
 }

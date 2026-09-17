@@ -1,4 +1,4 @@
-"""Read-only QuantDinger market-data adapter for optimizer inputs."""
+"""Read-only DataVest market-data adapter for optimizer inputs."""
 
 from __future__ import annotations
 

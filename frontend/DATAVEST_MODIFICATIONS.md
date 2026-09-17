@@ -4,7 +4,7 @@ DataVest is a QuantDinger fork started on 2026-08-24 from QuantDinger backend so
 
 The fork applies DataVest branding and is planned as a research and paper-only product. Planned removals cover broker credentials, live orders and workers, live strategy deployment, agent trading scope, grid/copy trading, billing/credits, paid or hidden marketplace surfaces, and mobile surfaces. Those removals are not complete in this release line.
 
-DataVest will add Smart Insights and Optimizer modules. The upstream is frozen for `datavest-quant-v1`; future upstream adoption requires an explicit reviewed pin update. Upstream licenses and required attribution are retained, including `Powered by QuantDinger`.
+DataVest will add Smart Insights and Optimizer modules. The upstream is frozen for `datavest-quant-v1`; future upstream adoption requires an explicit reviewed pin update. Upstream license and copyright notices remain available in the component repositories; the distributed product uses DataVest branding.
 
 Write a reviewable inventory artifact without committing machine-specific paths:
 

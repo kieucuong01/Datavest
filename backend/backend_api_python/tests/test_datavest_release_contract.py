@@ -135,11 +135,11 @@ def _render_datavest_compose(flag_values: dict[str, str | None]) -> dict:
     return _interpolate(_merge_compose_documents(), environment)
 
 
-def test_release_manifest_pins_both_quantdinger_first_repositories():
+def test_release_manifest_describes_the_datavest_distribution():
     manifest = json.loads((REPO_ROOT / "deploy" / "datavest-release.json").read_text(encoding="utf-8"))
 
     assert manifest["product"] == "DataVest"
-    assert manifest["poweredBy"] == "QuantDinger"
+    assert manifest["poweredBy"] == "DataVest"
     assert manifest["tradingMode"] == "SIMULATED_ONLY"
     for component in ("backend", "frontend"):
         release = manifest[component]

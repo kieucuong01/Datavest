@@ -1,9 +1,9 @@
 # DataVest
 
 DataVest is a research and paper-investing workspace for Vietnamese equities,
-crypto, and gold (XAU). It is built on QuantDinger source with the required
-upstream licences, notices, and `Powered by QuantDinger` attribution retained
-inside each component.
+crypto, and gold (XAU). It is built on upstream source with the applicable
+component licences and notices retained; the distributed product uses DataVest
+branding.
 
 ## Repository layout
 

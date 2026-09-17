@@ -95,7 +95,7 @@ CONFIG_SCHEMA = {
                 'key': 'BRAND_COPYRIGHT',
                 'label': 'Footer Copyright',
                 'type': 'text',
-                'default': '© 2025-2026 DataVest. Powered by QuantDinger.',
+                'default': '© 2025-2026 DataVest. Powered by DataVest.',
                 'description': 'Plain-text copyright line shown at the bottom of every page.'
             },
             {
@@ -831,7 +831,7 @@ CONFIG_SCHEMA = {
                 'type': 'select',
                 'options': ['tavily', 'searxng', 'gdelt', 'serpapi', 'google', 'bing', 'duckduckgo', 'none'],
                 'default': 'tavily',
-                'description': 'Primary news/web search provider used by AI analysis. QuantDinger falls back to configured providers, then GDELT and DuckDuckGo when available'
+                'description': 'Primary news/web search provider used by AI analysis. DataVest falls back to configured providers, then GDELT and DuckDuckGo when available'
             },
             {
                 'key': 'SEARCH_MAX_RESULTS',
@@ -1455,7 +1455,7 @@ def get_brand_config():
     label entirely from backend ENV vars so operators can rebrand a deployment
     by editing ``.env`` (or the Settings page) — no frontend rebuild required.
 
-    Empty ENV values fall back to the bundled QuantDinger defaults so a fresh
+    Empty ENV values fall back to the bundled DataVest defaults so a fresh
     install still ships with working links instead of blanks.
     """
     return jsonify({

@@ -1,4 +1,4 @@
-"""Import one authenticated legacy DataVest account into local QuantDinger.
+"""Import one authenticated legacy DataVest account into local DataVest.
 
 The input is an export of read-only production API responses.  It is accepted
 on stdin so it does not need to be copied into the repository or the backend
@@ -146,7 +146,7 @@ def infer_local_market(asset: Mapping[str, Any]) -> str:
     """Map legacy asset classes to explicit local market namespaces.
 
     VNStock is already supported by the optimizer gateway but is not yet part
-    of the generic QuantDinger quote registry.  Keeping it explicit prevents a
+    of the generic DataVest quote registry.  Keeping it explicit prevents a
     Vietnamese symbol from being silently routed to a Chinese or crypto feed.
     """
     asset_class = str(asset.get("assetClass") or asset.get("category") or "").strip().lower()

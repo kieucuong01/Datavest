@@ -665,7 +665,7 @@ export default {
         noSymbol: t('noSymbol', 'No symbol selected'),
         estimatedCost: t('estimatedCost', 'Estimated cost'),
         scheduleCurrent: t('scheduleCurrent', 'Schedule analysis'),
-        welcomeTitle: t('welcomeTitle', 'Control QuantDinger with plain language'),
+        welcomeTitle: t('welcomeTitle', 'Control DataVest with plain language'),
         welcomeDesc: t('welcomeDesc', 'Ask about markets, explain logs, draft strategies, or attach a chart screenshot.'),
         placeholder: t('placeholder', 'Example: diagnose BTC/USDT 1H trend, or upload a chart screenshot and ask whether entry risk is acceptable...'),
         uploadChart: t('uploadChart', 'Upload image'),
@@ -802,8 +802,8 @@ export default {
       const prompt = (key, fallback) => this.localizedQuickPrompt(key, fallback, { symbol })
       return [
         { key: 'diagnose', action: 'analysis', icon: 'line-chart', label: this.i18nText('aiAssetAnalysis.copilot.quickTasks.market_diagnosis.label', 'Diagnose symbol'), prompt: prompt('diagnose', 'Diagnose {symbol}: trend, momentum, support/resistance, liquidity, and risk.') },
-        { key: 'indicator_research', action: 'strategy', icon: 'line-chart', label: this.i18nText('aiAssetAnalysis.copilot.quickTasks.indicator_research.label', 'Indicator R&D'), prompt: prompt('indicatorResearch', 'Generate chart-only QuantDinger indicator code for {symbol}, including plots, visual markers, and parameters.') },
-        { key: 'strategy_research', action: 'strategy', icon: 'experiment', label: this.i18nText('aiAssetAnalysis.copilot.quickTasks.strategy_research.label', 'Strategy R&D'), prompt: prompt('strategy', 'Generate executable QuantDinger Strategy API V2 code for {symbol}, including entry/exit logic, risk controls, and runtime-safe parameters.') },
+        { key: 'indicator_research', action: 'strategy', icon: 'line-chart', label: this.i18nText('aiAssetAnalysis.copilot.quickTasks.indicator_research.label', 'Indicator R&D'), prompt: prompt('indicatorResearch', 'Generate chart-only DataVest indicator code for {symbol}, including plots, visual markers, and parameters.') },
+        { key: 'strategy_research', action: 'strategy', icon: 'experiment', label: this.i18nText('aiAssetAnalysis.copilot.quickTasks.strategy_research.label', 'Strategy R&D'), prompt: prompt('strategy', 'Generate executable DataVest Strategy API V2 code for {symbol}, including entry/exit logic, risk controls, and runtime-safe parameters.') },
         { key: 'radar', action: 'chat', icon: 'aim', label: this.i18nText('aiAssetAnalysis.copilot.quickTasks.opportunity_radar.label', 'Opportunity radar'), prompt: prompt('radar', 'Scan {symbol} for likely opportunities in the next 24 hours, with triggers and invalidation.') }
       ]
     },
@@ -821,8 +821,8 @@ export default {
       return [
         task('diagnose', 'analysis', 'line-chart', 'blue', 'market_diagnosis', 'market_diagnosis', 'diagnose', 'Diagnose {symbol}: trend, momentum, support/resistance, liquidity, and risk.'),
         task('chart', 'chart', 'picture', 'purple', 'chart_review', 'chart_review', 'chart', 'I will paste or upload a chart image. Judge whether the setup is tradable and give stop loss, take profit, and invalidation.'),
-        task('indicator_research', 'strategy', 'line-chart', 'green', 'indicator_research', 'indicator_research', 'indicatorResearch', 'Generate chart-only QuantDinger indicator code for {symbol}, including plots, visual markers, and parameters.'),
-        task('strategy_research', 'strategy', 'experiment', 'green', 'strategy_research', 'strategy_research', 'strategy', 'Generate executable QuantDinger Strategy API V2 code for {symbol}, including entry/exit logic, risk controls, and runtime-safe parameters.'),
+        task('indicator_research', 'strategy', 'line-chart', 'green', 'indicator_research', 'indicator_research', 'indicatorResearch', 'Generate chart-only DataVest indicator code for {symbol}, including plots, visual markers, and parameters.'),
+        task('strategy_research', 'strategy', 'experiment', 'green', 'strategy_research', 'strategy_research', 'strategy', 'Generate executable DataVest Strategy API V2 code for {symbol}, including entry/exit logic, risk controls, and runtime-safe parameters.'),
         task('trade_plan', 'chat', 'profile', 'orange', 'trade_plan', 'trade_plan', 'tradePlan', 'Create a practical trading plan for {symbol}: bias, key levels, trigger, stop loss, take profit, position sizing, and when to stay out.'),
         task('news', 'chat', 'global', 'cyan', 'news_research', 'news_research', 'news', 'Search recent news and events for {symbol}; separate facts, interpretation, and uncertainty.'),
         task('macro', 'chat', 'global', 'indigo', 'macro_economic_data', 'macro_economic_data', 'macro', 'Review macro data such as CPI, FOMC, rates, GDP, and PCE, and explain the market impact.'),
@@ -953,7 +953,7 @@ export default {
           title: this.text.strategyExampleCode,
           prompt: this.i18nText(
             'aiAssetAnalysis.copilot.strategyExamples.code',
-            'Turn my idea into a QuantDinger Python Strategy API V2: trend filter, entry/exit rules, position sizing, stop/take-profit, logging, and validation steps.',
+            'Turn my idea into a DataVest Python Strategy API V2: trend filter, entry/exit rules, position sizing, stop/take-profit, logging, and validation steps.',
             { symbol }
           )
         },
@@ -963,7 +963,7 @@ export default {
           title: this.text.strategyExampleStateful,
           prompt: this.i18nText(
             'aiAssetAnalysis.copilot.strategyExamples.statefulScript',
-            'Create a QuantDinger Python Strategy API V2 for {symbol}: keep position state, avoid duplicate entries, scale out at 2R, move stop to breakeven after 1R, and write clear logs.',
+            'Create a DataVest Python Strategy API V2 for {symbol}: keep position state, avoid duplicate entries, scale out at 2R, move stop to breakeven after 1R, and write clear logs.',
             { symbol }
           )
         }]
@@ -1146,11 +1146,11 @@ export default {
       const label = this.selectedTargetLabel(target)
       if (key === 'indicator_research') {
         return this.i18nText('aiAssetAnalysis.copilot.lockedPrompts.indicatorResearch', [
-          'Run QuantDinger indicator research for the selected data context {label}.',
+          'Run DataVest indicator research for the selected data context {label}.',
           '',
           'Requirements:',
           '1. Keep the task locked to the selected symbol; do not switch context because another symbol appears in examples.',
-          '2. Generate a chart-only QuantDinger Python indicator draft for the Indicator editor.',
+          '2. Generate a chart-only DataVest Python indicator draft for the Indicator editor.',
           '3. Indicators are visual analysis tools only: use output.signals for markers, keep output.layers empty by default, and do not emit executable open/close/add/reduce strategy columns.',
           '4. Explain parameters, visual signals, invalidation annotations, and suitable market regimes.',
           '5. Keep code comments in English.'
@@ -1158,7 +1158,7 @@ export default {
       }
       if (key === 'strategy_research' || key === 'script_strategy' || key === 'strategy') {
         return this.i18nText('aiAssetAnalysis.copilot.lockedPrompts.indicatorStrategy', [
-          'Run QuantDinger strategy research for the selected data context {label}.',
+          'Run DataVest strategy research for the selected data context {label}.',
           '',
           'Requirements:',
           '1. Keep the task locked to the selected symbol; do not switch context because another symbol appears in examples.',
@@ -2468,7 +2468,7 @@ export default {
           this.pendingAgentTask = {
             type: 'trade_plan',
             target,
-            workflow: 'QuantDinger Research Context'
+            workflow: 'DataVest Research Context'
           }
           this.usePrompt(this.buildLockedQuickPrompt(activeItem, target), { contextLock: target })
           return
@@ -2483,7 +2483,7 @@ export default {
           ? {
               type: 'market_diagnosis',
               target,
-              workflow: 'QuantDinger Professional Analysis'
+              workflow: 'DataVest Professional Analysis'
             }
           : null
         const analysisTarget = target ? { ...target } : null
@@ -2701,7 +2701,7 @@ export default {
       const target = (msg && msg.reportTarget) || this.context || {}
       const symbol = String(report.symbol || target.symbol || 'report').replace(/[\\/:*?"<>|]+/g, '_')
       const date = new Date().toISOString().slice(0, 10)
-      return `QuantDinger_${symbol}_${date}.pdf`
+      return `DataVest_${symbol}_${date}.pdf`
     },
     askAboutReport (reportId) {
       const msg = (this.messages || []).find(item => this.reportId(item) === String(reportId))
@@ -2800,7 +2800,7 @@ export default {
       const promptText = (key, fallback, values = {}) => this.i18nText(`aiAssetAnalysis.copilot.executableStrategyPrompt.${key}`, fallback, values)
       const artifactRules = isIndicatorWorkflow
         ? [
-            promptText('ruleIndicatorCode', '- Generate QuantDinger chart-indicator Python code for visualization only, not Strategy API V2 execution code.'),
+            promptText('ruleIndicatorCode', '- Generate DataVest chart-indicator Python code for visualization only, not Strategy API V2 execution code.'),
             promptText('ruleIndicatorSignals', '- Indicator output.signals are visual markers only. Do not emit ctx orders or open/close/add/reduce execution fields.'),
             promptText('ruleChartAnnotations', '- Do not add output.layers by default. Use layers only for explicitly requested zones, channels, support/resistance, or invalidation areas.'),
             promptText('ruleSparseAnnotations', '- Keep chart annotations sparse, transparent, and clear of dense candles.')
@@ -2817,8 +2817,8 @@ export default {
       return [
         promptText('taskType', 'This is an execution task, not a consulting answer.'),
         isIndicatorWorkflow
-          ? promptText('generateIndicatorArtifact', 'Generate the runnable QuantDinger chart indicator artifact now.')
-          : promptText('generateArtifact', 'Generate the runnable QuantDinger strategy artifact now.'),
+          ? promptText('generateIndicatorArtifact', 'Generate the runnable DataVest chart indicator artifact now.')
+          : promptText('generateArtifact', 'Generate the runnable DataVest strategy artifact now.'),
         promptText('workflow', 'Workflow: {workflow}', { workflow }),
         promptText('target', 'Target: {target}', { target: targetLabel }),
         isIndicatorWorkflow
@@ -2840,7 +2840,7 @@ export default {
         promptText('ruleNoConfirmation', '- Do not ask for confirmation when the target, timeframe, and strategy idea can be inferred.'),
         promptText('ruleConservativeDefaults', '- Encode conservative missing strategy/indicator knobs as code parameters or metadata, not prose outside the generated code.'),
         promptText('ruleEnglishComments', '- Code comments must be English.'),
-        promptText('ruleNativeWorkflow', '- Stay inside QuantDinger native workflows.'),
+        promptText('ruleNativeWorkflow', '- Stay inside DataVest native workflows.'),
         ...artifactRules,
         memoryLines ? `\n${promptText('userMemory', 'User memory:')}\n${memoryLines}` : '',
         '',
@@ -2955,8 +2955,8 @@ export default {
         targetType: normalizedTargetKey,
         target,
         workflow: normalizedTargetKey === 'indicator'
-          ? 'QuantDinger Chart Indicator'
-          : 'QuantDinger Trading Script',
+          ? 'DataVest Chart Indicator'
+          : 'DataVest Trading Script',
         originalPrompt: seedPrompt || ''
       }
       this.usePrompt(this.buildStrategyPrompt(normalizedTargetKey, target, seedPrompt))
@@ -2975,8 +2975,8 @@ export default {
         .map(item => `- ${item.title || item.category}: ${item.content}`)
         .join('\n')
       const workflow = targetType === 'indicator'
-        ? promptText('workflowIndicator', 'QuantDinger Chart Indicator')
-        : promptText('workflowScript', 'QuantDinger Trading Script')
+        ? promptText('workflowIndicator', 'DataVest Chart Indicator')
+        : promptText('workflowScript', 'DataVest Trading Script')
       const isIndicatorWorkflow = targetType === 'indicator'
       const targetLabel = this.strategyPromptTarget(target)
       const hardRules = [
@@ -2986,7 +2986,7 @@ export default {
         promptText('hardRules', 'Hard rules:'),
         promptText('ruleExecutionTask', '- This is an execution task, not a consulting answer. Produce the runnable artifact now.'),
         promptText('ruleNoTemplateRequest', '- Do not ask the user to paste templates or confirm obvious defaults.'),
-        promptText('ruleWorkflowOnly', '- Generate only for the QuantDinger workflow above.'),
+        promptText('ruleWorkflowOnly', '- Generate only for the DataVest workflow above.'),
         promptText('ruleNoOtherPlatforms', '- Do not output Pine Script, TradingView-only code, MQL, or code for another platform.'),
         promptText('ruleEnglishComments', '- Code comments must be English.'),
         isIndicatorWorkflow
@@ -3002,7 +3002,7 @@ export default {
         hardRules.splice(
           6,
           0,
-          promptText('ruleIndicatorRunnable', '- Indicator output must be runnable in the QuantDinger Indicator editor and suitable for chart display only.'),
+          promptText('ruleIndicatorRunnable', '- Indicator output must be runnable in the DataVest Indicator editor and suitable for chart display only.'),
           promptText('ruleIndicatorSignals', '- Do not emit strategy execution columns such as open_long, close_long, open_short, close_short, add_long, or reduce_long.'),
           promptText('ruleIndicatorNoStrategyMeta', '- Do not include strategy/backtest metadata such as # @strategy, # signal_form, # exit_owner, # flip_mode, four_way, or Strategy API V2.'),
           promptText('ruleOutputSignalsChartOnly', '- output.signals is chart-only and never places backtest/live orders.'),
@@ -3014,13 +3014,13 @@ export default {
         hardRules.splice(
           6,
           0,
-          promptText('ruleScriptDraft', '- Trading Script output must be a Python Strategy API V2 draft for the QuantDinger Trading Script editor.'),
+          promptText('ruleScriptDraft', '- Trading Script output must be a Python Strategy API V2 draft for the DataVest Trading Script editor.'),
           promptText('ruleScriptOwnership', '- Source code owns the canonical instrument, market type, subscription frequency, direction, sizing, entries, exits, risk, and schedules. The run panel owns only initial capital, date range, and permitted Crypto @swap leverage.'),
           promptText('ruleScriptApis', '- Use data.current(...) for current prices, position.amount/avg_cost for positions, and global order/schedule helpers. Never use get_current_data, position.quantity/cost_basis, or context.run_daily.'),
           promptText('ruleInitializeParams', '- Never read context.params in initialize(context); read declared # @param values only inside executable handlers or callbacks.')
         )
       } else {
-        hardRules.splice(6, 0, promptText('ruleScriptDraft', '- Trading Script output must be a Python Strategy API V2 draft for the QuantDinger Trading Script editor.'))
+        hardRules.splice(6, 0, promptText('ruleScriptDraft', '- Trading Script output must be a Python Strategy API V2 draft for the DataVest Trading Script editor.'))
       }
       return hardRules.join('\n')
     },

@@ -162,7 +162,7 @@ def get_menu_footer_config():
             'user_agreement': '',
             'privacy_policy': ''
         },
-            'copyright': '(c) 2025-2026 DataVest. Powered by QuantDinger.'
+            'copyright': '(c) 2025-2026 DataVest. Powered by DataVest.'
     }
     return jsonify({'code': 1, 'msg': 'success', 'data': data})
 

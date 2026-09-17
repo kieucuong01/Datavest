@@ -1,7 +1,7 @@
 import { getBrandConfig } from '@/api/brand'
 
 const BUILD_APP_VERSION = typeof APP_VERSION !== 'undefined' ? APP_VERSION : '0.0.0-dev'
-const DEFAULT_COPYRIGHT = 'Copyright 2025-2026 DataVest. Powered by QuantDinger.'
+const DEFAULT_COPYRIGHT = 'Copyright 2025-2026 DataVest. Powered by DataVest.'
 
 function normalizeCopyright (value) {
   const text = String(value || '').trim()
@@ -32,7 +32,7 @@ const DEFAULT_BRAND = {
     live_chat_url: ''
   },
   social_accounts: [
-    { name: 'QuantDinger upstream', icon: 'github', url: 'https://github.com/OpenByteInc/QuantDinger' }
+    { name: 'DataVest upstream', icon: 'github', url: 'https://github.com/OpenByteInc/QuantDinger' }
   ],
   legal: {
     user_agreement_url: '',

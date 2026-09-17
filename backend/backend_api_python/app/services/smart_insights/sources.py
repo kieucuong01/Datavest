@@ -1,7 +1,7 @@
 """Production-verified Smart Insights source registry.
 
 The activation set is copied from the last DataVest production runbook. A
-source can be production-verified without having a QuantDinger runtime
+source can be production-verified without having a DataVest runtime
 collector yet; those rows are marked ``IMPORT_ONLY`` and remain visible in
 Data Health until their parser is ported and smoke-tested.
 """

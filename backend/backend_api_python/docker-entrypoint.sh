@@ -1,11 +1,11 @@
 #!/bin/sh
-# QuantDinger Docker Entrypoint Script
+# DataVest Docker Entrypoint Script
 # Checks and validates SECRET_KEY before starting the application
 
 set -e
 
 echo "============================================"
-echo "  QuantDinger Backend - Starting..."
+echo "  DataVest Backend - Starting..."
 echo "============================================"
 
 # Check if .env file exists

@@ -1,7 +1,7 @@
 DataVest Quantitative Research Backend
 
-This repository is a modified derivative of QuantDinger by OpenByteInc.
-Powered by QuantDinger.
+This repository is a modified derivative of the OpenByteInc source listed
+below. The distributed product branding is DataVest.
 
 Upstream backend reference:
 https://github.com/OpenByteInc/QuantDinger

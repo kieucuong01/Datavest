@@ -90,7 +90,7 @@ function Read-SecretPlain($Prompt) {
 }
 
 function Check-Prerequisites {
-    Write-Host "QuantDinger installer" -ForegroundColor Blue
+    Write-Host "DataVest installer" -ForegroundColor Blue
     Write-Host "Install directory: $InstallDir"
     Write-Host "Source ref: $InstallRef"
     Write-Host ""
@@ -259,7 +259,7 @@ function Wait-ForBackend {
 function Print-Summary {
     $apiPort = ($BackendPort -split ':')[-1]
     Write-Host ""
-    Write-Host "QuantDinger is ready." -ForegroundColor Green
+    Write-Host "DataVest is ready." -ForegroundColor Green
     Write-Host ""
     Write-Host "Web UI:      http://localhost:$FrontendPort"
     Write-Host "Mobile H5:   http://localhost:$MobilePort"

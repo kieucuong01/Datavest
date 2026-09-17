@@ -1454,7 +1454,7 @@ export default {
       const instruction = String(this.indicatorConvertInstruction || '').trim() ||
         'Convert the visible indicator signals into a conservative, event-based strategy. Confirm signals on closed bars and execute on the next bar to avoid look-ahead bias.'
       return [
-        'Convert this QuantDinger chart-only indicator into executable QuantDinger Strategy API V2 Python code.',
+        'Convert this DataVest chart-only indicator into executable DataVest Strategy API V2 Python code.',
         '',
         'Hard boundaries:',
         '- Return Strategy API V2 code only, using the current manifest and handler contract.',

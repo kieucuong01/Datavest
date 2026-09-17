@@ -1,4 +1,4 @@
-"""Adapters that connect the legacy rendered collectors to QuantDinger."""
+"""Adapters that connect the legacy rendered collectors to DataVest."""
 
 from __future__ import annotations
 

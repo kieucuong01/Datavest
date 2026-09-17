@@ -1,4 +1,4 @@
-"""Central registry for QuantDinger Copilot skills.
+"""Central registry for DataVest Copilot skills.
 
 The registry is intentionally metadata-first. It gives the UI, prompts, and
 future tool-calling layer one shared source of truth for what the assistant can
@@ -142,7 +142,7 @@ _SKILLS: tuple[SkillDefinition, ...] = (
             "请基于 {symbol_label} 做一份专业投研诊断：先给当前结论，再分析趋势、量能、关键支撑阻力、资金面、交易计划和风险。数据不足时请说明缺口并给出条件化判断。",
             "Analyze {symbol_label} professionally. Start with the current read, then cover trend, volume, key support/resistance, capital flow, trading plan, and risks. If data is missing, state the gap and give conditional conclusions.",
         ),
-        system_instruction="Use QuantDinger market snapshots first; do not invent live data; include triggers, invalidation, and risk controls.",
+        system_instruction="Use DataVest market snapshots first; do not invent live data; include triggers, invalidation, and risk controls.",
         keywords=("走势", "趋势", "行情", "支撑", "阻力", "trend", "support", "resistance", "market"),
         requires=("market_data",),
         produces=("market_report", "risk_plan"),
@@ -171,12 +171,12 @@ _SKILLS: tuple[SkillDefinition, ...] = (
         category="strategy",
         icon="line-chart",
         label=_s("指标研发", "Indicator R&D"),
-        description=_s("生成只用于图表展示的 QuantDinger 指标代码、参数和可视化标记", "Generate chart-only QuantDinger indicator code, parameters, and visual markers"),
+        description=_s("生成只用于图表展示的 DataVest 指标代码、参数和可视化标记", "Generate chart-only DataVest indicator code, parameters, and visual markers"),
         prompt_template=_s(
-            "请基于 {symbol_label} 做一次指标研发。我的想法/偏好：\n希望观察的结构或信号：\n希望显示的标记/图层：\n可调参数：\n不希望出现的视觉干扰：\n请生成适合 QuantDinger 指标编辑器的图表指标草稿。指标只用于看图，不用于回测或实盘执行。",
-            "Run indicator research for {symbol_label}. My preferences:\nStructures or signals to visualize:\nMarkers/layers I want:\nTunable parameters:\nVisual clutter to avoid:\nGenerate a QuantDinger Indicator editor draft. Indicators are chart-only and are not used for backtests or execution.",
+            "请基于 {symbol_label} 做一次指标研发。我的想法/偏好：\n希望观察的结构或信号：\n希望显示的标记/图层：\n可调参数：\n不希望出现的视觉干扰：\n请生成适合 DataVest 指标编辑器的图表指标草稿。指标只用于看图，不用于回测或实盘执行。",
+            "Run indicator research for {symbol_label}. My preferences:\nStructures or signals to visualize:\nMarkers/layers I want:\nTunable parameters:\nVisual clutter to avoid:\nGenerate a DataVest Indicator editor draft. Indicators are chart-only and are not used for backtests or execution.",
         ),
-        system_instruction="Use QuantDinger indicator contracts for chart-only visualization. Do not output executable strategy code or Pine Script unless explicitly requested.",
+        system_instruction="Use DataVest indicator contracts for chart-only visualization. Do not output executable strategy code or Pine Script unless explicitly requested.",
         keywords=("指标", "indicator", "ide", "图表", "可视化"),
         requires=("market_data", "indicator_requirements"),
         produces=("indicator_code", "visualization_plan"),
@@ -218,11 +218,11 @@ _SKILLS: tuple[SkillDefinition, ...] = (
         label=_s("策略研发", "Strategy R&D"),
         description=_s("生成可回测、可研究复核的 Strategy API V2 草稿", "Generate Strategy API V2 drafts for backtest and research review"),
         prompt_template=_s(
-            "请设计一个 Strategy API V2 策略，策略源码负责标的、市场、周期、调度和交易逻辑。仅确认真正缺失的需求，再生成可运行的 QuantDinger Python 代码。",
-            "Design a Strategy API V2 strategy. The source owns its universe, market, frequency, schedule, and trading logic. Confirm genuinely missing requirements before generating runnable QuantDinger Python.",
+            "请设计一个 Strategy API V2 策略，策略源码负责标的、市场、周期、调度和交易逻辑。仅确认真正缺失的需求，再生成可运行的 DataVest Python 代码。",
+            "Design a Strategy API V2 strategy. The source owns its universe, market, frequency, schedule, and trading logic. Confirm genuinely missing requirements before generating runnable DataVest Python.",
         ),
         system_instruction=(
-            "Use QuantDinger Strategy API V2 exclusively. The source owns instruments, market, subscriptions, "
+            "Use DataVest Strategy API V2 exclusively. The source owns instruments, market, subscriptions, "
             "frequency, schedules, factors, and orders. "
             "Only Crypto perpetual sources may explicitly permit user-adjustable leverage."
         ),
@@ -376,8 +376,8 @@ _EXTRA_SKILLS: tuple[SkillDefinition, ...] = (
         label=_s("数据源诊断", "Data source doctor"),
         description=_s("检查行情、K线、成交量、财务和新闻数据源可用性", "Check price, kline, volume, financial, and news feed readiness"),
         prompt_template=_s(
-            "请检查 QuantDinger 当前数据源配置是否足够支撑我的任务。请按行情、K线、成交量、财务、新闻、衍生品数据分别说明可用性、缺口、配置入口和验证方式。",
-            "Check whether current QuantDinger data sources can support my task. Cover price, klines, volume, fundamentals, news, and derivatives data with gaps, config entry, and verification.",
+            "请检查 DataVest 当前数据源配置是否足够支撑我的任务。请按行情、K线、成交量、财务、新闻、衍生品数据分别说明可用性、缺口、配置入口和验证方式。",
+            "Check whether current DataVest data sources can support my task. Cover price, klines, volume, fundamentals, news, and derivatives data with gaps, config entry, and verification.",
         ),
         system_instruction="Use preflight and data warnings when present. Do not mask missing feeds.",
         keywords=("数据源", "行情源", "K线", "成交量", "data source", "feed"),
@@ -393,8 +393,8 @@ _EXTRA_SKILLS: tuple[SkillDefinition, ...] = (
         label=_s("行情数据查询", "Market data lookup"),
         description=_s("查询价格、K线、成交量和周期快照，作为分析、回测和策略设计的输入", "Query price, klines, volume, and timeframe snapshots for analysis, backtesting, and strategy design"),
         prompt_template=_s(
-            "请使用 QuantDinger 系统数据源查询 {symbol_label} 的行情上下文。优先读取最新价格、1H/4H/1D K线、成交量、关键高低点和数据缺口；如果标的不明确，请先识别候选标的，不要直接套用下拉框。",
-            "Use QuantDinger data sources to retrieve market context for {symbol_label}. Prefer latest price, 1H/4H/1D klines, volume, key highs/lows, and data gaps. If the symbol is ambiguous, resolve candidates first instead of forcing the dropdown symbol.",
+            "请使用 DataVest 系统数据源查询 {symbol_label} 的行情上下文。优先读取最新价格、1H/4H/1D K线、成交量、关键高低点和数据缺口；如果标的不明确，请先识别候选标的，不要直接套用下拉框。",
+            "Use DataVest data sources to retrieve market context for {symbol_label}. Prefer latest price, 1H/4H/1D klines, volume, key highs/lows, and data gaps. If the symbol is ambiguous, resolve candidates first instead of forcing the dropdown symbol.",
         ),
         system_instruction="Use system market data before answering price, kline, or trend questions. If data is unavailable, explain the missing source and guide setup.",
         keywords=("行情", "价格", "实时价格", "K线", "k线", "K线数据", "成交量", "ohlcv", "kline", "klines", "price", "market data", "quote"),
@@ -466,8 +466,8 @@ _EXTRA_SKILLS: tuple[SkillDefinition, ...] = (
         label=_s("指标开发契约", "Indicator authoring"),
         description=_s("读取指标 IDE 输入输出契约，生成符合平台规范的指标", "Use the Indicator IDE contract to author compliant indicators"),
         prompt_template=_s(
-            "请先读取 QuantDinger 指标开发契约，再帮我设计指标。必须说明输入、输出、参数、绘图元素、信号标记和验证步骤。",
-            "Read the QuantDinger indicator authoring contract first, then design the indicator. Cover inputs, outputs, parameters, drawings, signals, and validation steps.",
+            "请先读取 DataVest 指标开发契约，再帮我设计指标。必须说明输入、输出、参数、绘图元素、信号标记和验证步骤。",
+            "Read the DataVest indicator authoring contract first, then design the indicator. Cover inputs, outputs, parameters, drawings, signals, and validation steps.",
         ),
         system_instruction="Follow the platform authoring contract before generating code.",
         keywords=("指标开发", "authoring", "contract", "绘图", "信号标记"),
@@ -486,8 +486,8 @@ _EXTRA_SKILLS: tuple[SkillDefinition, ...] = (
         label=_s("指标代码验证", "Indicator validation"),
         description=_s("保存前验证指标代码大小、语法、输出契约和安全边界", "Validate indicator code size, syntax, output contract, and safety boundaries before saving"),
         prompt_template=_s(
-            "请帮我验证这段指标代码是否符合 QuantDinger 指标 IDE 规范。请指出语法问题、契约问题、运行风险和修改建议。",
-            "Validate this indicator code against QuantDinger Indicator IDE rules. Report syntax issues, contract mismatches, runtime risks, and fixes.",
+            "请帮我验证这段指标代码是否符合 DataVest 指标 IDE 规范。请指出语法问题、契约问题、运行风险和修改建议。",
+            "Validate this indicator code against DataVest Indicator IDE rules. Report syntax issues, contract mismatches, runtime risks, and fixes.",
         ),
         system_instruction="Use validation before suggesting save or backtest.",
         keywords=("验证", "检查代码", "validate", "lint", "代码质量"),
@@ -542,7 +542,7 @@ _EXTRA_SKILLS: tuple[SkillDefinition, ...] = (
             "请帮我设计持仓监控方案。请确认持仓标的、成本、数量、风险阈值、提醒方式，并输出监控条件和异常处理流程。",
             "Design a portfolio monitoring plan. Confirm positions, cost, size, risk thresholds, notification channel, then output monitor conditions and escalation flow.",
         ),
-        system_instruction="Use only the manual or paper portfolio state supplied by QuantDinger.",
+        system_instruction="Use only the manual or paper portfolio state supplied by DataVest.",
         keywords=("持仓", "资产", "组合", "监控", "portfolio", "position"),
         requires=("positions", "risk_thresholds"),
         produces=("monitor_config",),
@@ -590,10 +590,10 @@ _EXTRA_SKILLS: tuple[SkillDefinition, ...] = (
         category="integration",
         icon="deployment-unit",
         label=_s("MCP 集成", "MCP integration"),
-        description=_s("配置 QuantDinger MCP Server、连接外部 AI 客户端并验证工具", "Configure QuantDinger MCP Server, connect external AI clients, and verify tools"),
+        description=_s("配置 DataVest MCP Server、连接外部 AI 客户端并验证工具", "Configure DataVest MCP Server, connect external AI clients, and verify tools"),
         prompt_template=_s(
-            "请帮我配置 QuantDinger MCP Server。请根据我的客户端说明环境变量、Agent Token 权限、连接方式、可用工具、验证步骤和常见故障。",
-            "Help configure QuantDinger MCP Server. Based on my client, explain env vars, Agent Token scopes, transport, available tools, verification, and troubleshooting.",
+            "请帮我配置 DataVest MCP Server。请根据我的客户端说明环境变量、Agent Token 权限、连接方式、可用工具、验证步骤和常见故障。",
+            "Help configure DataVest MCP Server. Based on my client, explain env vars, Agent Token scopes, transport, available tools, verification, and troubleshooting.",
         ),
         system_instruction="Describe only research, backtest, Indicator, alert, watchlist, and paper-portfolio tools.",
         keywords=("mcp", "server", "外部AI", "Claude", "Cursor"),
@@ -678,8 +678,8 @@ _EXTRA_SKILLS: tuple[SkillDefinition, ...] = (
         label=_s("发布体检", "Release doctor"),
         description=_s("检查前端、后端、Docker、数据库迁移和关键工作流是否正常", "Check frontend, backend, Docker, migrations, and critical workflows"),
         prompt_template=_s(
-            "请帮我做一次 QuantDinger 发布体检。请检查前端、后端、Docker、数据库迁移、LLM、数据源、MCP、回测和实盘安全边界。",
-            "Run a QuantDinger release health check. Cover frontend, backend, Docker, migrations, LLM, data sources, MCP, backtesting, and paper safety boundaries.",
+            "请帮我做一次 DataVest 发布体检。请检查前端、后端、Docker、数据库迁移、LLM、数据源、MCP、回测和实盘安全边界。",
+            "Run a DataVest release health check. Cover frontend, backend, Docker, migrations, LLM, data sources, MCP, backtesting, and paper safety boundaries.",
         ),
         system_instruction="Produce a practical checklist with verification commands and rollback notes.",
         keywords=("发布", "体检", "docker", "部署", "release", "health"),
@@ -996,7 +996,7 @@ def build_skill_prompt(language: str, message: str = "", intent: str = "") -> st
     if not matched:
         matched = [skill for skill, _ in sorted(_all_skill_entries(False), key=lambda item: (-item[0].priority, item[0].id))[:6]]
     lines = [
-        "[QuantDinger skill registry]",
+        "[DataVest skill registry]",
         "Use these registered skills as the allowed workflow map. Skills describe capabilities, requirements, outputs, and safety level.",
         "When a task matches a skill, follow that skill's instruction and ask for missing requirements instead of inventing them.",
     ]

@@ -8,7 +8,7 @@ from typing import Dict, List
 
 BRAND_DEFAULTS = {
     "app_name": "DataVest",
-    "copyright": "© 2025-2026 DataVest. Powered by QuantDinger.",
+    "copyright": "© 2025-2026 DataVest. Powered by DataVest.",
     "contact_email": "",
     "contact_support_url": "",
     "contact_feature_request_url": "https://github.com/OpenByteInc/QuantDinger/issues",

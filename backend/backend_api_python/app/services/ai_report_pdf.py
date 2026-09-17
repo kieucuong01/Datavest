@@ -128,7 +128,7 @@ def _outlook_labels(language: str = "") -> dict[str, str]:
 
 def _report_pdf_labels(language: str = "") -> dict[str, str]:
     labels = {
-        "title": "QuantDinger AI Research Report",
+        "title": "DataVest AI Research Report",
         "subtitle": "AI-assisted market analysis for research use only",
         "target": "Target",
         "generated": "Generated",
@@ -147,7 +147,7 @@ def _report_pdf_labels(language: str = "") -> dict[str, str]:
     }
     overrides = {
         "zh-CN": {
-            "title": "QuantDinger AI 研究报告",
+            "title": "DataVest AI 研究报告",
             "subtitle": "AI 辅助市场分析，仅供研究参考",
             "target": "分析标的",
             "generated": "生成时间",
@@ -165,7 +165,7 @@ def _report_pdf_labels(language: str = "") -> dict[str, str]:
             "disclaimer": "本报告由 AI 生成，仅供研究参考，不构成投资建议。",
         },
         "zh-TW": {
-            "title": "QuantDinger AI 研究報告",
+            "title": "DataVest AI 研究報告",
             "subtitle": "AI 輔助市場分析，僅供研究參考",
             "target": "分析標的",
             "generated": "生成時間",
@@ -1152,7 +1152,7 @@ def build_ai_report_pdf(report: dict, target: dict | None = None, language: str 
         canvas_obj.setFillColor(colors.HexColor("#8a94a6"))
         canvas_obj.setFont(font_name, 7.5)
         canvas_obj.drawString(doc.leftMargin, 9 * mm, labels["disclaimer"])
-        canvas_obj.drawRightString(width - doc.rightMargin, 9 * mm, f"QuantDinger Research · {document.page}")
+        canvas_obj.drawRightString(width - doc.rightMargin, 9 * mm, f"DataVest Research · {document.page}")
         canvas_obj.restoreState()
 
     symbol = report.get("symbol") or target.get("symbol") or ""

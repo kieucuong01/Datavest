@@ -28,7 +28,7 @@
 
 1. Search for **@BotFather** in Telegram (official bot management tool)
 2. Send the `/newbot` command to create a new bot
-3. Enter a display name for your bot (e.g., `QuantDinger Signal Bot`)
+3. Enter a display name for your bot (e.g., `DataVest Signal Bot`)
 4. Choose a unique username ending with `bot` (e.g., `quantdinger_signal_bot`)
 
 <img src="../screenshots/notification_telegram_token.png" alt="Create Telegram Bot" width="100%" style="border-radius: 10px; box-shadow: 0 4px 8px rgba(0,0,0,0.1);">

@@ -74,11 +74,12 @@ commercial license, is subject to the following conditions:
 
 3.1 Attribution and Branding
 
-You must retain all copyright notices, this License text, and any "Powered by
-QuantDinger" or similar branding, watermark, or attribution notices included in
-the Software or any derivative works. You may not remove, obscure, alter, or
-misrepresent such branding, watermark, or attribution without prior written
-permission from the copyright holder.
+You must retain all copyright notices and this License text. Derivative
+distributions may replace or remove product branding and may use the DataVest
+brand, provided that the upstream source references, copyright notices, and
+license files required by the applicable component licenses remain available.
+No derivative distribution may imply endorsement by an upstream project or
+copyright holder.
 
 3.2 No Sublicensing
 

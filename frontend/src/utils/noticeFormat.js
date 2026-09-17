@@ -268,7 +268,7 @@ function renderSignalTrade (p, t, { html = false } = {}) {
 
 function renderSecurityLogin (p, t, { html = false } = {}) {
   const reason = loginReasonLabel(p.reasonKey, t)
-  const title = tx(t, 'notice.event.login.title', 'QuantDinger login alert - {reason}', { reason })
+  const title = tx(t, 'notice.event.login.title', 'DataVest login alert - {reason}', { reason })
   const rows = [
     [tx(t, 'notice.event.login.field.account', 'Account'), p.nickname || DASH],
     [tx(t, 'notice.event.login.field.method', 'Method'), loginMethodLabel(p, t)],
@@ -298,7 +298,7 @@ function renderSecurityLogin (p, t, { html = false } = {}) {
 }
 
 function renderProfileTest (t, { html = false } = {}) {
-  const title = tx(t, 'notice.event.profileTest.title', 'QuantDinger notification test')
+  const title = tx(t, 'notice.event.profileTest.title', 'DataVest notification test')
   const body = tx(t, 'notice.event.profileTest.body', 'This is a test message from Profile notification settings. If you see this, the channel is configured correctly.')
   if (!html) return { title, message: body }
   const message = `

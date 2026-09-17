@@ -26,7 +26,7 @@ class MetaConfig(type):
 
     @property
     def APP_NAME(cls):
-        return 'QuantDinger Python API'
+        return 'DataVest Python API'
 
     @property
     def VERSION(cls):

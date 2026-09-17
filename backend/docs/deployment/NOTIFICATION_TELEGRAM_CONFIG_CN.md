@@ -28,7 +28,7 @@
 
 1. 在 Telegram 中搜索 **@BotFather**（官方机器人管理工具）
 2. 发送 `/newbot` 命令开始创建新机器人
-3. 按照提示输入机器人名称（如：`QuantDinger Signal Bot`）
+3. 按照提示输入机器人名称（如：`DataVest Signal Bot`）
 4. 输入机器人用户名（必须以 `bot` 结尾，如：`quantdinger_signal_bot`）
 
 <img src="../screenshots/notification_telegram_token.png" alt="创建 Telegram Bot" width="100%" style="border-radius: 10px; box-shadow: 0 4px 8px rgba(0,0,0,0.1);">

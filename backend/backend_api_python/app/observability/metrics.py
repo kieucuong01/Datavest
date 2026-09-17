@@ -57,7 +57,7 @@ WORKER_STALE = Gauge(
 )
 BUILD_INFO = Gauge(
     "quantdinger_build_info",
-    "QuantDinger build and process information.",
+    "DataVest build and process information.",
     ("version", "role"),
     multiprocess_mode="max",
 )

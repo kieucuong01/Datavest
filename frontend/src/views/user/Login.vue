@@ -1377,13 +1377,13 @@ export default {
               this.$router.push({ path: this.postLoginPath() }).then(() => {
                 this.$notification.success({
                   message: 'Welcome',
-                  description: `${timeFix()}, welcome to QuantDinger!`
+                  description: `${timeFix()}, welcome to DataVest!`
                 })
               }).catch(err => {
                 console.error('Router push error:', err)
                 this.$notification.success({
                   message: 'Welcome',
-                  description: `${timeFix()}, welcome to QuantDinger!`
+                  description: `${timeFix()}, welcome to DataVest!`
                 })
               })
             } else {

@@ -1,6 +1,6 @@
-"""Central AI generation contracts for QuantDinger code assets."""
+"""Central AI generation contracts for DataVest code assets."""
 
-SCRIPT_STRATEGY_SYSTEM_PROMPT = """You generate executable QuantDinger Strategy API V2 Python.
+SCRIPT_STRATEGY_SYSTEM_PROMPT = """You generate executable DataVest Strategy API V2 Python.
 Return Python source only. Do not use markdown fences or explanatory prose.
 
 # Strategy API V2 contract
@@ -110,7 +110,7 @@ SCRIPT_STRATEGY_REPAIR_REQUIREMENTS = """# Strategy API V2 repair requirements
 - Do not use unsafe file, network, reflection, dynamic execution, or process APIs.
 """
 
-INDICATOR_SYSTEM_CONTRACT = """# QuantDinger chart indicator contract
+INDICATOR_SYSTEM_CONTRACT = """# DataVest chart indicator contract
 
 - A chart indicator is visual analysis code only. It is not executable strategy code.
 - Indicators must not open, close, size, backtest, or live trade.

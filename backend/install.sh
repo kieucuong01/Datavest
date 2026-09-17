@@ -198,7 +198,7 @@ random_hex() {
 }
 
 check_prerequisites() {
-    say "${BLUE}QuantDinger installer${NC}"
+    say "${BLUE}DataVest installer${NC}"
     say "Install directory: ${INSTALL_DIR}"
     say "Source ref: ${INSTALL_REF}"
     say ""
@@ -415,7 +415,7 @@ raise SystemExit(0 if user and user.get("role") == "admin" else 1)
 
 print_summary() {
     say ""
-    say "${GREEN}QuantDinger is ready.${NC}"
+    say "${GREEN}DataVest is ready.${NC}"
     say ""
     say "Web UI:      http://localhost:${FRONTEND_PORT_VALUE}"
     say "Mobile H5:   http://localhost:${MOBILE_PORT_VALUE}"

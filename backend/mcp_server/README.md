@@ -1,6 +1,6 @@
-# QuantDinger MCP Server
+# DataVest MCP Server
 
-`quantdinger-mcp` is a thin MCP adapter over the QuantDinger Agent Gateway. It provides tenant-scoped public market data, research, Strategy and Indicator authoring, backtests, watchlists, alerts, jobs, and paper-portfolio reads.
+`quantdinger-mcp` is a thin MCP adapter over the DataVest Agent Gateway. It provides tenant-scoped public market data, research, Strategy and Indicator authoring, backtests, watchlists, alerts, jobs, and paper-portfolio reads.
 
 ## Configuration
 

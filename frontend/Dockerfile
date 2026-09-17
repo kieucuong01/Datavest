@@ -1,4 +1,4 @@
-# QuantDinger Frontend — multi-arch image published to GHCR.
+# DataVest Frontend — multi-arch image published to GHCR.
 #
 # Stage 1 (builder) is pinned to --platform=$BUILDPLATFORM so the Vue build
 # runs once natively on the host (typically linux/amd64 on GitHub Actions),

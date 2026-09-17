@@ -13,7 +13,7 @@
 ## Global Constraints
 
 - Do not edit or merge `quant-insight-radar` or its abandoned `feature/quantdinger-indicator-ide` worktree.
-- Final branding is DataVest. Preserve frontend/backend licenses, modification notices, and visible `Powered by QuantDinger` attribution.
+- Final branding is DataVest. Preserve applicable component licenses and modification notices while using DataVest branding throughout the distribution.
 - Keep market data, catalog/search, watchlist, charts, Indicator IDE, alerts, backtest, strategy/factor research, analysis-only AI, paper portfolio, and free public libraries.
 - Remove live broker credentials/orders, trading worker, live strategy deployment, Agent trading scope, grid/copy trading, paid marketplace/credits, hidden code, and mobile app. Market-data adapters remain read-only.
 - Use a new PostgreSQL database and QuantDinger JWT ownership by `user_id`; do not port Better Auth, Prisma, organizations, users, or portfolios.
@@ -66,7 +66,7 @@
 
 ### Task 5: DataVest frontend foundation
 
-**Deliverable:** Rebrand navigation/login/About/footer as DataVest with `Powered by QuantDinger`; remove live trading/broker/grid/copy/billing/mobile routes, menus, stores, API clients, and components; keep research, IDE, backtest, factors, alerts, watchlist, paper portfolio, and free libraries.
+**Deliverable:** Rebrand navigation/login/About/footer as DataVest; remove live trading/broker/grid/copy/billing/mobile routes, menus, stores, API clients, and components; keep research, IDE, backtest, factors, alerts, watchlist, paper portfolio, and free libraries.
 
 **Verification:** Route/menu inventory tests pass, Vietnamese/English and light/dark build, no removed API path is emitted by the production bundle.
 

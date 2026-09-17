@@ -436,7 +436,7 @@ class FastAnalysisService(FastAnalysisScoringMixin):
 {crypto_factor_block}
 """
         
-        system_prompt = f"""You are QuantDinger's Senior Financial Analyst with 20+ years of experience. 
+        system_prompt = f"""You are DataVest's Senior Financial Analyst with 20+ years of experience.
 You are CONSERVATIVE and OBJECTIVE. Your analysis must be based on DATA, not speculation.
 
 {lang_instruction}

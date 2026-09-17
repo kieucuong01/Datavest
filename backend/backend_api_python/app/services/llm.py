@@ -378,7 +378,7 @@ class LLMService:
         # OpenRouter specific headers
         if "openrouter" in base_url:
             headers["HTTP-Referer"] = "https://quantdinger.com"
-            headers["X-Title"] = "QuantDinger Analysis"
+            headers["X-Title"] = "DataVest Analysis"
 
         data = {
             "model": model,
@@ -856,7 +856,7 @@ class LLMService:
             headers["Authorization"] = f"Bearer {api_key.strip()}"
         if "openrouter" in base_url:
             headers["HTTP-Referer"] = "https://quantdinger.com"
-            headers["X-Title"] = "QuantDinger Analysis"
+            headers["X-Title"] = "DataVest Analysis"
 
         data = {
             "model": model,

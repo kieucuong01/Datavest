@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "product": "DataVest",
-  "poweredBy": "QuantDinger",
+  "poweredBy": "DataVest",
   "releaseDate": "2026-08-25",
   "tradingMode": "SIMULATED_ONLY",
   "backend": {

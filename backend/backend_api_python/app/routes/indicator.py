@@ -736,10 +736,10 @@ def ai_generate():
             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
         )
 
-    # QuantDinger indicator IDE: chart render only; strategies are separate script assets.
+    # DataVest indicator IDE: chart render only; strategies are separate script assets.
     SYSTEM_PROMPT = """# Role
 
-You write production-ready **QuantDinger** chart indicator scripts: Python that runs in the Indicator IDE and renders overlays/markers on the K-line chart. Indicators are **not executable strategies**: they must not open, close, size, backtest, or live trade. If a user wants trading logic, keep this file as a visual indicator and let the Strategy API V2 workflow generate executable strategy code separately.
+You write production-ready **DataVest** chart indicator scripts: Python that runs in the Indicator IDE and renders overlays/markers on the K-line chart. Indicators are **not executable strategies**: they must not open, close, size, backtest, or live trade. If a user wants trading logic, keep this file as a visual indicator and let the Strategy API V2 workflow generate executable strategy code separately.
 
 # Runtime (strict)
 
@@ -953,7 +953,7 @@ Return **only** valid Python source: **no** markdown fences, **no** ` ``` `, **n
         user_prompt = prompt + context_text
         if existing:
             user_prompt = (
-                "# Existing QuantDinger indicator code (migrate it to the chart-only indicator contract):\n\n```python\n"
+                "# Existing DataVest indicator code (migrate it to the chart-only indicator contract):\n\n```python\n"
                 + existing.strip()
                 + "\n```\n\n# Change request:\n\n"
                 + prompt
@@ -1036,7 +1036,7 @@ Return **only** valid Python source: **no** markdown fences, **no** ` ``` `, **n
 
         issues_text = _format_validation_issues(validation)
         repair_prompt = (
-            "You produced QuantDinger indicator code that failed automatic validation. "
+            "You produced DataVest indicator code that failed automatic validation. "
             "Fix the code while preserving the user's visual indicator idea and parameters. "
             "Return one full replacement script only.\n\n"
             f"# Original user request\n{prompt}\n\n"

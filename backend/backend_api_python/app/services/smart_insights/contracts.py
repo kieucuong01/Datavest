@@ -1,7 +1,7 @@
 """Source-backed Smart Insights contracts ported from DataVest.
 
 The original DataVest worker contracts were adapted from organization UUIDs to
-QuantDinger's integer ``user_id`` ownership and a strict LIVE/DEMO boundary.
+DataVest's integer ``user_id`` ownership and a strict LIVE/DEMO boundary.
 """
 
 from __future__ import annotations
