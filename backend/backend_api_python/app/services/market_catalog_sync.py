@@ -11,7 +11,6 @@ from app.services.symbol_master_sync import (
     fetch_vn_stock_symbols,
     upsert_symbol_master,
 )
-from app.data_sources.vn_market_providers import VietnamMarketDataSettings
 from app.utils.db import get_db_connection
 from app.utils.logger import get_logger
 
@@ -83,6 +82,22 @@ def _run_sync(run_id: int) -> None:
     source_outcomes: list[bool] = []
 
     try:
+        hose_rows = fetch_vn_stock_symbols()
+        hose_written = upsert_symbol_master(
+            hose_rows, full_snapshot_markets={"VNStock"}
+        )
+        result["hose"] = {
+            "ok": True,
+            "rows": len(hose_rows),
+            "upserted": hose_written,
+        }
+        source_outcomes.append(True)
+    except Exception as exc:
+        logger.warning("HOSE catalog sync unavailable: %s", exc)
+        result["hose"] = {"ok": False, "rows": 0, "upserted": 0, "error": str(exc)}
+        source_outcomes.append(False)
+
+    try:
         rows, contexts = fetch_crypto_symbols_with_diagnostics()
         written = upsert_symbol_master(rows) if rows else 0
         succeeded = sum(1 for item in contexts if item.get("ok"))
@@ -109,22 +124,6 @@ def _run_sync(run_id: int) -> None:
             "contexts": [],
             "crypto_error": str(exc),
         })
-
-    try:
-        hose_rows = fetch_vn_stock_symbols()
-        hose_written = upsert_symbol_master(
-            hose_rows, full_snapshot_markets={"VNStock"}
-        )
-        result["hose"] = {
-            "ok": True,
-            "rows": len(hose_rows),
-            "upserted": hose_written,
-        }
-        source_outcomes.append(True)
-    except Exception as exc:
-        logger.warning("HOSE catalog sync unavailable: %s", exc)
-        result["hose"] = {"ok": False, "rows": 0, "upserted": 0, "error": str(exc)}
-        source_outcomes.append(False)
 
     succeeded_sources = sum(source_outcomes)
     status = (
@@ -182,17 +181,23 @@ def _market_catalog_is_initialized() -> bool:
                            WHERE market = 'Crypto' AND is_active = 1
                        ) AS active_crypto,
                        COUNT(*) FILTER (
-                           WHERE market = 'VNStock' AND exchange = 'HOSE' AND is_active = 1
-                       ) AS active_hose
+                           WHERE market = 'VNStock'
+                             AND exchange = 'HOSE'
+                             AND is_active = 1
+                             AND trading_status = 'ACTIVE'
+                             AND asset_class IN ('equity', 'etf')
+                             AND source = 'vndirect'
+                             AND source_updated_at IS NOT NULL
+                       ) AS ai_eligible_hose
                   FROM qd_market_symbols
                 """
             )
             row = dict(cur.fetchone() or {})
-            hose_required = VietnamMarketDataSettings.from_env().configured
+            minimum_hose_rows = max(1, int(os.getenv("HOSE_SNAPSHOT_MIN_ROWS", "100")))
             return (
                 bool(row.get("has_success"))
                 and int(row.get("active_crypto") or 0) > 0
-                and (not hose_required or int(row.get("active_hose") or 0) > 0)
+                and int(row.get("ai_eligible_hose") or 0) >= minimum_hose_rows
             )
         finally:
             cur.close()
