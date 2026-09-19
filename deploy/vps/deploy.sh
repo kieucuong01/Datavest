@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 umask 0027
+export PIP_NO_CACHE_DIR=1
 
 readonly root=/opt/datavest
 readonly releases="$root/releases"
@@ -42,6 +43,24 @@ release="$releases/$sha"
 staging="$releases/.staging-$sha"
 old_release=""
 [[ -L "$root/current" ]] && old_release="$(readlink -f "$root/current")"
+previous_release=""
+[[ -L "$root/previous" ]] && previous_release="$(readlink -f "$root/previous")"
+
+# A fresh virtualenv can exceed the remaining space when three older releases
+# are retained until the end of deployment. Preserve both rollback pointers and
+# the target release, but remove other immutable releases before installation.
+echo "deploy_storage_before=$(df -Pm "$releases" | awk 'NR==2 {print $4}')MiB"
+for candidate in "$releases"/*; do
+  [[ -d "$candidate" && ! -L "$candidate" ]] || continue
+  name="$(basename -- "$candidate")"
+  [[ "$name" =~ ^[0-9a-f]{40}$ ]] || continue
+  candidate="$(realpath -e -- "$candidate")"
+  [[ "$(dirname -- "$candidate")" == "$releases" ]] || continue
+  [[ "$candidate" == "$old_release" || "$candidate" == "$previous_release" ]] && continue
+  [[ "$candidate" == "$release" ]] && continue
+  rm -rf -- "$candidate"
+done
+echo "deploy_storage_after=$(df -Pm "$releases" | awk 'NR==2 {print $4}')MiB"
 if [[ ! -f "$release/.ready" ]]; then
 rm -rf -- "$release"
 rm -rf -- "$staging"

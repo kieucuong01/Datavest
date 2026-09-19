@@ -48,3 +48,15 @@ def test_vps_release_packages_and_starts_the_private_tradingagents_service():
     assert "ProtectSystem=strict" in unit
     assert "ReadWritePaths=/opt/datavest/shared/data/trading-agents" in unit
     assert "-Q jobs,ai,maintenance,trading-agents" in celery_unit
+
+
+def test_vps_prunes_only_unreferenced_releases_before_installing_new_venv():
+    deploy_script = (REPO_ROOT / "deploy" / "vps" / "deploy.sh").read_text(encoding="utf-8")
+
+    assert 'previous_release="$(readlink -f "$root/previous")"' in deploy_script
+    assert '[[ "$candidate" == "$old_release" || "$candidate" == "$previous_release" ]] && continue' in deploy_script
+    assert '[[ "$name" =~ ^[0-9a-f]{40}$ ]] || continue' in deploy_script
+    assert 'rm -rf -- "$candidate"' in deploy_script
+    assert deploy_script.index('echo "deploy_storage_before=') < deploy_script.index('rm -rf -- "$candidate"')
+    assert deploy_script.index('rm -rf -- "$candidate"') < deploy_script.index('python3 -m venv "$release/.venv"')
+    assert 'PIP_NO_CACHE_DIR=1' in deploy_script
