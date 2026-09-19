@@ -8,9 +8,11 @@ from hashlib import sha256
 import json
 import math
 from typing import Any, Iterable
+from zoneinfo import ZoneInfo
 
 
 PRICE_MODES = frozenset({"raw", "adjusted", "total_return"})
+VN_ZONE = ZoneInfo("Asia/Ho_Chi_Minh")
 
 
 def normalize_price_mode(value: Any) -> str:
@@ -78,7 +80,10 @@ def select_vietnam_daily_bars(
         return VietnamBarSelection((), (), "", 0.0, ())
 
     reference = next((bars for name, bars in results if name == "vndirect"), [])
-    reference_times = {int(row["time"]) for row in reference}
+    reference_days = {
+        datetime.fromtimestamp(int(row["time"]), tz=VN_ZONE).date()
+        for row in reference
+    }
     flags: list[str] = []
 
     if mode == "raw":
@@ -103,8 +108,11 @@ def select_vietnam_daily_bars(
         ]
         if len(usable) != len(source_rows):
             flags.append("invalid_or_zero_volume_removed")
-        if reference_times:
-            matched = [row for row in usable if int(row["time"]) in reference_times]
+        if reference_days:
+            matched = [
+                row for row in usable
+                if datetime.fromtimestamp(int(row["time"]), tz=VN_ZONE).date() in reference_days
+            ]
             if len(matched) != len(usable):
                 flags.append("outside_reference_calendar_removed")
             usable = matched
@@ -127,7 +135,7 @@ def select_vietnam_daily_bars(
         _canonical_row(by_time[int(row["time"])], provider=provider, price_mode=mode, selected=row)
         for row in selected
     )
-    denominator = len(reference_times) if reference_times else len(selected)
+    denominator = len(reference_days) if reference_days else len(selected)
     coverage = min(1.0, len(selected) / max(denominator, 1)) if selected else 0.0
     return VietnamBarSelection(
         tuple(selected), canonical, provider, coverage, tuple(dict.fromkeys(flags))

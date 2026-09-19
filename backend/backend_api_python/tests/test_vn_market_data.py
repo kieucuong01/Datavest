@@ -10,9 +10,37 @@ from app.data_sources.vn_market_providers import (
     YahooVietnamProvider,
 )
 from app.data_sources.vn_stock import VNStockDataSource
+from app.services.vietnam_market_history import select_vietnam_daily_bars
 
 
 VN_ZONE = ZoneInfo("Asia/Ho_Chi_Minh")
+
+
+def test_adjusted_daily_matches_provider_bars_by_vietnam_session_date():
+    reference_time = int(datetime(2026, 9, 15, 7, tzinfo=VN_ZONE).timestamp())
+    yahoo_time = int(datetime(2026, 9, 15, 9, tzinfo=VN_ZONE).timestamp())
+    next_day = int(datetime(2026, 9, 16, 9, tzinfo=VN_ZONE).timestamp())
+    reference = {
+        "time": reference_time, "open": 100_000, "high": 110_000,
+        "low": 90_000, "close": 100_000, "volume": 1_000,
+    }
+    adjusted = {
+        "time": yahoo_time, "open": 100_000, "high": 110_000,
+        "low": 90_000, "close": 100_000, "volume": 1_000,
+        "adjusted_close": 80_000, "adjustment_factor": 0.8,
+    }
+    unrelated = {**adjusted, "time": next_day}
+
+    selection = select_vietnam_daily_bars(
+        [("vndirect", [reference]), ("yahoo-vn", [adjusted, unrelated])],
+        "adjusted",
+    )
+
+    assert len(selection.bars) == 1
+    assert selection.bars[0]["time"] == yahoo_time
+    assert selection.bars[0]["close"] == 80_000
+    assert selection.coverage == 1.0
+    assert "outside_reference_calendar_removed" in selection.flags
 
 
 class DictCache:
