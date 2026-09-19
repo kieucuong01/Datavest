@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
+from collections import Counter
 from datetime import date, datetime, time, timedelta, timezone
 from typing import Any
 from zoneinfo import ZoneInfo
@@ -13,6 +16,81 @@ from app.services.vietnam_evidence import get_vietnam_evidence_service
 
 class TradingAgentsVietnamEvidenceUnavailable(RuntimeError):
     """Raised when a HOSE run cannot obtain safe point-in-time evidence."""
+
+
+_MAX_AGENT_EVIDENCE_BYTES = 480 * 1024
+_OBSERVATIONS_PER_SERIES = 8
+
+
+def _canonical_json(value: dict[str, Any]) -> str:
+    return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"), default=str)
+
+
+def _observation_series(row: dict[str, Any]) -> tuple[str, str, str, str]:
+    return (
+        str(row.get("itemCode") or row.get("metric") or ""),
+        str(row.get("frequency") or ""),
+        str(row.get("reportScope") or ""),
+        str(row.get("modelType") or ""),
+    )
+
+
+def _observation_order(row: dict[str, Any]) -> tuple[str, str, str, str]:
+    return (
+        str(row.get("availableAt") or ""),
+        str(row.get("periodEnd") or ""),
+        str(row.get("itemCode") or ""),
+        str(row.get("metric") or ""),
+    )
+
+
+def _compact_agent_evidence(evidence: dict[str, Any]) -> dict[str, Any]:
+    """Bound only the private run snapshot; full history remains with its provider."""
+    if len(_canonical_json(evidence).encode("utf-8")) <= _MAX_AGENT_EVIDENCE_BYTES:
+        return evidence
+
+    fundamentals = evidence.get("fundamentals") or {}
+    observations = fundamentals.get("observations") or []
+    if not isinstance(fundamentals, dict) or not isinstance(observations, list):
+        raise TradingAgentsVietnamEvidenceUnavailable("invalid Vietnam fundamental observations")
+
+    series: dict[tuple[str, str, str, str], list[dict[str, Any]]] = {}
+    for row in observations:
+        if isinstance(row, dict):
+            series.setdefault(_observation_series(row), []).append(row)
+    selected = sorted(
+        (
+            row
+            for rows in series.values()
+            for row in sorted(rows, key=_observation_order)[-_OBSERVATIONS_PER_SERIES:]
+        ),
+        key=_observation_order,
+    )
+    compact = dict(evidence)
+    compact["fundamentals"] = {**fundamentals, "observations": selected}
+    compact["dataGaps"] = [
+        *(evidence.get("dataGaps") or []),
+        {"field": "fundamentalStatements", "reason": "AGENT_SNAPSHOT_COMPACTED"},
+    ]
+
+    def seal() -> int:
+        unsigned = dict(compact)
+        unsigned.pop("checksum", None)
+        compact["checksum"] = hashlib.sha256(_canonical_json(unsigned).encode("utf-8")).hexdigest()
+        return len(_canonical_json(compact).encode("utf-8"))
+
+    byte_size = seal()
+    while byte_size > _MAX_AGENT_EVIDENCE_BYTES and selected:
+        counts = Counter(_observation_series(row) for row in selected)
+        drop_index = next(
+            (index for index, row in enumerate(selected) if counts[_observation_series(row)] > 1),
+            0,
+        )
+        selected.pop(drop_index)
+        byte_size = seal()
+    if byte_size > _MAX_AGENT_EVIDENCE_BYTES:
+        raise TradingAgentsVietnamEvidenceUnavailable("Vietnam agent evidence exceeds size limit")
+    return compact
 
 
 def _analysis_cutoff(value: str) -> datetime:
@@ -90,12 +168,13 @@ def build_trading_agents_vietnam_evidence(symbol: str, analysis_date: str) -> di
     }
     technical = calculate_indicators(rows)
     try:
-        return get_vietnam_evidence_service().build(
+        evidence = get_vietnam_evidence_service().build(
             symbol=canonical,
             price=price,
             technical=technical,
             as_of=cutoff,
         )
+        return _compact_agent_evidence(evidence)
     except Exception as exc:
         raise TradingAgentsVietnamEvidenceUnavailable("Vietnam evidence unavailable") from exc
 
