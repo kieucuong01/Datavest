@@ -34,6 +34,8 @@ backend/.github/
 /logs/
 /.pytest_cache/
 **/__pycache__/
+/.worktrees/
+/.superpowers/sdd/
 
 # Editor and operating-system files.
 .DS_Store
