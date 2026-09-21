@@ -328,7 +328,7 @@ class TradingAgentsRepository:
             try:
                 cur.execute(
                     """
-                    SELECT run_id, user_id, status, request_json, config_json, config_checksum, source_pin,
+                    SELECT run_id, user_id, status, request_json, config_json, config_checksum, source_pin, evidence_json,
                            evidence_json->>'version' AS evidence_version,
                            evidence_checksum, evidence_as_of,
                            evidence_json->'sources' AS evidence_sources,
@@ -407,7 +407,7 @@ class TradingAgentsRepository:
             try:
                 cur.execute(
                     """
-                    SELECT run_id, user_id, status, request_json, config_checksum, source_pin,
+                    SELECT run_id, user_id, status, request_json, config_checksum, source_pin, evidence_json,
                            evidence_json->>'version' AS evidence_version,
                            evidence_checksum, evidence_as_of,
                            evidence_json->'sources' AS evidence_sources,
@@ -447,7 +447,7 @@ class TradingAgentsRepository:
             try:
                 cur.execute(
                     """
-                    SELECT run_id, user_id, status, request_json, config_checksum, source_pin,
+                    SELECT run_id, user_id, status, request_json, config_checksum, source_pin, evidence_json,
                            evidence_json->>'version' AS evidence_version,
                            evidence_checksum, evidence_as_of,
                            evidence_json->'sources' AS evidence_sources,
@@ -493,7 +493,7 @@ class TradingAgentsRepository:
             try:
                 cur.execute(
                     """
-                    SELECT run_id, user_id, status, request_json, config_checksum, source_pin,
+                    SELECT run_id, user_id, status, request_json, config_checksum, source_pin, evidence_json,
                            evidence_json->>'version' AS evidence_version,
                            evidence_checksum, evidence_as_of,
                            evidence_json->'sources' AS evidence_sources,
@@ -535,7 +535,7 @@ class TradingAgentsRepository:
             try:
                 cur.execute(
                     """
-                    SELECT run_id, user_id, status, request_json, config_checksum, source_pin,
+                    SELECT run_id, user_id, status, request_json, config_checksum, source_pin, evidence_json,
                            evidence_json->>'version' AS evidence_version,
                            evidence_checksum, evidence_as_of,
                            evidence_json->'sources' AS evidence_sources,

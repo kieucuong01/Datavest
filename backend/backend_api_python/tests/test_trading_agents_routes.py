@@ -143,6 +143,34 @@ def test_run_history_is_filtered_to_the_current_owner_asset_and_day(monkeypatch)
     assert public_run["progress"]["percent"] < 100
 
 
+def test_hose_run_projects_stored_evidence_provenance_without_private_urls(monkeypatch):
+    client, route_module = _client(monkeypatch)
+
+    class Repository:
+        def list_owned_runs(self, **kwargs):
+            return [{
+                "run_id": "hose-run", "status": "succeeded",
+                "request_json": {"market": "VNStock", "symbol": "FPT", "analysis_date": "2026-09-21"},
+                "evidence_version": "vietnam-evidence-v1", "evidence_checksum": "b" * 64,
+                "evidence_as_of": "2026-09-21T16:59:59+00:00", "evidence_gap_count": 2,
+                "evidence_sources": [{"provider": "vndirect", "url": "https://private.example"}],
+                "evidence_json": {"instrument": {"exchange": "HOSE"}, "price": {
+                    "price": 120000, "source": "vndirect", "timeframe": "1D", "time": "2026-09-20T08:00:00Z"
+                }, "technical": {}, "fundamentals": {}, "dataGaps": [{"field": "fundamentals", "reason": "NO_STATEMENTS"}],
+                "sources": [{"provider": "vndirect", "url": "https://private.example"}]}
+            }]
+
+    monkeypatch.setattr(route_module, "get_repository", lambda: Repository())
+    response = client.get("/api/trading-agents/runs?market=VNStock&symbol=FPT&analysisDate=2026-09-21&limit=1")
+    public_run = response.get_json()["data"]["runs"][0]
+
+    assert public_run["evidence"]["exchange"] == "HOSE"
+    assert public_run["evidence"]["currency"] == "VND"
+    assert public_run["evidence"]["price"]["latencyClass"] == "eod"
+    assert public_run["evidence"]["coverage"]["fundamentals"]["status"] == "missing"
+    assert "private.example" not in response.get_data(as_text=True)
+
+
 def test_report_history_lists_completed_reports_and_the_current_daily_run(monkeypatch):
     client, route_module = _client(monkeypatch)
     calls = []

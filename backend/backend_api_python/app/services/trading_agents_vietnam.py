@@ -163,7 +163,8 @@ def build_trading_agents_vietnam_evidence(symbol: str, analysis_date: str) -> di
         "low": float(latest.get("low") or latest["close"]),
         "volume": float(latest.get("volume") or 0.0),
         "time": latest.get("time", latest.get("timestamp")),
-        "source": str(latest.get("source") or "vndirect+yahoo"),
+        "timeframe": "1D",
+        "source": str(latest.get("source") or "unknown"),
         "priceMode": "adjusted",
     }
     technical = calculate_indicators(rows)

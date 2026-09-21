@@ -69,8 +69,9 @@ def test_builder_uses_adjusted_bars_and_excludes_rows_after_analysis_date(monkey
         "high": 140.0,
         "low": 137.0,
         "volume": 100_039.0,
-        "time": _daily_bars()[39]["time"],
-        "source": "vndirect+yahoo",
+            "time": _daily_bars()[39]["time"],
+            "timeframe": "1D",
+            "source": "vndirect+yahoo",
         "priceMode": "adjusted",
     }
     assert evidence["technical"]["current_price"] == 139.0

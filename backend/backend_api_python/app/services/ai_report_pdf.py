@@ -1272,6 +1272,7 @@ def build_trading_agents_report_pdf(
     analysis_date: str,
     language: str,
     run_id: str,
+    evidence: dict | None = None,
     _summary_variant: bool = False,
 ) -> bytes:
     """Render the immutable native TradingAgents Markdown artifact as a PDF."""
@@ -1735,6 +1736,38 @@ def build_trading_agents_report_pdf(
         ("VALIGN", (0, 0), (-1, -1), "TOP"),
     ]))
     story.append(metadata)
+    if isinstance(evidence, dict) and str(market or "") == "VNStock":
+        evidence_price = evidence.get("price") if isinstance(evidence.get("price"), dict) else {}
+        coverage = evidence.get("coverage") if isinstance(evidence.get("coverage"), dict) else {}
+        coverage_text = "; ".join(
+            f"{key}: {value.get('status')}" + (f" ({value.get('reason')})" if value.get("reason") else "")
+            for key, value in coverage.items() if isinstance(value, dict)
+        ) or ("Chưa có dữ liệu" if is_vietnamese else "No coverage data")
+        source_text = ", ".join(str(item) for item in (evidence.get("sources") or [])) or str(evidence_price.get("source") or "unknown")
+        provenance_label = "Nguồn và tình trạng dữ liệu HOSE" if is_vietnamese else "HOSE data provenance and coverage"
+        provenance_rows = [
+            ("Sàn / tiền tệ" if is_vietnamese else "Exchange / currency", f"{evidence.get('exchange') or 'HOSE'} / {evidence.get('currency') or 'VND'}"),
+            ("Nguồn giá" if is_vietnamese else "Price source", source_text),
+            ("Quan sát / cập nhật" if is_vietnamese else "Observed / fetched", f"{evidence_price.get('observedAt') or 'unknown'} / {evidence_price.get('fetchedAt') or 'unknown'}"),
+            ("Độ trễ" if is_vietnamese else "Latency", str(evidence_price.get("latencyClass") or "unknown")),
+            ("Bao phủ dữ liệu" if is_vietnamese else "Coverage", coverage_text),
+        ]
+        provenance_table = Table(
+            [[Paragraph(escaped(provenance_label), detail_heading)], *[
+                [Paragraph(escaped(label), small), paragraph(value)] for label, value in provenance_rows
+            ]],
+            colWidths=[doc.width * 0.27, doc.width * 0.73], hAlign="LEFT",
+        )
+        provenance_table.setStyle(TableStyle([
+            ("SPAN", (0, 0), (-1, 0)), ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#e8f3f8")),
+            ("BACKGROUND", (0, 1), (-1, -1), colors.HexColor("#f8fbfd")),
+            ("BOX", (0, 0), (-1, -1), 0.5, colors.HexColor("#cbdce7")),
+            ("INNERGRID", (0, 1), (-1, -1), 0.35, colors.HexColor("#dce8ef")),
+            ("LEFTPADDING", (0, 0), (-1, -1), 8), ("RIGHTPADDING", (0, 0), (-1, -1), 8),
+            ("TOPPADDING", (0, 0), (-1, -1), 5), ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+            ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ]))
+        story.extend([Spacer(1, 3 * mm), provenance_table, Spacer(1, 3 * mm)])
     report_blocks = structure_trading_agents_report(content)
     # The upstream preamble timestamp belongs with metadata, not on an
     # otherwise empty page immediately before section I. Its timezone is not
@@ -1971,6 +2004,7 @@ def build_trading_agents_summary_pdf(
     analysis_date: str,
     language: str,
     run_id: str,
+    evidence: dict | None = None,
 ) -> bytes:
     """Render a 7–10 page native-section digest plus the existing final decision summary."""
     return build_trading_agents_report_pdf(
@@ -1980,6 +2014,7 @@ def build_trading_agents_summary_pdf(
         analysis_date=analysis_date,
         language=language,
         run_id=run_id,
+        evidence=evidence,
         _summary_variant=True,
     )
 

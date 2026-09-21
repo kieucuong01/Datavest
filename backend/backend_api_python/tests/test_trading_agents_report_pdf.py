@@ -12,6 +12,23 @@ from app.services.ai_report_pdf import (
 )
 
 
+def test_hose_report_pdf_includes_deterministic_provenance_and_gaps() -> None:
+    evidence = {
+        "exchange": "HOSE", "currency": "VND",
+        "price": {"source": "yahoo", "observedAt": "2026-09-18T08:00:00Z", "fetchedAt": "2026-09-21T00:00:00Z", "latencyClass": "eod"},
+        "coverage": {"fundamentals": {"status": "missing", "reason": "NO_STATEMENTS"}, "news": {"status": "unavailable", "reason": "NOT_CAPTURED"}},
+        "dataGaps": [{"field": "fundamentals", "reason": "NO_STATEMENTS"}, {"field": "news", "reason": "NOT_CAPTURED"}],
+        "sources": ["yahoo"],
+    }
+    pdf = build_trading_agents_report_pdf(
+        content="# Trading Analysis Report: FPT\n## V. Portfolio Manager Decision\nHold.",
+        market="VNStock", symbol="FPT", analysis_date="2026-09-21", language="vi-VN", run_id="hose-1", evidence=evidence,
+    )
+    extracted = " ".join((page.extract_text() or "") for page in PdfReader(BytesIO(pdf)).pages)
+    assert "HOSE" in extracted and "VND" in extracted and "yahoo" in extracted
+    assert "NO_STATEMENTS" in extracted and "NOT_CAPTURED" in extracted
+
+
 def test_summary_pdf_starts_with_portfolio_decision_and_keeps_requested_native_sections() -> None:
     content = (
         "# Trading Analysis Report: BTC-USD\n"

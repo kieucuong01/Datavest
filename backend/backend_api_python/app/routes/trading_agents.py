@@ -23,6 +23,7 @@ from app.tasks.trading_agents import (
 )
 from app.services.trading_agents_progress import build_public_progress, public_event
 from app.services.ai_report_pdf import build_trading_agents_report_pdf, build_trading_agents_summary_pdf
+from app.services.vietnam_provenance import build_hose_provenance
 from app.services.pdf_delivery import trading_agents_pdf_response
 from app.data.market_symbols_seed import validate_hose_ai_target
 from app.utils.auth import login_required
@@ -221,13 +222,34 @@ def _public_evidence_provenance(record: Mapping[str, Any]) -> dict[str, Any] | N
     evidence_as_of = record.get("evidence_as_of")
     if isinstance(evidence_as_of, (datetime, date)):
         evidence_as_of = evidence_as_of.isoformat()
-    return {
+    public = {
         "version": version[:80],
         "checksum": checksum[:64],
         "asOf": str(evidence_as_of or "")[:40],
         "providers": providers,
         "gapCount": gap_count,
     }
+    stored = record.get("evidence_json")
+    if isinstance(stored, str):
+        try:
+            stored = json.loads(stored)
+        except (TypeError, ValueError):
+            stored = None
+    request_json = record.get("request_json") or {}
+    if isinstance(request_json, str):
+        try:
+            request_json = json.loads(request_json)
+        except (TypeError, ValueError):
+            request_json = {}
+    if isinstance(stored, Mapping) and str(request_json.get("market") or "") == "VNStock":
+        projected = build_hose_provenance(stored)
+        projected["sources"] = list(dict.fromkeys(
+            str(item.get("provider") or "") for item in (projected.get("sources") or [])
+            if isinstance(item, Mapping) and item.get("provider")
+        ))
+        projected.update({"version": public["version"], "checksum": public["checksum"], "asOf": public["asOf"], "providers": public["providers"], "gapCount": public["gapCount"]})
+        return projected
+    return public
 
 
 @trading_agents_blp.route("/runs", methods=["GET"])
@@ -474,7 +496,7 @@ def get_report_pdf(run_id: str):
             request_json = json.loads(request_json)
         language = _normalize_language(request_json.get("language"))
         report_text = content.decode("utf-8", errors="replace")
-        pdf_bytes = build_trading_agents_report_pdf(
+        pdf_kwargs = dict(
             content=report_text,
             market=str(request_json.get("market") or ""),
             symbol=str(request_json.get("symbol") or ""),
@@ -482,6 +504,9 @@ def get_report_pdf(run_id: str):
             language=language,
             run_id=run_id,
         )
+        if str(request_json.get("market") or "") == "VNStock" and record.get("evidence_json"):
+            pdf_kwargs["evidence"] = build_hose_provenance(record.get("evidence_json") or {})
+        pdf_bytes = build_trading_agents_report_pdf(**pdf_kwargs)
     except ImportError:
         return _fail("trading_agents_pdf_dependency_missing", 500)
     except Exception:
@@ -525,7 +550,7 @@ def get_summary_pdf(run_id: str):
         if isinstance(request_json, str):
             request_json = json.loads(request_json)
         language = _normalize_language(request_json.get("language"))
-        pdf_bytes = build_trading_agents_summary_pdf(
+        pdf_kwargs = dict(
             content=content.decode("utf-8", errors="replace"),
             market=str(request_json.get("market") or ""),
             symbol=str(request_json.get("symbol") or ""),
@@ -533,6 +558,9 @@ def get_summary_pdf(run_id: str):
             language=language,
             run_id=run_id,
         )
+        if str(request_json.get("market") or "") == "VNStock" and record.get("evidence_json"):
+            pdf_kwargs["evidence"] = build_hose_provenance(record.get("evidence_json") or {})
+        pdf_bytes = build_trading_agents_summary_pdf(**pdf_kwargs)
     except ImportError:
         return _fail("trading_agents_pdf_dependency_missing", 500)
     except Exception:

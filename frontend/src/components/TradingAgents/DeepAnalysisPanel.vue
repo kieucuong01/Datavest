@@ -203,6 +203,23 @@
             <div><span>{{ $t('tradingAgents.reportSource') }}</span><strong>{{ $t('tradingAgents.nativeGraph') }}</strong></div>
             <div><span>{{ $t('tradingAgents.reportRunId') }}</span><strong>{{ run.run_id }}</strong></div>
           </div>
+          <section v-if="isVietnamRun && runEvidence" class="deep-analysis-evidence" aria-label="HOSE data provenance">
+            <div class="deep-analysis-evidence-heading">
+              <span class="report-eyebrow"><a-icon type="database" /> HOSE data provenance</span>
+              <span>VND · {{ runEvidence.exchange || 'HOSE' }}</span>
+            </div>
+            <div class="deep-analysis-evidence-grid">
+              <div><span>Source</span><strong>{{ runEvidence.price && runEvidence.price.source || 'unknown' }}</strong></div>
+              <div><span>Observed</span><strong>{{ runEvidence.price && runEvidence.price.observedAt || 'Chưa có' }}</strong></div>
+              <div><span>Fetched</span><strong>{{ runEvidence.price && runEvidence.price.fetchedAt || 'Chưa có' }}</strong></div>
+              <div><span>Latency</span><strong>{{ provenanceLatencyLabel(runEvidence.price && runEvidence.price.latencyClass) }}</strong></div>
+            </div>
+            <div v-if="provenanceCoverageRows.length" class="deep-analysis-evidence-coverage">
+              <span v-for="item in provenanceCoverageRows" :key="item.field" :class="`coverage-chip coverage-chip--${item.status}`">
+                {{ item.field }}: {{ provenanceStatusLabel(item.status) }}
+              </span>
+            </div>
+          </section>
           <report-pdf-reader :run-id="run.run_id" :variant="reportView" :active="visible" />
         </section>
         <div v-else-if="run.status === 'succeeded'" class="deep-analysis-report-loading">
@@ -440,6 +457,20 @@ export default {
       const value = (this.run && (this.run.finished_at || this.run.created_at)) || this.analysisDate
       return value ? this.formatDateTime(value) : this.$t('tradingAgents.unavailable')
     },
+    isVietnamRun () {
+      return Boolean(this.run && this.normalizedTarget.market === 'VNStock')
+    },
+    runEvidence () {
+      return this.run && this.run.evidence && typeof this.run.evidence === 'object' ? this.run.evidence : null
+    },
+    provenanceCoverageRows () {
+      const coverage = this.runEvidence && this.runEvidence.coverage
+      if (!coverage || typeof coverage !== 'object') return []
+      return Object.entries(coverage).map(([field, state]) => ({
+        field,
+        status: String(state && state.status || 'missing').toLowerCase()
+      }))
+    },
     title () { return `${this.$t('tradingAgents.title')} · ${this.targetLabel}` }
   },
   watch: {
@@ -498,6 +529,14 @@ export default {
       if (text.includes('decision') || text.includes('quyết định')) return 'check-circle'
       if (text.includes('analyst') || text.includes('phân tích')) return 'bar-chart'
       return 'file-text'
+    },
+    provenanceLatencyLabel (value) {
+      const labels = { real_time: 'Real-time', delayed: 'Delayed', eod: 'EOD', unknown: 'Chưa xác định' }
+      return labels[String(value || '').toLowerCase()] || labels.unknown
+    },
+    provenanceStatusLabel (value) {
+      const labels = { available: 'Có', unavailable: 'Không khả dụng', missing: 'Thiếu', not_requested: 'Chưa yêu cầu' }
+      return labels[String(value || '').toLowerCase()] || 'Chưa xác định'
     },
     isReportSectionOpen (index) {
       return Boolean(this.openReportSections[index])
@@ -873,6 +912,22 @@ export default {
 </style>
 
 <style lang="less">
+.deep-analysis-evidence { margin: 10px 14px 0; padding: 12px 14px; border: 1px solid var(--line, #dbe4ef); border-radius: 10px; background: var(--soft-blue, #f5f9ff); }
+.deep-analysis-evidence-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; color: var(--muted, #61738b); font-size: 11px; }
+.deep-analysis-evidence-heading .report-eyebrow { margin: 0 !important; }
+.deep-analysis-evidence-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin-top: 10px; }
+.deep-analysis-evidence-grid > div { display: grid; gap: 3px; min-width: 0; }
+.deep-analysis-evidence-grid span { color: var(--muted, #61738b); font-size: 10px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; }
+.deep-analysis-evidence-grid strong { overflow: hidden; color: var(--ink, #1f2d3d); font-size: 12px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.deep-analysis-evidence-coverage { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.coverage-chip { padding: 3px 7px; border: 1px solid var(--line, #dbe4ef); border-radius: 999px; color: var(--muted, #61738b); background: var(--card, #fff); font-size: 10px; }
+.coverage-chip--available { border-color: #b7ebc6; color: #18794e; background: #f0fdf4; }
+.coverage-chip--unavailable, .coverage-chip--missing { border-color: #fecaca; color: #b42318; background: #fff5f5; }
+.coverage-chip--not_requested { border-color: #cbd5e1; color: #64748b; }
+.trading-agents-modal .theme-dark .deep-analysis-evidence { border-color: #334155; background: #152334; }
+.trading-agents-modal .theme-dark .deep-analysis-evidence-grid strong { color: #e6edf6; }
+@media (max-width: 640px) { .deep-analysis-evidence { margin-right: 0; margin-left: 0; }.deep-analysis-evidence-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
 .trading-agents-modal--dark {
   --ink: #e6edf6;
   --muted: #a4b5cc;
