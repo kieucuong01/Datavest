@@ -93,3 +93,25 @@ test('report library loads completed history without automatically creating a da
   assert.equal(instance.historyReports[0].run_id, 'old-report')
   assert.equal(instance.todayRun, null)
 })
+
+test('failed runs expose only the recovery actions approved by the API policy', () => {
+  const { instance, definition } = panel()
+  instance.run = {
+    run_id: 'run-1',
+    status: 'failed',
+    failure_code: 'runner_failed',
+    recovery: { retryable: true, checkpointable: true }
+  }
+  assert.equal(definition.computed.isResumable.call(instance), true)
+  assert.equal(definition.computed.isCheckpointable.call(instance), true)
+  assert.equal(definition.computed.recoveryDescription.call(instance), 'tradingAgents.runnerFailed')
+
+  instance.run = {
+    ...instance.run,
+    failure_code: 'service_rejected',
+    recovery: { retryable: false, checkpointable: false }
+  }
+  assert.equal(definition.computed.isResumable.call(instance), false)
+  assert.equal(definition.computed.isCheckpointable.call(instance), false)
+  assert.equal(definition.computed.recoveryDescription.call(instance), 'tradingAgents.serviceRejected')
+})

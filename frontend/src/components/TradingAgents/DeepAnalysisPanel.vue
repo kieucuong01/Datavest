@@ -164,12 +164,11 @@
           </div>
         </div>
 
-        <div v-else-if="isResumable" class="deep-analysis-recovery">
-          <a-alert type="warning" show-icon :message="$t('tradingAgents.interruptedTitle')" :description="$t(run.failure_code === 'provider_timeout' ? 'tradingAgents.providerTimeout' : 'tradingAgents.interruptedDescription')" />
+        <div v-else-if="isRecoverable" class="deep-analysis-recovery">
+          <a-alert type="warning" show-icon :message="$t('tradingAgents.interruptedTitle')" :description="recoveryDescription" />
           <div class="recovery-actions">
-            <a-button type="primary" :loading="resuming" @click="resume"><a-icon type="reload" /> {{ $t('tradingAgents.resume') }}</a-button>
-            <a-button :loading="clearing" @click="clearCheckpoint"><a-icon type="clear" /> {{ $t('tradingAgents.clearCheckpoint') }}</a-button>
-            <a-button @click="startFresh"><a-icon type="plus" /> {{ $t('tradingAgents.startFresh') }}</a-button>
+            <a-button v-if="isResumable" type="primary" :loading="resuming" @click="resume"><a-icon type="reload" /> {{ $t('tradingAgents.resume') }}</a-button>
+            <a-button v-if="isCheckpointable" :loading="clearing" @click="clearCheckpoint"><a-icon type="clear" /> {{ $t('tradingAgents.clearCheckpoint') }}</a-button>
           </div>
         </div>
 
@@ -343,7 +342,24 @@ export default {
     targetLabel () { return this.normalizedTarget.symbol || this.$t('tradingAgents.noSymbol') },
     marketLabel () { return this.normalizedTarget.market || this.$t('tradingAgents.unavailable') },
     isRunning () { return this.run && ['queued', 'running'].includes(String(this.run.status || '').toLowerCase()) },
-    isResumable () { return this.run && ['failed', 'cancelled'].includes(String(this.run.status || '').toLowerCase()) },
+    isRecoverable () { return this.run && ['failed', 'cancelled'].includes(String(this.run.status || '').toLowerCase()) },
+    isResumable () {
+      return this.run && ['failed', 'cancelled'].includes(String(this.run.status || '').toLowerCase()) && Boolean(this.run.recovery && this.run.recovery.retryable)
+    },
+    isCheckpointable () {
+      return this.run && ['failed', 'cancelled'].includes(String(this.run.status || '').toLowerCase()) && Boolean(this.run.recovery && this.run.recovery.retryable && this.run.recovery.checkpointable)
+    },
+    recoveryDescription () {
+      const code = String(this.run && this.run.failure_code || '').toLowerCase()
+      const key = {
+        provider_timeout: 'tradingAgents.providerTimeout',
+        evidence_unavailable: 'tradingAgents.evidenceUnavailable',
+        runner_failed: 'tradingAgents.runnerFailed',
+        service_unavailable: 'tradingAgents.serviceUnavailable',
+        service_rejected: 'tradingAgents.serviceRejected'
+      }[code] || 'tradingAgents.interruptedDescription'
+      return this.$t(key)
+    },
     statusLabel () {
       const status = String((this.run && this.run.status) || 'queued').toLowerCase()
       return this.$t(`tradingAgents.status.${status}`)

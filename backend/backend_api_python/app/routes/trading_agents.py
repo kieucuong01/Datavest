@@ -40,6 +40,7 @@ _SUPPORTED_LANGUAGES = frozenset({"vi-VN", "en-US"})
 _RUN_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$")
 _SENSITIVE_CONFIG_PARTS = ("api_key", "apikey", "authorization", "cookie", "password", "secret", "token")
 _TERMINAL_STATUSES = frozenset({"succeeded", "failed", "cancelled"})
+_NON_RESUMABLE_FAILURE_CODES = frozenset({"service_rejected"})
 
 
 def get_repository():
@@ -180,6 +181,7 @@ def _public_run(record: Mapping[str, Any]) -> dict[str, Any]:
         "finished_at": record.get("finished_at"),
         "failure_code": record.get("failure_code"),
         "failure_message": record.get("failure_message"),
+        "recovery": _public_recovery_policy(record),
         "artifacts": artifacts,
         "proposal": record.get("proposal"),
         "events": events,
@@ -189,6 +191,23 @@ def _public_run(record: Mapping[str, Any]) -> dict[str, Any]:
             events=record.get("events") or [],
             artifacts=artifacts,
         ),
+    }
+
+
+def _public_recovery_policy(record: Mapping[str, Any]) -> dict[str, Any]:
+    """Expose a deliberately small recovery contract; never expose runner internals."""
+
+    status = str(record.get("status") or "").strip().lower()
+    code = str(record.get("failure_code") or "").strip().lower()
+    retryable = status == "cancelled" or (status == "failed" and code not in _NON_RESUMABLE_FAILURE_CODES)
+    return {
+        "retryable": retryable,
+        "action": "resume" if retryable else None,
+        "checkpointable": retryable and code not in {
+            "evidence_unavailable",
+            "service_unavailable",
+            "queue_unavailable",
+        },
     }
 
 

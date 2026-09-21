@@ -168,6 +168,29 @@ def test_hose_run_projects_stored_evidence_provenance_without_private_urls(monke
     assert public_run["evidence"]["currency"] == "VND"
     assert public_run["evidence"]["price"]["latencyClass"] == "eod"
     assert public_run["evidence"]["coverage"]["fundamentals"]["status"] == "missing"
+
+
+def test_failed_hose_run_projects_bounded_recovery_policy(monkeypatch):
+    client, route_module = _client(monkeypatch)
+
+    class Repository:
+        def get_owned_run(self, **_kwargs):
+            return {
+                "run_id": "hose-failed", "status": "failed",
+                "request_json": {"market": "VNStock", "symbol": "FPT", "analysis_date": "2026-09-21"},
+                "failure_code": "runner_failed",
+                "failure_message": None,
+            }
+
+    monkeypatch.setattr(route_module, "get_repository", lambda: Repository())
+    response = client.get("/api/trading-agents/runs/hose-failed")
+
+    assert response.status_code == 200
+    assert response.get_json()["data"]["recovery"] == {
+        "retryable": True,
+        "action": "resume",
+        "checkpointable": True,
+    }
     assert "private.example" not in response.get_data(as_text=True)
 
 
