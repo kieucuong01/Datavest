@@ -118,6 +118,25 @@ def test_us_vn_ticker_collision_requires_market_choice(monkeypatch):
     assert research["entities"]["primary"] == {}
 
 
+def test_hose_provenance_action_is_safe_projection_for_chat_history():
+    action = ai_chat._hose_provenance_action({"research_context": {
+        "vietnamEvidence": {
+            "instrument": {"market": "VNStock", "symbol": "FPT", "exchange": "HOSE"},
+            "provenance": {"exchange": "HOSE", "currency": "VND",
+                           "price": {"source": "yahoo", "observedAt": "2026-09-18T08:00:00Z", "latencyClass": "eod"},
+                           "coverage": {"fundamentals": {"status": "missing", "reason": "NO_STATEMENTS"}},
+                           "dataGaps": [{"field": "fundamentals", "reason": "NO_STATEMENTS"}],
+                           "sources": [{"provider": "yahoo", "url": "https://private.example"}]},
+            "fundamentals": {"observations": [{"value": 123}]},
+        }
+    }})
+    assert action["type"] == "hose_provenance"
+    assert action["payload"]["price"]["source"] == "yahoo"
+    assert action["payload"]["sources"] == ["yahoo"]
+    assert "observations" not in str(action)
+    assert "private.example" not in str(action)
+
+
 @pytest.mark.parametrize(
     ("locale", "message"),
     [

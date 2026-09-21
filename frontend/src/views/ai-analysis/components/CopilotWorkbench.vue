@@ -149,6 +149,14 @@
             <strong>{{ currentContextLabel }}</strong>
           </div>
           <div class="symbol-picker hero-symbol-picker">
+            <button
+              type="button"
+              class="hose-filter-toggle"
+              :class="{ active: hoseOnly }"
+              @click="toggleHoseFilter"
+            >
+              HOSE
+            </button>
             <a-select
               ref="contextSymbolSelect"
               v-model="selectedSymbolValue"
@@ -573,6 +581,7 @@ export default {
       markets: [],
       context: { market: '', symbol: '' },
       selectedSymbolValue: '',
+      hoseOnly: false,
       watchAddValue: undefined,
       symbolOptions: [],
       symbolSearching: false,
@@ -1403,16 +1412,32 @@ export default {
       try {
         const params = { keyword: kw, limit: 14 }
         if (this.context.market) params.market = this.context.market
+        if (this.hoseOnly || params.market === 'VNStock') {
+          params.market = 'VNStock'
+          params.exchange = 'HOSE'
+        }
         const res = await searchSymbols(params)
         const data = res.data || {}
         const list = Array.isArray(data) ? data : (data.results || data.symbols || data.items || [])
         this.symbolOptions = list.map(x => this.normalizeSymbolOption(x)).filter(Boolean)
       } catch (_) {
         const inferred = this.inferSymbolFromText(kw)
-        this.symbolOptions = [{ market: (inferred && inferred.market) || this.context.market || firstMarketValue(this.markets), symbol: kw.toUpperCase() }]
+        this.symbolOptions = this.hoseOnly || this.context.market === 'VNStock'
+          ? []
+          : [{ market: (inferred && inferred.market) || this.context.market || firstMarketValue(this.markets), symbol: kw.toUpperCase() }]
       } finally {
         this.symbolSearching = false
       }
+    },
+    toggleHoseFilter () {
+      this.hoseOnly = !this.hoseOnly
+      if (this.hoseOnly) {
+        this.context.market = 'VNStock'
+        this.context.symbol = ''
+        this.selectedSymbolValue = ''
+      }
+      this.symbolOptions = []
+      this.seedSymbolOptions()
     },
     handleSymbolChange (value) {
       if (!value) {
@@ -1503,7 +1528,7 @@ export default {
       this.addWatchSearching = true
       this.addWatchSelected = null
       try {
-        const res = await searchSymbols({ market, keyword: kw, limit: 16 })
+        const res = await searchSymbols({ market, keyword: kw, limit: 16, ...(market === 'VNStock' ? { exchange: 'HOSE' } : {}) })
         if (seq !== this.addWatchSearchSeq || market !== this.addWatchMarket || kw !== this.addWatchKeyword.trim()) return
         const data = res.data || {}
         const list = Array.isArray(data) ? data : (data.results || data.symbols || data.items || [])
@@ -1519,6 +1544,7 @@ export default {
       }
     },
     manualAddWatchFallback (market, keyword) {
+      if (market === 'VNStock') return []
       const manualMarkets = ACTIVE_MARKET_ORDER
       if (!manualMarkets.includes(market)) return []
       return [{ market, symbol: String(keyword || '').trim().toUpperCase(), name: '' }]
@@ -1541,7 +1567,7 @@ export default {
           exchange_id: item.exchange_id || '',
           market_type: item.market_type || '',
           instrument_id: item.instrument_id || '',
-          settle_currency: item.settle_currency || ''
+        settle_currency: item.settle_currency || ''
         })
         if (!res || res.code === 0) throw new Error((res && res.msg) || this.text.addWatchFailed)
         this.$message.success(this.text.addWatchSuccess)
@@ -3433,6 +3459,8 @@ export default {
         market,
         symbol: symbol.toUpperCase(),
         name: item.name || item.display_name || item.label || '',
+        exchange: item.exchange || (market === 'VNStock' ? 'HOSE' : ''),
+        currency: item.currency || (market === 'VNStock' ? 'VND' : ''),
         exchange_id: item.exchange_id || item.exchangeId || '',
         market_type: item.market_type || item.marketType || (market === 'Crypto' ? 'spot' : ''),
         instrument_id: item.instrument_id || item.instrumentId || '',

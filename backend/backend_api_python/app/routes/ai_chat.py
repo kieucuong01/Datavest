@@ -1808,6 +1808,37 @@ def _agent_usage_action(agent_plan: dict | None, context: dict, language: str) -
     }
 
 
+def _hose_provenance_action(context: dict) -> dict | None:
+    research = context.get("research_context") if isinstance(context.get("research_context"), dict) else {}
+    evidence = research.get("vietnamEvidence") if isinstance(research.get("vietnamEvidence"), dict) else {}
+    instrument = evidence.get("instrument") if isinstance(evidence.get("instrument"), dict) else {}
+    provenance = evidence.get("provenance") if isinstance(evidence.get("provenance"), dict) else {}
+    if instrument.get("market") != "VNStock" or not provenance:
+        return None
+    price = provenance.get("price") if isinstance(provenance.get("price"), dict) else {}
+    coverage = provenance.get("coverage") if isinstance(provenance.get("coverage"), dict) else {}
+    return {
+        "type": "hose_provenance",
+        "payload": {
+            "exchange": "HOSE",
+            "currency": "VND",
+            "price": {key: price.get(key) for key in ("source", "observedAt", "fetchedAt", "latencyClass", "delayMinutes")},
+            "coverage": {
+                key: {"status": value.get("status"), "reason": value.get("reason")}
+                for key, value in coverage.items() if isinstance(value, dict)
+            },
+            "dataGaps": [
+                {"field": item.get("field"), "reason": item.get("reason")}
+                for item in (provenance.get("dataGaps") or [])[:20] if isinstance(item, dict)
+            ],
+            "sources": list(dict.fromkeys(
+                str(item.get("provider")) for item in (provenance.get("sources") or [])
+                if isinstance(item, dict) and item.get("provider")
+            )),
+        },
+    }
+
+
 def _enrich_context(context: dict, has_image: bool = False) -> dict:
     enriched = dict(context or {})
     if "market_snapshot" not in enriched:
@@ -2441,6 +2472,9 @@ def chat_message():
 
             actions = parsed.get("actions") or []
             usage_action = _agent_usage_action(agent_plan, context, language)
+            hose_action = _hose_provenance_action(context)
+            if hose_action:
+                actions = [hose_action, *actions]
             if usage_action:
                 actions = [usage_action, *actions]
             assistant_id = _insert_message(
@@ -2602,6 +2636,8 @@ def chat_message_stream():
             "finish_reason": "stop",
         }
         usage_action = _agent_usage_action(agent_plan, context, language)
+        hose_action = _hose_provenance_action(context)
+        context_actions = [item for item in (usage_action, hose_action) if item]
         try:
             with get_db_connection() as db:
                 cur = db.cursor()
@@ -2647,7 +2683,7 @@ def chat_message_stream():
                     "intent": intent,
                     "agent_intent": agent_plan,
                     "agent_usage": usage_action.get("payload") if usage_action else None,
-                    "actions": [usage_action] if usage_action else [],
+                    "actions": context_actions,
                 })
                 for stream_event, stream_payload in _stream_llm_with_recovery(llm_messages, temperature=0.35, language=language):
                     if stream_event == "replace":
@@ -2679,7 +2715,7 @@ def chat_message_stream():
                     content=answer,
                     attachments=[],
                     intent=intent,
-                    actions=[usage_action] if usage_action else [],
+                    actions=context_actions,
                 )
                 cur.execute(
                     "UPDATE qd_ai_copilot_sessions SET title = COALESCE(NULLIF(title, ''), ?), updated_at = NOW() WHERE id = ?",
@@ -2693,7 +2729,7 @@ def chat_message_stream():
                     "intent": intent,
                     "confidence": 50,
                     "agent_usage": usage_action.get("payload") if usage_action else None,
-                    "actions": [usage_action] if usage_action else [],
+                    "actions": context_actions,
                     "memory_candidates": _detect_memory_candidates(message, language),
                     **stream_result,
                 })

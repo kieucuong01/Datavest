@@ -84,7 +84,7 @@
             <a-icon :type="decisionIcon" />
             <span class="decision-text">{{ decisionDisplayText }}</span>
           </div>
-          <div class="confidence-ring">
+          <div v-if="result.confidence != null" class="confidence-ring">
             <a-progress
               type="circle"
               :percent="result.confidence"
@@ -147,7 +147,7 @@
       <div class="price-info-row" :class="{ 'hold-mode': isHoldDecision }">
         <div class="price-card current">
           <div class="price-label">{{ $t('fastAnalysis.currentPrice') }}</div>
-          <div class="price-value">${{ formatPrice(result.market_data?.current_price) }}</div>
+          <div class="price-value">{{ priceLabel(result.market_data?.current_price) }}</div>
           <div class="price-change" :class="result.market_data?.change_24h >= 0 ? 'positive' : 'negative'">
             {{ result.market_data?.change_24h >= 0 ? '+' : '' }}{{ formatNumber(result.market_data?.change_24h, 2) }}%
           </div>
@@ -155,11 +155,11 @@
         <template v-if="!isHoldDecision">
           <div class="price-card entry">
             <div class="price-label">{{ $t('fastAnalysis.entryPrice') }}</div>
-            <div class="price-value">${{ formatPrice(tradingPlan.entry_price) }}</div>
+            <div class="price-value">{{ priceLabel(tradingPlan.entry_price) }}</div>
           </div>
           <div class="price-card stop">
             <div class="price-label">{{ $t('fastAnalysis.stopLoss') }}</div>
-            <div class="price-value negative">${{ formatPrice(tradingPlan.stop_loss) }}</div>
+            <div class="price-value negative">{{ priceLabel(tradingPlan.stop_loss) }}</div>
             <div class="price-hint">
               <a-tooltip :title="stopLossHintText">
                 <a-icon type="info-circle" /> {{ $t('fastAnalysis.atrBased') }}
@@ -168,7 +168,7 @@
           </div>
           <div class="price-card target">
             <div class="price-label">{{ $t('fastAnalysis.takeProfit') }}</div>
-            <div class="price-value positive">${{ formatPrice(tradingPlan.take_profit) }}</div>
+            <div class="price-value positive">{{ priceLabel(tradingPlan.take_profit) }}</div>
             <div class="price-hint">
               <a-tooltip :title="takeProfitHintText">
                 <a-icon type="info-circle" /> {{ $t('fastAnalysis.atrBased') }}
@@ -176,6 +176,21 @@
             </div>
           </div>
         </template>
+      </div>
+
+      <div v-if="isVietnamResult && provenance" class="hose-provenance-card">
+        <div class="hose-provenance-title">HOSE · VND</div>
+        <div class="hose-provenance-meta">
+          <span>Nguồn: {{ provenance.price?.source || 'unknown' }}</span>
+          <span>Quan sát: {{ provenance.price?.observedAt || 'Chưa có' }}</span>
+          <span>Cập nhật: {{ provenance.price?.fetchedAt || 'Chưa có' }}</span>
+          <span>Độ trễ: {{ latencyLabel }}</span>
+        </div>
+        <div v-if="coverageRows.length" class="hose-coverage-list">
+          <span v-for="row in coverageRows" :key="row.key" :class="['hose-coverage-item', `coverage-${row.status}`]">
+            {{ row.key }}: {{ row.status }}<em v-if="row.reason"> ({{ row.reason }})</em>
+          </span>
+        </div>
       </div>
 
       <div v-if="trendOutlookBlocks.length || trendOutlookSummaryText" class="trend-outlook-card">
@@ -216,32 +231,32 @@
                 <a-icon type="line-chart" />
                 <span>{{ $t('fastAnalysis.technical') }}</span>
               </div>
-              <a-progress :percent="result.scores?.technical || 50" :strokeColor="getScoreColor(result.scores?.technical)" :showInfo="false" />
-              <div class="score-value">{{ result.scores?.technical || 50 }}</div>
+              <a-progress v-if="hasScore(result.scores?.technical)" :percent="result.scores.technical" :strokeColor="getScoreColor(result.scores.technical)" :showInfo="false" />
+              <div class="score-value">{{ scoreLabel(result.scores?.technical) }}</div>
             </div>
             <div class="score-item">
               <div class="score-header">
                 <a-icon type="bank" />
                 <span>{{ $t('fastAnalysis.fundamental') }}</span>
               </div>
-              <a-progress :percent="result.scores?.fundamental || 50" :strokeColor="getScoreColor(result.scores?.fundamental)" :showInfo="false" />
-              <div class="score-value">{{ result.scores?.fundamental || 50 }}</div>
+              <a-progress v-if="hasScore(result.scores?.fundamental)" :percent="result.scores.fundamental" :strokeColor="getScoreColor(result.scores.fundamental)" :showInfo="false" />
+              <div class="score-value">{{ scoreLabel(result.scores?.fundamental) }}</div>
             </div>
             <div class="score-item">
               <div class="score-header">
                 <a-icon type="heart" />
                 <span>{{ $t('fastAnalysis.sentiment') }}</span>
               </div>
-              <a-progress :percent="result.scores?.sentiment || 50" :strokeColor="getScoreColor(result.scores?.sentiment)" :showInfo="false" />
-              <div class="score-value">{{ result.scores?.sentiment || 50 }}</div>
+              <a-progress v-if="hasScore(result.scores?.sentiment)" :percent="result.scores.sentiment" :strokeColor="getScoreColor(result.scores.sentiment)" :showInfo="false" />
+              <div class="score-value">{{ scoreLabel(result.scores?.sentiment) }}</div>
             </div>
             <div class="score-item overall">
               <div class="score-header">
                 <a-icon type="dashboard" />
                 <span>{{ $t('fastAnalysis.overall') }}</span>
               </div>
-              <a-progress :percent="result.scores?.overall || 50" :strokeColor="getScoreColor(result.scores?.overall)" :showInfo="false" />
-              <div class="score-value">{{ result.scores?.overall || 50 }}</div>
+              <a-progress v-if="hasScore(result.scores?.overall)" :percent="result.scores.overall" :strokeColor="getScoreColor(result.scores.overall)" :showInfo="false" />
+              <div class="score-value">{{ scoreLabel(result.scores?.overall) }}</div>
             </div>
           </div>
         </div>
@@ -294,7 +309,7 @@
               <div class="analysis-card-header">
                 <a-icon type="line-chart" />
                 <span>{{ $t('fastAnalysis.technicalAnalysis') }}</span>
-                <a-tag :color="getScoreTagColor(result.scores?.technical)">{{ result.scores?.technical || 50 }} {{ $t('fastAnalysis.scoreUnit') }}</a-tag>
+                <a-tag :color="getScoreTagColor(result.scores?.technical)">{{ scoreLabel(result.scores?.technical) }} {{ $t('fastAnalysis.scoreUnit') }}</a-tag>
               </div>
               <div class="analysis-card-content">{{ neutralizeDecisionText(result.detailed_analysis.technical) }}</div>
             </div>
@@ -302,7 +317,7 @@
               <div class="analysis-card-header">
                 <a-icon type="bank" />
                 <span>{{ $t('fastAnalysis.fundamentalAnalysis') }}</span>
-                <a-tag :color="getScoreTagColor(result.scores?.fundamental)">{{ result.scores?.fundamental || 50 }} {{ $t('fastAnalysis.scoreUnit') }}</a-tag>
+                <a-tag :color="getScoreTagColor(result.scores?.fundamental)">{{ scoreLabel(result.scores?.fundamental) }} {{ $t('fastAnalysis.scoreUnit') }}</a-tag>
               </div>
               <div class="analysis-card-content">{{ neutralizeDecisionText(result.detailed_analysis.fundamental) }}</div>
             </div>
@@ -310,7 +325,7 @@
               <div class="analysis-card-header">
                 <a-icon type="heart" />
                 <span>{{ $t('fastAnalysis.sentimentAnalysis') }}</span>
-                <a-tag :color="getScoreTagColor(result.scores?.sentiment)">{{ result.scores?.sentiment || 50 }} {{ $t('fastAnalysis.scoreUnit') }}</a-tag>
+                <a-tag :color="getScoreTagColor(result.scores?.sentiment)">{{ scoreLabel(result.scores?.sentiment) }} {{ $t('fastAnalysis.scoreUnit') }}</a-tag>
               </div>
               <div class="analysis-card-content">{{ neutralizeDecisionText(result.detailed_analysis.sentiment) }}</div>
             </div>
@@ -388,7 +403,7 @@
               <div class="indicator-item" v-if="result.indicators.volatility && result.indicators.volatility.atr != null">
                 <div class="indicator-name">ATR (14)</div>
                 <div class="indicator-value" :class="getVolatilityClass(result.indicators.volatility.level)">
-                  ${{ formatPrice(result.indicators.volatility.atr) }}
+                  {{ priceLabel(result.indicators.volatility.atr) }}
                 </div>
                 <div class="indicator-signal">{{ $t('fastAnalysis.atrTrueRange') }}</div>
               </div>
@@ -411,11 +426,11 @@
               </div>
               <div class="indicator-item" v-if="result.indicators.levels">
                 <div class="indicator-name">{{ $t('fastAnalysis.support') }}</div>
-                <div class="indicator-value">${{ formatPrice(result.indicators.levels.support) }}</div>
+                <div class="indicator-value">{{ priceLabel(result.indicators.levels.support) }}</div>
               </div>
               <div class="indicator-item" v-if="result.indicators.levels">
                 <div class="indicator-name">{{ $t('fastAnalysis.resistance') }}</div>
-                <div class="indicator-value">${{ formatPrice(result.indicators.levels.resistance) }}</div>
+                <div class="indicator-value">{{ priceLabel(result.indicators.levels.resistance) }}</div>
               </div>
               <div class="indicator-item" v-if="result.indicators.volatility">
                 <div class="indicator-name">{{ $t('fastAnalysis.volatility') }}</div>
@@ -484,6 +499,7 @@
 <script>
 import { mapState } from 'vuex'
 import { submitFeedback as submitFeedbackApi, getPerformanceStats } from '@/api/fast-analysis'
+import { hosePriceLabel, hoseLatencyLabel, hoseScoreLabel, hoseCoverageRows, hasScore } from '@/utils/hosePresentation'
 
 export default {
   name: 'FastAnalysisReport',
@@ -563,6 +579,18 @@ export default {
     },
     isCryptoResult () {
       return String(this.result?.market || '').toLowerCase() === 'crypto'
+    },
+    isVietnamResult () {
+      return String(this.result?.market || '') === 'VNStock'
+    },
+    provenance () {
+      return this.result?.provenance || null
+    },
+    latencyLabel () {
+      return hoseLatencyLabel(this.provenance, this.$i18n ? this.$i18n.locale : 'vi-VN')
+    },
+    coverageRows () {
+      return hoseCoverageRows(this.result?.score_coverage?.components || this.provenance?.coverage)
     },
     decisionDisplayText () {
       return this.formatDecisionLabel(this.result?.decision)
@@ -665,29 +693,29 @@ export default {
       }
 
       const ma = ind.moving_averages || {}
-      if (ma.ma5 != null) add('ma5', this.$t('fastAnalysis.ma5Label'), '$' + this.formatPrice(ma.ma5))
-      if (ma.ma10 != null) add('ma10', this.$t('fastAnalysis.ma10Label'), '$' + this.formatPrice(ma.ma10))
-      if (ma.ma20 != null) add('ma20', this.$t('fastAnalysis.ma20Label'), '$' + this.formatPrice(ma.ma20))
+      if (ma.ma5 != null) add('ma5', this.$t('fastAnalysis.ma5Label'), this.priceLabel(ma.ma5))
+      if (ma.ma10 != null) add('ma10', this.$t('fastAnalysis.ma10Label'), this.priceLabel(ma.ma10))
+      if (ma.ma20 != null) add('ma20', this.$t('fastAnalysis.ma20Label'), this.priceLabel(ma.ma20))
 
       const bb = ind.bollinger || {}
-      if (bb.BB_upper != null) add('bb_u', this.$t('fastAnalysis.bbUpper'), '$' + this.formatPrice(bb.BB_upper))
-      if (bb.BB_middle != null) add('bb_m', this.$t('fastAnalysis.bbMiddle'), '$' + this.formatPrice(bb.BB_middle))
-      if (bb.BB_lower != null) add('bb_l', this.$t('fastAnalysis.bbLower'), '$' + this.formatPrice(bb.BB_lower))
+      if (bb.BB_upper != null) add('bb_u', this.$t('fastAnalysis.bbUpper'), this.priceLabel(bb.BB_upper))
+      if (bb.BB_middle != null) add('bb_m', this.$t('fastAnalysis.bbMiddle'), this.priceLabel(bb.BB_middle))
+      if (bb.BB_lower != null) add('bb_l', this.$t('fastAnalysis.bbLower'), this.priceLabel(bb.BB_lower))
       if (bb.BB_width != null) add('bb_w', this.$t('fastAnalysis.bbWidthPct'), this.formatNumber(bb.BB_width, 2) + '%')
 
       const lv = ind.levels || {}
-      if (lv.pivot != null) add('piv', this.$t('fastAnalysis.pivotStd'), '$' + this.formatPrice(lv.pivot))
-      if (lv.s1 != null) add('s1', this.$t('fastAnalysis.levelS1'), '$' + this.formatPrice(lv.s1))
-      if (lv.r1 != null) add('r1', this.$t('fastAnalysis.levelR1'), '$' + this.formatPrice(lv.r1))
-      if (lv.s2 != null) add('s2', this.$t('fastAnalysis.levelS2'), '$' + this.formatPrice(lv.s2))
-      if (lv.r2 != null) add('r2', this.$t('fastAnalysis.levelR2'), '$' + this.formatPrice(lv.r2))
-      if (lv.swing_high != null) add('sw_h', this.$t('fastAnalysis.swingHigh20'), '$' + this.formatPrice(lv.swing_high))
-      if (lv.swing_low != null) add('sw_l', this.$t('fastAnalysis.swingLow20'), '$' + this.formatPrice(lv.swing_low))
+      if (lv.pivot != null) add('piv', this.$t('fastAnalysis.pivotStd'), this.priceLabel(lv.pivot))
+      if (lv.s1 != null) add('s1', this.$t('fastAnalysis.levelS1'), this.priceLabel(lv.s1))
+      if (lv.r1 != null) add('r1', this.$t('fastAnalysis.levelR1'), this.priceLabel(lv.r1))
+      if (lv.s2 != null) add('s2', this.$t('fastAnalysis.levelS2'), this.priceLabel(lv.s2))
+      if (lv.r2 != null) add('r2', this.$t('fastAnalysis.levelR2'), this.priceLabel(lv.r2))
+      if (lv.swing_high != null) add('sw_h', this.$t('fastAnalysis.swingHigh20'), this.priceLabel(lv.swing_high))
+      if (lv.swing_low != null) add('sw_l', this.$t('fastAnalysis.swingLow20'), this.priceLabel(lv.swing_low))
 
       const vol = ind.volatility || {}
       if (vol.atr != null) {
         const pct = vol.pct != null ? this.formatNumber(vol.pct, 2) + '% ATR/Price' : ''
-        add('atr14', this.$t('fastAnalysis.atr14Label'), '$' + this.formatPrice(vol.atr) + (pct ? ' · ' + pct : ''))
+        add('atr14', this.$t('fastAnalysis.atr14Label'), this.priceLabel(vol.atr) + (pct ? ' · ' + pct : ''))
       }
 
       const tl = ind.trading_levels || {}
@@ -696,7 +724,7 @@ export default {
       }
 
       if (ind.current_price != null) {
-        add('cref', this.$t('fastAnalysis.refClose'), '$' + this.formatPrice(ind.current_price))
+        add('cref', this.$t('fastAnalysis.refClose'), this.priceLabel(ind.current_price))
       }
 
       return rows
@@ -911,16 +939,25 @@ export default {
       return ''
     },
     getScoreColor (score) {
+      if (!hasScore(score)) return '#d9d9d9'
       if (score >= 70) return '#52c41a'
       if (score >= 50) return 'var(--primary-color, #1890ff)'
       if (score >= 30) return '#faad14'
       return '#ff4d4f'
     },
     getScoreTagColor (score) {
+      if (!hasScore(score)) return 'default'
       if (score >= 70) return 'green'
       if (score >= 50) return 'blue'
       if (score >= 30) return 'orange'
       return 'red'
+    },
+    hasScore,
+    scoreLabel (score) {
+      return this.isVietnamResult ? hoseScoreLabel(score, this.$i18n ? this.$i18n.locale : 'vi-VN') : (hasScore(score) ? score : '--')
+    },
+    priceLabel (value) {
+      return this.isVietnamResult ? hosePriceLabel(value) : ('$' + this.formatPrice(value))
     },
     getRsiClass (value) {
       if (value < 30) return 'oversold'
