@@ -573,6 +573,7 @@ import { ACCESS_TOKEN } from '@/store/mutation-types'
 import { loadEnabledMarketOptions, firstMarketValue } from '@/utils/marketModules'
 import { ACTIVE_MARKET_ORDER } from '@/utils/supportedMarkets'
 import { formatVietnamTime, vietnamDateKey, vietnamTimeKey } from '@/utils/vietnamTime'
+import { resolveAiRequestLanguage } from '@/utils/aiRequestLanguage'
 import FastAnalysisReport from './FastAnalysisReport.vue'
 import DeepAnalysisPanel from '@/components/TradingAgents/DeepAnalysisPanel.vue'
 
@@ -1046,6 +1047,13 @@ export default {
     if (this.addWatchSearchTimer) clearTimeout(this.addWatchSearchTimer)
   },
   methods: {
+    requestLanguage () {
+      const settingsLanguage = this.$store && this.$store.getters
+        ? this.$store.getters.lang
+        : ''
+      const i18nLanguage = this.$i18n ? this.$i18n.locale : ''
+      return resolveAiRequestLanguage(settingsLanguage, i18nLanguage)
+    },
     applyIncomingCopilotPrompt () {
       const query = (this.$route && this.$route.query) || {}
       let prompt = ''
@@ -1253,7 +1261,7 @@ export default {
     async loadAiSkills () {
       this.loadingSkills = true
       try {
-        const res = await getAiSkills({ language: (this.$i18n && this.$i18n.locale) || 'en-US' })
+        const res = await getAiSkills({ language: this.requestLanguage() })
         const data = res.data || {}
         this.skillRegistry = Array.isArray(data.skills) ? data.skills : []
       } catch (_) {
@@ -1266,7 +1274,7 @@ export default {
       this.loadingCalendar = true
       this.calendarError = ''
       try {
-        const res = await getEconomicCalendar({ force: force ? 1 : 0, days: 14, lang: (this.$i18n && this.$i18n.locale) || 'en-US' })
+        const res = await getEconomicCalendar({ force: force ? 1 : 0, days: 14, lang: this.requestLanguage() })
         const data = res.data || {}
         this.calendarEvents = Array.isArray(data) ? data : (data.events || data.calendar || [])
       } catch (e) {
@@ -2297,7 +2305,7 @@ export default {
             symbol: target.symbol,
             market: target.market,
             focus_conditions: '',
-            language: this.$store && this.$store.getters ? (this.$store.getters.lang || 'en-US') : (this.$i18n ? this.$i18n.locale : 'en-US')
+            language: this.requestLanguage()
           },
           notification_config: { channels },
           is_active: true
@@ -2575,7 +2583,7 @@ export default {
       if (!item || !item.skillId) return item ? item.prompt : ''
       try {
         const res = await getAiSkillPrompt(item.skillId, {
-          language: (this.$i18n && this.$i18n.locale) || 'en-US',
+          language: this.requestLanguage(),
           context: this.buildMessageContext()
         })
         const data = res.data || {}
@@ -2641,7 +2649,7 @@ export default {
       const res = await fastAnalyze({
         market: target.market,
         symbol: target.symbol,
-        language: this.$i18n ? this.$i18n.locale : 'en-US',
+        language: this.requestLanguage(),
         timeframe: '1D'
       })
       if (!res || res.code === 0) {
@@ -2740,7 +2748,7 @@ export default {
         const blob = await exportChatReportPdf({
           report: msg.report,
           target: msg.reportTarget || this.context || {},
-          language: (this.$i18n && this.$i18n.locale) || 'en-US'
+          language: this.requestLanguage()
         })
         const fileBlob = blob instanceof Blob ? blob : new Blob([blob], { type: 'application/pdf' })
         const url = window.URL.createObjectURL(fileBlob)
@@ -2914,7 +2922,7 @@ export default {
         message: content,
         attachments,
         context,
-        language: this.$i18n ? this.$i18n.locale : 'en-US'
+        language: this.requestLanguage()
       })
       const plan = res && res.data ? res.data : null
       return { plan, resolvedSymbol }
@@ -3096,7 +3104,7 @@ export default {
       try {
         const agentPrompt = this.buildNativeStrategyGenerationPrompt('indicator', prompt, target)
         const token = this.getAccessToken()
-        const language = this.$i18n ? this.$i18n.locale : 'en-US'
+        const language = this.requestLanguage()
         const response = await fetch('/api/indicator/aiGenerate', {
           method: 'POST',
           headers: {
@@ -3264,7 +3272,7 @@ export default {
             run_interval_minutes: interval,
             symbol: target.symbol,
             market: target.market,
-            language: this.$store && this.$store.getters ? (this.$store.getters.lang || 'en-US') : (this.$i18n ? this.$i18n.locale : 'en-US')
+            language: this.requestLanguage()
           },
           notification_config: { channels },
           is_active: true
@@ -3449,7 +3457,7 @@ export default {
           message: content,
           attachments,
           context: chatContext,
-          language: this.$i18n ? this.$i18n.locale : 'en-US'
+          language: this.requestLanguage()
         })
         if (res && res.code === 0) throw new Error(res.msg || this.text.chatUnavailable)
         const data = res.data || {}
@@ -3614,7 +3622,7 @@ export default {
     },
     async sendMessageStream (content, attachments, assistantMsg, chatContext = null) {
       if (!window.fetch || !window.ReadableStream) throw new Error('Streaming is not supported')
-      const language = this.$i18n ? this.$i18n.locale : 'en-US'
+      const language = this.requestLanguage()
       const headers = {
         'Content-Type': 'application/json',
         'Accept-Language': language,
