@@ -2360,8 +2360,6 @@ export default {
         { keys: ['谷歌', 'google', 'alphabet', 'googl'], market: 'USStock', symbol: 'GOOGL', name: 'Alphabet' },
         { keys: ['亚马逊', '亞馬遜', 'amazon', 'amzn'], market: 'USStock', symbol: 'AMZN', name: 'Amazon' },
         { keys: ['meta', 'facebook', '脸书', '臉書'], market: 'USStock', symbol: 'META', name: 'Meta' },
-        { keys: ['fpt'], market: 'VNStock', symbol: 'FPT', name: 'FPT Corporation' },
-        { keys: ['vietcombank', 'vcb'], market: 'VNStock', symbol: 'VCB', name: 'Vietcombank' },
         { keys: ['比特币', '比特幣', 'bitcoin', 'btc'], market: 'Crypto', symbol: 'BTC/USDT', name: 'Bitcoin' },
         { keys: ['以太坊', 'ethereum', 'eth'], market: 'Crypto', symbol: 'ETH/USDT', name: 'Ethereum' },
         { keys: ['黄金', '黃金', 'gold', 'xau'], market: 'Forex', symbol: 'XAUUSD', name: 'Gold/USD' }
@@ -2417,7 +2415,8 @@ export default {
           const data = res.data || {}
           const list = Array.isArray(data) ? data : (data.results || data.symbols || data.items || [])
           const normalized = list.map(x => this.normalizeSymbolOption(x)).filter(Boolean)
-          if (normalized.length) return normalized[0]
+          const nonVietnam = normalized.filter(item => item.market !== 'VNStock')
+          if (nonVietnam.length) return nonVietnam[0]
         } catch (_) {}
       }
       return null
