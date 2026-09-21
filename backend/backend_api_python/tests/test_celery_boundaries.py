@@ -16,10 +16,15 @@ def test_celery_beat_owns_periodic_maintenance():
     from app.celery_app import celery_app
 
     schedule = celery_app.conf.beat_schedule
+    routes = celery_app.conf.task_routes
     assert schedule["reflection-cycle"]["task"] == "quantdinger.tasks.reflection"
     assert schedule["ai-calibration-cycle"]["task"] == "quantdinger.tasks.ai_calibration"
     assert schedule["market-catalog-sync"]["task"] == "quantdinger.tasks.market_catalog_sync"
     assert schedule["market-catalog-sync"]["schedule"] == 86400
+    assert schedule["hose-eod-ingestion"]["task"] == "datavest.tasks.hose_eod_ingestion"
+    assert schedule["hose-eod-ingestion"]["schedule"].hour == {16}
+    assert schedule["hose-eod-ingestion"]["schedule"].minute == {25}
+    assert routes["datavest.tasks.hose_eod_ingestion"]["queue"] == "maintenance"
     assert schedule["smart-insights-refresh"]["task"] == "datavest.tasks.enqueue_smart_insights_refresh"
     assert schedule["smart-insights-refresh"]["schedule"] == 21600
     assert "crypto-insights-daily-import" not in schedule

@@ -156,6 +156,10 @@ def _resolve_shared_watchlist_research_reports_sql_path() -> Path:
     return Path(__file__).resolve().parent.parent.parent / 'migrations' / '20260914_shared_watchlist_research_reports.sql'
 
 
+def _resolve_vietnam_market_health_sql_path() -> Path:
+    return Path(__file__).resolve().parent.parent.parent / 'migrations' / '20260921_vietnam_market_health.sql'
+
+
 def _apply_init_sql(logger, *, strict: bool = False):
     """Run ``migrations/init.sql`` idempotently.
 
@@ -222,6 +226,9 @@ def _apply_init_sql(logger, *, strict: bool = False):
         shared_watchlist_research_reports_sql = _resolve_shared_watchlist_research_reports_sql_path()
         if shared_watchlist_research_reports_sql.exists():
             sql_parts.append(shared_watchlist_research_reports_sql.read_text(encoding='utf-8'))
+        vietnam_market_health_sql = _resolve_vietnam_market_health_sql_path()
+        if vietnam_market_health_sql.exists():
+            sql_parts.append(vietnam_market_health_sql.read_text(encoding='utf-8'))
         sql_text = "\n\n".join(sql_parts)
         bitview_sql = init_sql.parent / '20260911_bitview_onchain.sql'
         if bitview_sql.exists():
@@ -264,6 +271,8 @@ def _apply_init_sql(logger, *, strict: bool = False):
             total_size += public_research_reports_sql.stat().st_size
         if shared_watchlist_research_reports_sql.exists():
             total_size += shared_watchlist_research_reports_sql.stat().st_size
+        if vietnam_market_health_sql.exists():
+            total_size += vietnam_market_health_sql.stat().st_size
         logger.info("Applied migrations seed SQL (%d bytes)", total_size)
     except Exception as exc:
         if strict:

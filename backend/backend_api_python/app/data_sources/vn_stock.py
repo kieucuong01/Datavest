@@ -263,12 +263,52 @@ class VNStockDataSource(BaseDataSource):
             "time": latest.get("time"),
         }
 
+    def probe_daily_provider_health(self, symbol: str) -> list[dict[str, Any]]:
+        """Probe each configured free feed once for operator health, not user traffic."""
+
+        canonical = normalize_vietnam_symbol(symbol)
+        end = self.now().astimezone(_VN_ZONE).date()
+        start = end - timedelta(days=14)
+        outcomes: list[dict[str, Any]] = []
+        for provider in self.providers:
+            try:
+                bars = provider.fetch_ohlcv(canonical, "1D", start, end, 5)
+            except Exception as exc:
+                outcomes.append({
+                    "provider": provider.name,
+                    "status": "unavailable",
+                    "error": _provider_error_code(exc),
+                })
+                continue
+            fresh = bool(bars) and self._is_fresh(int(bars[-1]["time"]), "1D")
+            outcomes.append({
+                "provider": provider.name,
+                "status": "ok" if fresh else ("stale" if bars else "empty"),
+                "bars": len(bars or []),
+            })
+        return outcomes
+
 
 def _previous_business_day(value: date) -> date:
     candidate = value - timedelta(days=1)
     while candidate.weekday() >= 5:
         candidate -= timedelta(days=1)
     return candidate
+
+
+def _provider_error_code(error: Exception) -> str:
+    """Bound operational error grouping; do not store hostnames or exception text."""
+
+    response = getattr(error, "response", None)
+    status_code = getattr(response, "status_code", None)
+    if isinstance(status_code, int):
+        return f"http_{status_code}"
+    name = type(error).__name__.lower()
+    if "timeout" in name:
+        return "timeout"
+    if "connection" in name or "network" in name:
+        return "network"
+    return "provider_error"
 
 
 __all__ = ["VNStockDataSource", "normalize_vietnam_symbol"]

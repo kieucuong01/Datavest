@@ -52,6 +52,7 @@ celery_app.conf.update(
         "app.tasks.maintenance",
         "app.tasks.smart_insights",
         "app.tasks.trading_agents",
+        "app.tasks.vietnam_market_data",
     ),
     task_routes={
         "quantdinger.tasks.fast_analysis": {"queue": "ai"},
@@ -70,6 +71,7 @@ celery_app.conf.update(
         "datavest.tasks.sync_shared_deep_reports": {"queue": "maintenance"},
         "datavest.tasks.trading_agents_run": {"queue": "trading-agents"},
         "datavest.tasks.trading_agents_control": {"queue": "trading-agents"},
+        "datavest.tasks.hose_eod_ingestion": {"queue": "maintenance"},
     },
     beat_schedule={
         "reflection-cycle": {
@@ -83,6 +85,10 @@ celery_app.conf.update(
         "market-catalog-sync": {
             "task": "quantdinger.tasks.market_catalog_sync",
             "schedule": max(900, int(os.getenv("MARKET_CATALOG_SYNC_INTERVAL_SEC", "86400"))),
+        },
+        "hose-eod-ingestion": {
+            "task": "datavest.tasks.hose_eod_ingestion",
+            "schedule": crontab(hour=16, minute=25),
         },
         "celery-worker-heartbeat": {
             "task": "quantdinger.tasks.worker_heartbeat",

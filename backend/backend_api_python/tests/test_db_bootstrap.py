@@ -145,6 +145,30 @@ def test_apply_init_sql_includes_shared_watchlist_report_schema(tmp_path, monkey
     assert 'shared_watchlist_research_reports' in applied_sql
 
 
+def test_apply_init_sql_includes_vietnam_market_health_schema(tmp_path, monkeypatch):
+    init_sql = tmp_path / 'init.sql'
+    init_sql.write_text("SELECT 1;", encoding='utf-8')
+    health_sql = tmp_path / 'vietnam_market_health.sql'
+    health_sql.write_text(
+        "CREATE TABLE IF NOT EXISTS qd_vietnam_market_health (id BIGINT);",
+        encoding='utf-8',
+    )
+    monkeypatch.setattr(db_module, '_resolve_init_sql_path', lambda: init_sql)
+    monkeypatch.setattr(
+        db_module,
+        '_resolve_vietnam_market_health_sql_path',
+        lambda: health_sql,
+        raising=False,
+    )
+
+    conn = _FakeConn()
+    with patch.object(db_module, 'get_db_connection', return_value=_FakeConnCtx(conn)):
+        db_module._apply_init_sql(logging.getLogger('test'))
+
+    applied_sql = '\n'.join(sql for cursor in conn.cursors for sql in cursor.executed_sql)
+    assert 'qd_vietnam_market_health' in applied_sql
+
+
 def test_verify_table_access_logs_ok_when_all_tables_readable(caplog):
     conn = _FakeConn(deny_tables=())
     with patch.object(db_module, 'get_db_connection', return_value=_FakeConnCtx(conn)):
