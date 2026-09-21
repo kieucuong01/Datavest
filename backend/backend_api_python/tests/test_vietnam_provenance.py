@@ -1,6 +1,17 @@
 """Source observation and fetch time must never be conflated."""
 
 from datetime import datetime, timezone
+from pathlib import Path
+import sys
+import types
+
+_app_root = Path(__file__).resolve().parents[1] / "app"
+_app_package = types.ModuleType("app")
+_app_package.__path__ = [str(_app_root)]
+_services_package = types.ModuleType("app.services")
+_services_package.__path__ = [str(_app_root / "services")]
+sys.modules.setdefault("app", _app_package)
+sys.modules.setdefault("app.services", _services_package)
 
 from app.services.vietnam_provenance import build_hose_provenance
 
@@ -74,3 +85,21 @@ def test_indicator_error_is_not_available_technical_evidence():
         "technical": {"error": "Insufficient data", "current_price": 120000},
     })
     assert result["coverage"]["technical"]["status"] == "missing"
+
+
+def test_unknown_or_incomplete_financial_observations_are_partial_not_available():
+    """Treating a partial BCTC as fully available must make this test fail."""
+    result = build_hose_provenance({
+        "fundamentals": {
+            "observations": [{
+                "metric": "revenue", "value": 100.0, "periodEnd": "2026-06-30",
+                "availableAt": "2026-08-20T00:00:00Z", "reportScope": "UNKNOWN", "source": "vndirect",
+            }],
+            "derivedMetrics": {"pe_ratio": 12.5},
+        },
+    })
+
+    assert result["coverage"]["fundamentals"] == {
+        "status": "partial",
+        "reason": "PROVIDER_DOES_NOT_DISTINGUISH_SCOPE",
+    }
