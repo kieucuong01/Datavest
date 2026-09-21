@@ -9,7 +9,7 @@ import json
 
 from app.utils.logger import get_logger
 from app.utils.config_loader import load_addon_config
-from app.utils.auth import login_required
+from app.utils.auth import admin_required, login_required
 from app.services.market.quotes import get_price_map, get_single_price
 from app.services.market.symbol_search import (
     get_hot_symbols as search_hot_symbols,
@@ -35,6 +35,18 @@ from app.utils.supported_markets import (
 logger = get_logger(__name__)
 
 market_blp = Blueprint('market', __name__)
+
+
+@market_blp.route('/ops/hose-readiness', methods=['GET'])
+@admin_required
+def get_hose_readiness():
+    """Admin-only aggregate health for the free HOSE research pipeline."""
+    try:
+        from app.services.market_catalog_sync import get_hose_readiness_overview
+        return jsonify({'code': 1, 'msg': 'success', 'data': get_hose_readiness_overview()})
+    except Exception:
+        logger.exception('HOSE readiness overview failed')
+        return jsonify({'code': 0, 'msg': 'hose_readiness_unavailable', 'data': None}), 503
 
 def _ensure_watchlist_table():
     # Table is created by db schema init; this is only a sanity hook.

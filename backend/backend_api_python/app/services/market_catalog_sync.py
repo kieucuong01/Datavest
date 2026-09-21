@@ -279,3 +279,59 @@ def get_market_catalog_overview() -> dict:
             }
         finally:
             cur.close()
+
+
+def get_hose_readiness_overview() -> dict:
+    """Return aggregated HOSE readiness without provider URLs or user-run details."""
+
+    with get_db_connection() as db:
+        cur = db.cursor()
+        try:
+            cur.execute(
+                """
+                SELECT COUNT(*) AS active_symbols
+                  FROM qd_market_symbols
+                 WHERE market = 'VNStock' AND exchange = 'HOSE' AND is_active = 1
+                   AND trading_status = 'ACTIVE' AND asset_class IN ('equity', 'etf')
+                   AND source = 'vndirect' AND source_updated_at IS NOT NULL
+                   AND (delisted_date IS NULL OR delisted_date > CURRENT_DATE)
+                """
+            )
+            active = int((cur.fetchone() or {}).get("active_symbols") or 0)
+            cur.execute(
+                """
+                SELECT COUNT(DISTINCT symbol) AS symbols, MAX(trading_time) AS latest_price_at
+                  FROM qd_vietnam_daily_prices WHERE price_mode = 'raw'
+                """
+            )
+            prices = dict(cur.fetchone() or {})
+            cur.execute(
+                """
+                SELECT COUNT(DISTINCT symbol) AS symbols, MAX(available_at) AS latest_available_at
+                  FROM qd_fundamental_snapshots WHERE market = 'VNStock'
+                """
+            )
+            fundamentals = dict(cur.fetchone() or {})
+            cur.execute(
+                """
+                SELECT status, coverage, result, checked_at
+                  FROM qd_vietnam_market_health ORDER BY checked_at DESC LIMIT 1
+                """
+            )
+            health = cur.fetchone()
+            health = dict(health) if health else None
+            if health:
+                health["result"] = _json_value(health.get("result"))
+            price_symbols = int(prices.get("symbols") or 0)
+            threshold = max(1, int(os.getenv("HOSE_SNAPSHOT_MIN_ROWS", "100")))
+            price_coverage = price_symbols / active if active else 0.0
+            return {
+                "status": "ready" if active >= threshold and price_coverage >= 0.95 and health else "attention_required",
+                "catalog": {"activeSymbols": active, "minimumSymbols": threshold},
+                "dailyPrices": {"symbols": price_symbols, "coverage": price_coverage, "latestAt": prices.get("latest_price_at")},
+                "fundamentals": {"symbols": int(fundamentals.get("symbols") or 0), "latestAvailableAt": fundamentals.get("latest_available_at")},
+                "latestEodHealth": health,
+                "serverTime": datetime.now(timezone.utc).isoformat(),
+            }
+        finally:
+            cur.close()
