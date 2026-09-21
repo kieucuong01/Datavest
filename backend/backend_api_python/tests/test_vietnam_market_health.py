@@ -115,3 +115,24 @@ def test_eod_ingestion_persists_a_complete_buffer_once(monkeypatch):
     assert result["status"] == "degraded"
     assert result["persistedSymbols"] == 2
     assert [item["symbol"] for item in persisted] == ["FPT", "HPG"]
+
+
+def test_hose_history_backfill_reports_a_coverage_gap_without_fabricating_days(monkeypatch):
+    from app.tasks import vietnam_market_data as task_module
+
+    class Source:
+        last_kline_provider = "vndirect"
+        last_kline_attempts = ("vndirect",)
+        last_kline_quality = {"coverage": 0.5, "flags": ["provider_history_limited"]}
+
+        def get_kline(self, *_args, **_kwargs):
+            return [{"time": 1, "open": 1, "high": 1, "low": 1, "close": 1, "volume": 1}]
+
+    monkeypatch.setattr(task_module, "validate_hose_ai_target", lambda _market, symbol: symbol)
+    result = task_module.backfill_hose_history(
+        symbol="FPT", start_date="2020-01-01", end_date="2020-12-31", source=Source(),
+    )
+
+    assert result["market"] == "VNStock"
+    assert result["coverage"] < 1.0
+    assert result["dataGaps"] == [{"field": "dailyPrices", "reason": "HISTORICAL_COVERAGE_INCOMPLETE"}]

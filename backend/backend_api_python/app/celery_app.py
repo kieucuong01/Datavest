@@ -72,6 +72,7 @@ celery_app.conf.update(
         "datavest.tasks.trading_agents_run": {"queue": "trading-agents"},
         "datavest.tasks.trading_agents_control": {"queue": "trading-agents"},
         "datavest.tasks.hose_eod_ingestion": {"queue": "maintenance"},
+        "datavest.tasks.hose_history_backfill": {"queue": "maintenance"},
     },
     beat_schedule={
         "reflection-cycle": {

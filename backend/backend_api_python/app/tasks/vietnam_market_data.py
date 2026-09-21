@@ -4,10 +4,13 @@ from __future__ import annotations
 
 import os
 from collections.abc import Iterable, Mapping
+from datetime import date, datetime, timedelta
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from app.celery_app import celery_app
 from app.data_sources.vn_stock import VNStockDataSource
+from app.data.market_symbols_seed import validate_hose_ai_target
 from app.services.vietnam_market_health import (
     VietnamMarketHealthRepository,
     classify_provider_health,
@@ -100,9 +103,56 @@ def ingest_hose_eod(
     return result
 
 
+def backfill_hose_history(
+    *,
+    symbol: str,
+    start_date: str,
+    end_date: str,
+    source: Any | None = None,
+) -> dict[str, Any]:
+    """Bounded operator backfill; incomplete provider history stays an explicit gap."""
+
+    canonical = validate_hose_ai_target("VNStock", symbol)
+    start = date.fromisoformat(str(start_date))
+    end = date.fromisoformat(str(end_date))
+    if end < start or (end - start).days + 1 > 3660:
+        raise ValueError("invalid_hose_backfill_window")
+    source = source or VNStockDataSource()
+    zone = ZoneInfo("Asia/Ho_Chi_Minh")
+    after_time = int(datetime.combine(start, datetime.min.time(), tzinfo=zone).timestamp())
+    before_time = int(datetime.combine(end + timedelta(days=1), datetime.min.time(), tzinfo=zone).timestamp())
+    bars = source.get_kline(
+        canonical, "1D", (end - start).days + 1,
+        after_time=after_time, before_time=before_time, price_mode="raw",
+    )
+    expected_sessions = sum(
+        1 for offset in range((end - start).days + 1)
+        if (start + timedelta(days=offset)).weekday() < 5
+    )
+    quality = dict(getattr(source, "last_kline_quality", {}) or {})
+    coverage = min(1.0, len(bars) / max(expected_sessions, 1))
+    provider_coverage = float(quality.get("coverage", coverage) or 0.0)
+    coverage = min(coverage, provider_coverage) if bars else 0.0
+    gaps = [] if coverage >= 0.95 else [{"field": "dailyPrices", "reason": "HISTORICAL_COVERAGE_INCOMPLETE"}]
+    return {
+        "market": "VNStock", "symbol": canonical,
+        "startDate": start.isoformat(), "endDate": end.isoformat(),
+        "bars": len(bars), "coverage": coverage,
+        "provider": str(getattr(source, "last_kline_provider", "") or "") or None,
+        "attempts": list(getattr(source, "last_kline_attempts", ()) or ()),
+        "qualityFlags": list(quality.get("flags", []) or []),
+        "dataGaps": gaps,
+    }
+
+
 @celery_app.task(name="datavest.tasks.hose_eod_ingestion", acks_late=True)
 def run_hose_eod_ingestion() -> dict[str, Any]:
     return ingest_hose_eod(trigger="scheduled")
 
 
-__all__ = ["ingest_hose_eod", "run_hose_eod_ingestion"]
+@celery_app.task(name="datavest.tasks.hose_history_backfill", acks_late=True)
+def run_hose_history_backfill(symbol: str, start_date: str, end_date: str) -> dict[str, Any]:
+    return backfill_hose_history(symbol=symbol, start_date=start_date, end_date=end_date)
+
+
+__all__ = ["backfill_hose_history", "ingest_hose_eod", "run_hose_eod_ingestion", "run_hose_history_backfill"]
