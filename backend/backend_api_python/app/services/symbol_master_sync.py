@@ -19,6 +19,7 @@ from typing import Dict, Iterable, List, Optional, Sequence
 import requests
 import urllib3
 
+from app.data.market_symbols_seed import normalize_vn_search
 from app.services.symbol_name import normalize_crypto_symbol
 from app.utils.db import get_db_connection
 from app.utils.logger import get_logger
@@ -540,6 +541,18 @@ def upsert_symbol_master(
                     row.source_updated_at or datetime.now(timezone.utc), is_active,
                 ),
             )
+            if row.market == "VNStock" and row.exchange == "HOSE" and row.name:
+                alias = normalize_vn_search(row.name)
+                if alias and alias != row.name.casefold():
+                    cur.execute(
+                        """
+                        INSERT INTO qd_market_symbol_aliases (market, symbol, alias, is_active)
+                        VALUES (?, ?, ?, 1)
+                        ON CONFLICT (market, symbol, alias) DO UPDATE
+                          SET is_active = 1
+                        """,
+                        (row.market, row.symbol, alias),
+                    )
             count += 1
         db.commit()
         cur.close()

@@ -7,11 +7,22 @@ This module provides helper functions to query hot symbols, search, and get symb
 
 from __future__ import annotations
 
+import unicodedata
 from typing import Dict, List, Optional
 
 from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
+
+
+def normalize_vn_search(value: str) -> str:
+    """Build an accent-insensitive search key without changing display names."""
+    text = str(value or "").casefold().replace("đ", "d")
+    text = "".join(
+        char for char in unicodedata.normalize("NFD", text)
+        if unicodedata.category(char) != "Mn"
+    )
+    return " ".join(text.split())
 
 
 def _get_db_connection():
@@ -104,7 +115,7 @@ def get_hot_symbols(market: str, limit: int = 10) -> List[Dict]:
         return []
 
 
-def search_symbols(market: str, keyword: str, limit: int = 20) -> List[Dict]:
+def search_symbols(market: str, keyword: str, limit: int = 20, exchange: str = "") -> List[Dict]:
     """
     Search symbols by keyword.
     
@@ -120,6 +131,10 @@ def search_symbols(market: str, keyword: str, limit: int = 20) -> List[Dict]:
     kw = (keyword or '').strip()
     if not market or not kw:
         return []
+    if market == "VNStock":
+        if exchange and exchange.upper() != "HOSE":
+            return []
+        return _search_active_hose_symbols(kw, limit)
     
     pattern = f'%{kw}%'
     prefix_pattern = f'{kw}%'
@@ -205,6 +220,68 @@ def search_symbols(market: str, keyword: str, limit: int = 20) -> List[Dict]:
     except Exception as e:
         logger.debug(f"search_symbols from DB failed: {e}")
         return _search_symbols_without_aliases(market, kw, limit)
+
+
+def _search_active_hose_symbols(keyword: str, limit: int) -> List[Dict]:
+    """Search only AI-eligible HOSE rows, including generated name aliases."""
+    normalized = normalize_vn_search(keyword)
+    pattern = f"%{keyword}%"
+    normalized_pattern = f"%{normalized}%"
+    try:
+        with _get_db_connection() as db:
+            cur = db.cursor()
+            cur.execute(
+                """
+                SELECT s.market, s.symbol, s.name, s.exchange, s.asset_class, s.currency
+                FROM qd_market_symbols s
+                WHERE s.market = 'VNStock'
+                  AND s.exchange = 'HOSE'
+                  AND s.is_active = 1
+                  AND s.trading_status = 'ACTIVE'
+                  AND s.asset_class IN ('equity', 'etf')
+                  AND s.source = 'vndirect'
+                  AND s.source_updated_at IS NOT NULL
+                  AND (s.delisted_date IS NULL OR s.delisted_date > CURRENT_DATE)
+                  AND (
+                    UPPER(s.symbol) LIKE UPPER(?)
+                    OR UPPER(s.name) LIKE UPPER(?)
+                    OR EXISTS (
+                      SELECT 1 FROM qd_market_symbol_aliases a
+                      WHERE a.market = s.market AND UPPER(a.symbol) = UPPER(s.symbol)
+                        AND a.is_active = 1
+                        AND (UPPER(a.alias) LIKE UPPER(?)
+                             OR UPPER(a.alias) LIKE UPPER(?))
+                    )
+                  )
+                ORDER BY
+                  CASE
+                    WHEN UPPER(s.symbol) = UPPER(?) THEN 0
+                    WHEN UPPER(s.symbol) LIKE UPPER(?) THEN 1
+                    WHEN UPPER(s.name) = UPPER(?) THEN 2
+                    WHEN EXISTS (
+                      SELECT 1 FROM qd_market_symbol_aliases a
+                      WHERE a.market = s.market AND UPPER(a.symbol) = UPPER(s.symbol)
+                        AND a.is_active = 1
+                        AND (UPPER(a.alias) = UPPER(?)
+                             OR UPPER(a.alias) = UPPER(?))
+                    ) THEN 3
+                    ELSE 4
+                  END,
+                  s.sort_order DESC, LENGTH(s.symbol), s.symbol
+                LIMIT ?
+                """,
+                (
+                    pattern, pattern, pattern, normalized_pattern,
+                    keyword, f"{keyword}%", keyword, keyword, normalized,
+                    max(0, limit),
+                ),
+            )
+            rows = cur.fetchall() or []
+            cur.close()
+            return [dict(row) for row in rows]
+    except Exception as exc:
+        logger.warning("HOSE catalog search unavailable: %s", exc)
+        return []
 
 
 def _search_symbols_without_aliases(market: str, keyword: str, limit: int) -> List[Dict]:

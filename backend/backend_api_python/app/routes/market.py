@@ -174,8 +174,9 @@ def search_symbols():
     """
     try:
         market = (request.args.get('market') or '').strip()
-        keyword = (request.args.get('keyword') or '').strip().upper()
+        keyword = (request.args.get('keyword') or '').strip()
         limit = int(request.args.get('limit') or 20)
+        exchange = (request.args.get('exchange') or '').strip()
         exchange_id = (request.args.get('exchange_id') or request.args.get('exchangeId') or '').strip()
         market_type = (request.args.get('market_type') or request.args.get('marketType') or '').strip()
 
@@ -186,6 +187,7 @@ def search_symbols():
             market=market,
             keyword=keyword,
             limit=limit,
+            exchange=exchange,
             exchange_id=exchange_id,
             market_type=market_type,
         )

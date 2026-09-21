@@ -61,7 +61,7 @@ def dedupe_symbol_results(items: Iterable[dict], limit: int) -> list:
         if key in seen:
             continue
         seen.add(key)
-        out.append({
+        result = {
             "market": market,
             "symbol": symbol,
             "name": name,
@@ -70,7 +70,11 @@ def dedupe_symbol_results(items: Iterable[dict], limit: int) -> list:
             "instrument_id": instrument_id,
             "settle_currency": settle_currency,
             "asset_class": asset_class,
-        })
+        }
+        if market == "VNStock":
+            result["exchange"] = str(item.get("exchange") or "").strip().upper()
+            result["currency"] = str(item.get("currency") or "").strip().upper()
+        out.append(result)
         if len(out) >= limit:
             break
     return out
@@ -81,12 +85,13 @@ def search_market_symbols(
     keyword: str,
     limit: int = 20,
     *,
+    exchange: str = "",
     exchange_id: str = "",
     market_type: str = "",
 ) -> list:
     """Search the local catalog, using external fallbacks only for equities."""
     market = normalize_supported_market(market)
-    keyword = (keyword or "").strip().upper()
+    keyword = (keyword or "").strip()
     limit = max(1, int(limit or 20))
     if not market or not keyword:
         return []
@@ -98,6 +103,12 @@ def search_market_symbols(
         market_type = normalize_market_type(market_type, market=market)
         out = _search_cached_crypto_symbols(keyword, limit, exchange_id, market_type)
         return dedupe_symbol_results(out, limit)
+
+    if market == "VNStock":
+        return dedupe_symbol_results(
+            seed_search_symbols(market=market, keyword=keyword, limit=limit, exchange=exchange),
+            limit,
+        )
 
     out = dedupe_symbol_results(
         seed_search_symbols(market=market, keyword=keyword, limit=limit),
