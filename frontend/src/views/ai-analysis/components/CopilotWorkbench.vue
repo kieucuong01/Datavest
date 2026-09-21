@@ -121,6 +121,14 @@
                 {{ item.label }}
               </span>
             </div>
+            <div v-if="hoseProvenanceRows(msg).length" class="hose-chat-provenance">
+              <div class="hose-chat-provenance-heading"><a-icon type="database" /> HOSE · VND <span>Data provenance</span></div>
+              <div class="hose-chat-provenance-grid">
+                <div v-for="row in hoseProvenanceRows(msg)" :key="row.key">
+                  <span>{{ row.label }}</span><strong>{{ row.value }}</strong>
+                </div>
+              </div>
+            </div>
             <div v-if="visibleMessageActions(msg).length || strategyCodeForMessage(msg)" class="message-actions">
               <button v-for="action in visibleMessageActions(msg)" :key="action.key || action.label" type="button" @click="runMessageAction(action, msg)">
                 <a-icon :type="action.icon || 'arrow-right'" /> {{ action.label }}
@@ -1956,9 +1964,35 @@ export default {
         ...normalize(payload.tools, 'tool')
       ].slice(0, 8)
     },
+    hoseProvenanceAction (msg) {
+      const actions = Array.isArray(msg && msg.actions) ? msg.actions : []
+      return actions.find(action => action && action.type === 'hose_provenance') || null
+    },
+    hoseProvenanceRows (msg) {
+      const payload = this.hoseProvenanceAction(msg) && this.hoseProvenanceAction(msg).payload
+      if (!payload || payload.exchange !== 'HOSE') return []
+      const price = payload.price && typeof payload.price === 'object' ? payload.price : {}
+      const coverage = payload.coverage && typeof payload.coverage === 'object' ? payload.coverage : {}
+      const rows = [
+        { key: 'source', label: 'Source', value: price.source || 'unknown' },
+        { key: 'observed', label: 'Observed', value: price.observedAt || 'Chưa có' },
+        { key: 'fetched', label: 'Fetched', value: price.fetchedAt || 'Chưa có' },
+        { key: 'latency', label: 'Latency', value: this.hoseProvenanceLatencyLabel(price.latencyClass) }
+      ]
+      Object.entries(coverage).slice(0, 6).forEach(([field, state]) => {
+        rows.push({ key: `coverage-${field}`, label: field, value: this.hoseProvenanceStatusLabel(state && state.status) })
+      })
+      return rows
+    },
+    hoseProvenanceLatencyLabel (value) {
+      return ({ real_time: 'Real-time', delayed: 'Delayed', eod: 'EOD', unknown: 'Chưa xác định' })[String(value || '').toLowerCase()] || 'Chưa xác định'
+    },
+    hoseProvenanceStatusLabel (value) {
+      return ({ available: 'Có', unavailable: 'Không khả dụng', missing: 'Thiếu', not_requested: 'Chưa yêu cầu' })[String(value || '').toLowerCase()] || 'Chưa xác định'
+    },
     visibleMessageActions (msg) {
       const actions = Array.isArray(msg && msg.actions) ? msg.actions : []
-      return actions.filter(action => action && !['generate_code', 'agent_usage'].includes(action.type))
+      return actions.filter(action => action && !['generate_code', 'agent_usage', 'hose_provenance'].includes(action.type))
     },
     strategyCodeForMessage (msg) {
       const action = this.workflowActionForMessage(msg)
@@ -5082,6 +5116,56 @@ export default {
 .agent-usage-chip--tool {
   border-color: rgba(56, 189, 248, 0.28);
   background: rgba(56, 189, 248, 0.08);
+}
+
+.hose-chat-provenance {
+  margin-top: 10px;
+  padding: 10px 11px;
+  border: 1px solid color-mix(in srgb, var(--qd-accent) 22%, var(--qd-border-soft));
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--qd-accent) 6%, transparent);
+}
+
+.hose-chat-provenance-heading {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--qd-accent);
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.hose-chat-provenance-heading span {
+  color: var(--qd-text-subtle);
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.hose-chat-provenance-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px 12px;
+  margin-top: 8px;
+}
+
+.hose-chat-provenance-grid > div {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.hose-chat-provenance-grid span {
+  color: var(--qd-text-subtle);
+  font-size: 10px;
+  text-transform: uppercase;
+}
+
+.hose-chat-provenance-grid strong {
+  overflow: hidden;
+  color: var(--qd-text-main);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .message-time {

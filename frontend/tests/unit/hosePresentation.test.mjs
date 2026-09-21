@@ -31,5 +31,8 @@ test('Copilot filters HOSE server-side and does not invent a VN fallback symbol'
   const component = readFileSync(new URL('../../src/views/ai-analysis/components/CopilotWorkbench.vue', import.meta.url), 'utf8')
   assert.match(component, /exchange: 'HOSE'/)
   assert.match(component, /manualAddWatchFallback \(market, keyword\) \{[\s\S]*?if \(market === 'VNStock'\) return \[\]/)
+  assert.match(component, /hoseProvenanceRows/)
+  assert.match(component, /hose_provenance/)
+  assert.match(component, /HOSE · VND/)
   assert.match(component, /hoseOnly/)
 })
