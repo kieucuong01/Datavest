@@ -9,6 +9,7 @@ from typing import Any, Callable
 
 from app.data.market_symbols_seed import get_active_hose_symbol
 from app.data_sources.vn_market_providers import VndirectProvider
+from app.services.vietnam_provenance import build_hose_provenance
 from app.utils.logger import get_logger
 
 
@@ -340,6 +341,7 @@ class VietnamEvidenceService:
             "dataGaps": gaps,
             "sources": self._sources(profile, observations, events, price_payload),
         }
+        evidence["provenance"] = build_hose_provenance(evidence, fetched_at=datetime.now(timezone.utc))
         evidence["checksum"] = hashlib.sha256(_canonical_json(evidence).encode("utf-8")).hexdigest()
         try:
             self.persist(evidence)

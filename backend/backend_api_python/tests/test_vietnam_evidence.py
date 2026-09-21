@@ -319,6 +319,9 @@ def test_vietnam_evidence_is_point_in_time_and_exposes_explicit_gaps():
     assert evidence["marketContext"]["benchmarks"]["VNINDEX"]["price"] == 1300.0
     assert {gap["field"] for gap in evidence["dataGaps"]} >= {"foreignRoom", "ownershipStructure"}
     assert evidence["sources"][0]["provider"] == "vndirect"
+    assert evidence["provenance"]["price"]["latencyClass"] == "unknown"
+    assert evidence["provenance"]["coverage"]["fundamentals"]["status"] == "available"
+    assert evidence["provenance"]["coverage"]["news"]["status"] == "not_requested"
     assert len(evidence["checksum"]) == 64
     assert persisted == [evidence]
 

@@ -1549,6 +1549,8 @@ def _vietnam_evidence_context(context: dict, primary: dict | None, snapshot: dic
         "low": snapshot_price.get("low"),
         "open": snapshot_price.get("open"),
         "source": snapshot_price.get("source") or "unknown",
+        "time": snapshot_price.get("time"),
+        "timeframe": snapshot_price.get("timeframe"),
     }
     technical = {"timeframes": market_snapshot.get("timeframes") or {}}
     return get_vietnam_evidence_service().build(

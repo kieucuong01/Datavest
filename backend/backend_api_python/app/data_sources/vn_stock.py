@@ -259,6 +259,8 @@ class VNStockDataSource(BaseDataSource):
             "previousClose": previous,
             "symbol": canonical,
             "provider": self.last_kline_provider,
+            "timeframe": "1D",
+            "time": latest.get("time"),
         }
 
 

@@ -138,6 +138,9 @@ class KlineService:
                     'previousClose': ticker.get('previousClose', 0),
                     'source': ticker.get('provider') or ticker.get('source') or 'ticker'
                 }
+                if market == 'VNStock':
+                    result['time'] = ticker.get('time')
+                    result['timeframe'] = ticker.get('timeframe')
                 self.cache.set(cache_key, result, 30)
                 return result
         except Exception as e:
@@ -165,6 +168,9 @@ class KlineService:
                     'previousClose': prev_close,
                     'source': self._resolved_kline_provider(market, 'kline_1m')
                 }
+                if market == 'VNStock':
+                    result['time'] = latest.get('time')
+                    result['timeframe'] = '1m'
                 self.cache.set(cache_key, result, 30)
                 return result
         except Exception as e:
@@ -197,6 +203,9 @@ class KlineService:
                     'previousClose': prev_close,
                     'source': self._resolved_kline_provider(market, 'kline_1d')
                 }
+                if market == 'VNStock':
+                    result['time'] = latest.get('time')
+                    result['timeframe'] = '1D'
                 self.cache.set(cache_key, result, 300)
                 return result
         except Exception as e:

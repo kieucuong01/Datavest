@@ -268,7 +268,7 @@ class MarketDataCollector:
                         return default
                 
                 price = safe_float(price_data.get('price'))
-                return {
+                result = {
                     "price": price,
                     "change": safe_float(price_data.get('change')),
                     "changePercent": safe_float(price_data.get('changePercent')),
@@ -278,6 +278,9 @@ class MarketDataCollector:
                     "previousClose": safe_float(price_data.get('previousClose'), price),
                     "source": price_data.get('source', 'unknown')
                 }
+                if market == 'VNStock':
+                    result = {**result, "time": price_data.get('time'), "timeframe": price_data.get('timeframe')}
+                return result
         except Exception as e:
             logger.warning(f"Price fetch failed for {market}:{symbol}: {e}")
         
@@ -292,7 +295,7 @@ class MarketDataCollector:
                     change_pct = (change / prev_close * 100) if prev_close > 0 else 0
                     
                     logger.info(f"Price fetched from K-line fallback for {market}:{symbol}: ${price}")
-                    return {
+                    result = {
                         "price": price,
                         "change": round(change, 6),
                         "changePercent": round(change_pct, 2),
@@ -302,6 +305,12 @@ class MarketDataCollector:
                         "previousClose": prev_close,
                         "source": "kline_fallback"
                     }
+                    if market == 'VNStock':
+                        source = DataSourceFactory.get_source(market)
+                        result["source"] = str(getattr(source, "last_kline_provider", "") or "unknown")
+                        result["time"] = latest.get("time")
+                        result["timeframe"] = "1D"
+                    return result
         except Exception as e:
             logger.warning(f"K-line fallback price fetch also failed for {market}:{symbol}: {e}")
         
