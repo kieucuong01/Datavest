@@ -2,8 +2,11 @@
 
 from datetime import datetime, timezone
 from pathlib import Path
+import logging
 import sys
 import types
+
+import pytest
 
 # This service is intentionally dependency-free.  Avoid importing the Flask app
 # bootstrap (and its unrelated optional web dependencies) for this unit test.
@@ -12,10 +15,17 @@ _app_package = types.ModuleType("app")
 _app_package.__path__ = [str(_app_root)]
 _services_package = types.ModuleType("app.services")
 _services_package.__path__ = [str(_app_root / "services")]
+_utils_package = types.ModuleType("app.utils")
+_utils_package.__path__ = [str(_app_root / "utils")]
+_logger_module = types.ModuleType("app.utils.logger")
+_logger_module.get_logger = logging.getLogger
 sys.modules.setdefault("app", _app_package)
 sys.modules.setdefault("app.services", _services_package)
+sys.modules.setdefault("app.utils", _utils_package)
+sys.modules.setdefault("app.utils.logger", _logger_module)
 
 from app.services.market_research_evidence import build_market_research_evidence
+from app.services.fast_analysis_scoring import FastAnalysisScoringMixin
 
 
 def test_partial_hose_financial_observation_is_not_score_eligible():
@@ -115,3 +125,32 @@ def test_generic_market_projection_is_additive_and_does_not_mutate_payload():
         "news": [{"title": "Earnings"}],
         "macro": {"SPY": {"price": 500.0}},
     }
+
+
+def test_hose_scoring_nulls_partial_fundamentals_from_evidence_policy():
+    """Ignoring scoreEligibility would incorrectly recreate a fundamental score."""
+    scorer = FastAnalysisScoringMixin()
+    score = scorer._calculate_objective_score(
+        {
+            "market": "VNStock",
+            "indicators": {"rsi": {"value": 45.0}},
+            "fundamental": {"pe_ratio": 12.5, "roe": 0.2},
+            "news": [],
+            "macro": {},
+            "price": {"price": 120000},
+        },
+        120000,
+        research_evidence={
+            "scoreEligibility": {
+                "technical": {"eligible": True, "status": "available", "reason": None},
+                "fundamental": {"eligible": False, "status": "partial", "reason": "PROVIDER_DOES_NOT_DISTINGUISH_SCOPE"},
+                "sentiment": {"eligible": False, "status": "missing", "reason": "NO_RESULTS"},
+                "macro": {"eligible": False, "status": "missing", "reason": "NO_MARKET_CONTEXT"},
+            },
+        },
+    )
+
+    assert score["technical_score"] is not None
+    assert score["fundamental_score"] is None
+    assert score["sentiment_score"] is None
+    assert score["overall_score"] == pytest.approx(score["technical_score"])

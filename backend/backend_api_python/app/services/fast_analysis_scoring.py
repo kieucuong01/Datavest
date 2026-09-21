@@ -21,6 +21,7 @@ class FastAnalysisScoringMixin:
         data: Dict[str, Any],
         current_price: float,
         language: str = "en-US",
+        research_evidence: Dict[str, Any] | None = None,
     ) -> Dict[str, float]:
         """
         Calculate a normalized objective score from market evidence.
@@ -42,6 +43,12 @@ class FastAnalysisScoringMixin:
         crypto_factors = data.get("crypto_factors") or {}
 
         if str(data.get("market") or "") == "VNStock":
+            eligibility = (research_evidence or {}).get("scoreEligibility") or {}
+
+            def eligible(component: str, default: bool) -> bool:
+                policy = eligibility.get(component)
+                return bool(policy.get("eligible")) if isinstance(policy, dict) else default
+
             has_price = float(current_price or 0) > 0
             has_technical = bool(
                 isinstance(indicators.get("rsi"), dict) and isinstance(indicators["rsi"].get("value"), (int, float))
@@ -56,10 +63,14 @@ class FastAnalysisScoringMixin:
             has_news = isinstance(news, list) and bool(news)
             has_macro = isinstance(macro, dict) and bool(macro)
             scores = {
-                "technical": self._calculate_technical_score(indicators, price_data) if has_price and has_technical else None,
-                "fundamental": self._calculate_fundamental_score(fundamental, "VNStock") if has_fundamental else None,
-                "sentiment": self._calculate_sentiment_score(news) if has_news else None,
-                "macro": self._calculate_macro_score(macro, "VNStock") if has_macro else None,
+                "technical": self._calculate_technical_score(indicators, price_data)
+                if has_price and has_technical and eligible("technical", True) else None,
+                "fundamental": self._calculate_fundamental_score(fundamental, "VNStock")
+                if has_fundamental and eligible("fundamental", True) else None,
+                "sentiment": self._calculate_sentiment_score(news)
+                if has_news and eligible("sentiment", True) else None,
+                "macro": self._calculate_macro_score(macro, "VNStock")
+                if has_macro and eligible("macro", True) else None,
             }
             weights = {"technical": 0.35, "fundamental": 0.20, "sentiment": 0.25, "macro": 0.20}
             present = {key: value for key, value in scores.items() if value is not None}
