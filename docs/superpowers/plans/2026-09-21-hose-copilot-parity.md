@@ -337,4 +337,3 @@ Create a final corrective commit only if Task 5 fixes a verified defect:
 git add <only-intended-files>
 git commit -m "fix: verify HOSE Copilot parity regressions"
 ```
-
