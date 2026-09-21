@@ -14,6 +14,7 @@ from app.services.market_data_collector import get_market_data_collector
 from app.services.fast_analysis_formatters import build_trend_outlook_summary, enrich_vietnam_provenance, safe_float_price
 from app.services.fast_analysis_geo import is_major_geopolitical_news_text
 from app.services.fast_analysis_scoring import FastAnalysisScoringMixin
+from app.services.vietnam_provenance import build_hose_provenance
 from app.data.market_symbols_seed import validate_hose_ai_target
 from app.utils.language import normalize_product_language
 
@@ -782,6 +783,102 @@ IMPORTANT:
         return "\n".join(lines) if lines else "宏观数据暂不可用"
     
     # ==================== Main Analysis ====================
+
+    def _build_hose_fast_result(
+        self, result: Dict[str, Any], data: Dict[str, Any], *,
+        start_time: float, user_id: int | None, persist_history: bool,
+    ) -> Dict[str, Any]:
+        """Emit a coverage-aware HOSE report without model-invented scores."""
+        result = dict(result)
+        price = data.get("price") if isinstance(data.get("price"), dict) else {}
+        indicators = data.get("indicators") if isinstance(data.get("indicators"), dict) else {}
+        evidence = data.get("vietnam_evidence") if isinstance(data.get("vietnam_evidence"), dict) else {}
+        news = data.get("news") if isinstance(data.get("news"), list) else []
+        meta = data.get("_meta") if isinstance(data.get("_meta"), dict) else {}
+        news_capture = None if "news" in (meta.get("failed_items") or []) else news
+        provenance = build_hose_provenance(
+            evidence or {
+                "instrument": {"market": "VNStock", "exchange": "HOSE", "symbol": result.get("symbol")},
+                "price": price, "technical": indicators,
+                "fundamentals": {"observations": [], "derivedMetrics": {}},
+            },
+            fetched_at=datetime.now(timezone.utc),
+            news=news_capture,
+            news_requested=True,
+        )
+        current_price = safe_float_price(price.get("price"))
+        objective = self._calculate_objective_score(data, current_price or 0.0, result.get("language") or "en-US")
+        score = objective.get("overall_score")
+        sufficient = score is not None
+        decision = self._score_to_decision(score, market="VNStock") if sufficient else "INSUFFICIENT_DATA"
+        display = lambda value: max(0, min(100, int(round(50 + value * 0.5)))) if value is not None else None
+        scores = {
+            "technical": display(objective.get("technical_score")),
+            "fundamental": display(objective.get("fundamental_score")),
+            "sentiment": display(objective.get("sentiment_score")),
+            "overall": display(score),
+        }
+        components = provenance["coverage"]
+        partial = any(item["status"] != "available" for item in components.values())
+        is_vi = result.get("language") == "vi-VN"
+        summary = (
+            "Không đủ dữ liệu giá/kỹ thuật để kết luận; xem các khoảng trống dữ liệu bên dưới."
+            if is_vi else "Insufficient price/technical evidence for a verdict; review the data gaps below."
+        ) if not sufficient else (
+            f"Đánh giá dựa trên dữ liệu HOSE hiện có ({decision}); các thành phần thiếu không được chấm điểm."
+            if is_vi else f"Evidence-based HOSE assessment ({decision}); missing components were not scored."
+        )
+        technical_narrative = summary
+        llm_time_ms = 0
+        if sufficient:
+            llm_start = time.time()
+            try:
+                narrative = self.llm_service.safe_call_llm(
+                    "You are a HOSE Vietnam research assistant. Prices are in VND, not USD. "
+                    "Use only the supplied price and technical indicators. Return a short technical explanation; "
+                    "never supply a decision, score, financial statements, fundamentals, news, or unsupported values. "
+                    "Explicitly acknowledge missing evidence. Return JSON with a technical field.",
+                    json.dumps({
+                        "symbol": result.get("symbol"),
+                        "price": price,
+                        "technical": indicators,
+                        "missing": [item for item in provenance["dataGaps"] if item.get("field") in {"fundamentals", "news"}],
+                    }, ensure_ascii=False, default=str),
+                    default_structure={"technical": summary},
+                    model=result.get("model"),
+                )
+                if isinstance(narrative, dict) and isinstance(narrative.get("technical"), str):
+                    technical_narrative = narrative["technical"][:2000]
+            except Exception as exc:
+                logger.warning("HOSE technical narrative unavailable for %s: %s", result.get("symbol"), exc)
+            llm_time_ms = int((time.time() - llm_start) * 1000)
+        result.update({
+            "decision": decision,
+            "confidence": None if not sufficient else max(20, min(80, int(40 + abs(score) * 0.25))),
+            "summary": summary,
+            "scores": scores,
+            "score_coverage": {"components": components, "partial": partial, "dataGaps": provenance["dataGaps"]},
+            "provenance": provenance,
+            "objective_score": objective,
+            "score_based_decision": decision,
+            "market_data": {"current_price": current_price, "change_24h": price.get("changePercent"),
+                            "source": provenance["price"]["source"], "currency": "VND"},
+            "detailed_analysis": {"technical": technical_narrative, "fundamental": "", "sentiment": ""},
+            "reasons": [],
+            "risks": [item["reason"] for item in provenance["dataGaps"] if item.get("reason")],
+            "trading_plan": {},
+            "indicators": indicators,
+            "input_data": self._build_input_provenance(data, timeframe=result.get("timeframe") or "1D"),
+            "analysis_time_ms": int((time.time() - start_time) * 1000),
+            "llm_time_ms": llm_time_ms,
+            "data_collection_time_ms": meta.get("duration_ms", 0),
+            "analysis_method": "evidence_rules_with_technical_narrative" if sufficient else "evidence_rules",
+        })
+        if persist_history:
+            memory_id = self._store_analysis_memory(result, user_id=user_id)
+            if memory_id:
+                result["memory_id"] = memory_id
+        return result
     
     def analyze(self, market: str, symbol: str, language: str = 'en-US', 
                 model: str = None, timeframe: str = "1D", user_id: int = None,
@@ -869,6 +966,11 @@ IMPORTANT:
                 include_macro=True,
                 include_news=True,
             )
+            if market == "VNStock":
+                return self._build_hose_fast_result(
+                    result, primary_data, start_time=start_time,
+                    user_id=user_id, persist_history=persist_history,
+                )
 
             # Collect extra timeframes for objective consensus (technical-only for cost)
             objective_by_tf: Dict[str, Dict[str, Any]] = {}

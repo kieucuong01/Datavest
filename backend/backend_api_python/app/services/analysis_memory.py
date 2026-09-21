@@ -54,7 +54,7 @@ class AnalysisMemory:
                         user_id INT,
                         market VARCHAR(50) NOT NULL,
                         symbol VARCHAR(50) NOT NULL,
-                        decision VARCHAR(10) NOT NULL,
+                        decision VARCHAR(24) NOT NULL,
                         confidence INT DEFAULT 50,
                         price_at_analysis DECIMAL(24, 8),
                         summary TEXT,

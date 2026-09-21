@@ -41,6 +41,43 @@ class FastAnalysisScoringMixin:
         price_data = data.get("price") or {}
         crypto_factors = data.get("crypto_factors") or {}
 
+        if str(data.get("market") or "") == "VNStock":
+            has_price = float(current_price or 0) > 0
+            has_technical = bool(
+                isinstance(indicators.get("rsi"), dict) and isinstance(indicators["rsi"].get("value"), (int, float))
+                or isinstance(indicators.get("macd"), dict) and indicators["macd"].get("signal") in {"bullish", "bearish"}
+                or isinstance(indicators.get("moving_averages"), dict)
+                and any(word in str(indicators["moving_averages"].get("trend") or "") for word in ("uptrend", "downtrend"))
+            )
+            has_fundamental = any(
+                isinstance(fundamental.get(key), (int, float)) and fundamental[key] != 0
+                for key in ("pe_ratio", "roe", "revenue_growth", "profit_margin", "debt_to_equity")
+            )
+            has_news = isinstance(news, list) and bool(news)
+            has_macro = isinstance(macro, dict) and bool(macro)
+            scores = {
+                "technical": self._calculate_technical_score(indicators, price_data) if has_price and has_technical else None,
+                "fundamental": self._calculate_fundamental_score(fundamental, "VNStock") if has_fundamental else None,
+                "sentiment": self._calculate_sentiment_score(news) if has_news else None,
+                "macro": self._calculate_macro_score(macro, "VNStock") if has_macro else None,
+            }
+            weights = {"technical": 0.35, "fundamental": 0.20, "sentiment": 0.25, "macro": 0.20}
+            present = {key: value for key, value in scores.items() if value is not None}
+            overall = (
+                sum(value * weights[key] for key, value in present.items()) / sum(weights[key] for key in present)
+                if scores["technical"] is not None else None
+            )
+            return {
+                "technical_score": scores["technical"],
+                "fundamental_score": scores["fundamental"],
+                "sentiment_score": scores["sentiment"],
+                "macro_score": scores["macro"],
+                "overall_score": overall,
+                "crypto_factor_score": None,
+                "crypto_factor_breakdown": [],
+                "crypto_factor_summary": "",
+            }
+
         technical_score = self._calculate_technical_score(indicators, price_data)
 
         fundamental_score = self._calculate_fundamental_score(fundamental, data.get("market", ""))

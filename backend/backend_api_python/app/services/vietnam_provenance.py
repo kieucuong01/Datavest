@@ -64,7 +64,10 @@ def build_hose_provenance(
     has_fundamentals = bool(observations) or any(
         value is not None for key, value in derived.items() if key != "ratioUnit"
     )
-    has_technical = any(bool(value) for value in technical.values())
+    has_technical = any(
+        bool(technical.get(key))
+        for key in ("rsi", "macd", "moving_averages", "levels", "signals", "timeframes")
+    )
     existing_gaps = [dict(item) for item in evidence.get("dataGaps") or [] if isinstance(item, dict)]
     unavailable = {item.get("field") for item in existing_gaps if item.get("reason") == "PROVIDER_UNAVAILABLE"}
     coverage = {

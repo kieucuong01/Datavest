@@ -66,3 +66,11 @@ def test_daily_ticker_carries_bar_time_and_timeframe():
     assert quote["timeframe"] == "1D"
     assert quote["time"] == 1789747200
     assert quote["provider"] == "yahoo"
+
+
+def test_indicator_error_is_not_available_technical_evidence():
+    result = build_hose_provenance({
+        "price": {"price": 120000},
+        "technical": {"error": "Insufficient data", "current_price": 120000},
+    })
+    assert result["coverage"]["technical"]["status"] == "missing"
