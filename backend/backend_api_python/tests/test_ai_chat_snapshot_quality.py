@@ -53,6 +53,71 @@ def test_agent_response_language_follows_every_ui_locale():
     assert _agent_response_language_name("zh-CN") == "English"
 
 
+def test_hose_prompt_separates_vietnam_from_us_and_discloses_missing_evidence():
+    prompt = _build_system_prompt("vi-VN", {
+        "market": "VNStock", "symbol": "HPG",
+        "research_context": {"vietnamEvidence": {"dataGaps": [{"field": "fundamentals"}]}}
+    }, "market_analysis", False, json_response=False)
+
+    assert "HOSE" in prompt and "VND" in prompt
+    assert "US" in prompt and "financial statements" in prompt
+    assert "missing" in prompt.lower()
+
+
+def test_ambiguous_hose_name_stops_before_snapshot_or_evidence(monkeypatch):
+    rows = [
+        {"market": "VNStock", "symbol": "ACB", "name": "Ngân hàng Á Châu", "exchange": "HOSE"},
+        {"market": "VNStock", "symbol": "MBB", "name": "Ngân hàng Quân đội", "exchange": "HOSE"},
+    ]
+    monkeypatch.setattr(ai_chat, "seed_search_symbols", lambda market, keyword, *, exchange: rows if keyword == "Ngân hàng" else [])
+    monkeypatch.setattr(ai_chat, "validate_hose_ai_target", lambda market, symbol: symbol)
+    monkeypatch.setattr(ai_chat, "_local_symbol_candidates", lambda message: [])
+    monkeypatch.setattr(ai_chat, "_snapshot_for_candidate", lambda row: (_ for _ in ()).throw(AssertionError("quote fetched")))
+    monkeypatch.setattr(ai_chat, "get_vietnam_evidence_service", lambda: (_ for _ in ()).throw(AssertionError("evidence fetched")))
+
+    research = ai_chat._build_research_context({
+        "user_message": "Giá Ngân hàng", "intent": "market_analysis", "language": "vi-VN",
+    })
+
+    assert research["entities"]["primary"] == {}
+    assert research["data_gaps"][0]["reason"] == "AMBIGUOUS_HOSE_TARGET"
+
+
+def test_catalog_resolved_hose_ticker_precedes_generic_candidates(monkeypatch):
+    row = {"market": "VNStock", "symbol": "ABC", "name": "ABC Holdings", "exchange": "HOSE"}
+    monkeypatch.setattr(ai_chat, "seed_search_symbols", lambda market, keyword, *, exchange: [row] if keyword == "ABC" else [])
+    monkeypatch.setattr(ai_chat, "validate_hose_ai_target", lambda market, symbol: symbol)
+    monkeypatch.setattr(ai_chat, "_local_symbol_candidates", lambda message: [])
+    monkeypatch.setattr(ai_chat, "_search_intelligence", lambda *args, **kwargs: {"web_results": [], "news_results": [], "search_queries": []})
+    monkeypatch.setattr(ai_chat, "_snapshot_for_candidate", lambda candidate: {})
+    monkeypatch.setattr(ai_chat, "get_vietnam_evidence_service", lambda: type("Service", (), {"build": lambda self, **kwargs: {"fundamentals": {}, "dataGaps": [{"field": "fundamentals", "reason": "NO_STATEMENTS"}]}})())
+    monkeypatch.setattr(ai_chat, "_research_skill_plan", lambda *args, **kwargs: [])
+
+    research = ai_chat._build_research_context({
+        "user_message": "Giá ABC", "intent": "market_analysis", "language": "vi-VN",
+    })
+
+    assert research["entities"]["primary"]["symbol"] == "ABC"
+    assert {gap["field"] for gap in research["data_gaps"] if isinstance(gap, dict)} >= {"fundamentals"}
+
+
+def test_us_vn_ticker_collision_requires_market_choice(monkeypatch):
+    vn_row = {"market": "VNStock", "symbol": "ABC", "name": "ABC Vietnam", "exchange": "HOSE"}
+    monkeypatch.setattr(ai_chat, "seed_search_symbols", lambda market, keyword, *, exchange: [vn_row] if keyword == "ABC" else [])
+    monkeypatch.setattr(ai_chat, "validate_hose_ai_target", lambda market, symbol: symbol)
+    monkeypatch.setattr(ai_chat, "_local_symbol_candidates", lambda message: [{
+        "market": "USStock", "symbol": "ABC", "name": "ABC US",
+    }])
+    monkeypatch.setattr(ai_chat, "_snapshot_for_candidate", lambda row: (_ for _ in ()).throw(AssertionError("quote fetched")))
+
+    research = ai_chat._build_research_context({
+        "user_message": "Giá ABC", "intent": "market_analysis", "language": "vi-VN",
+    })
+
+    assert research["data_gaps"][0]["reason"] == "AMBIGUOUS_MARKET_TARGET"
+    assert research["entities"]["primary"] == {}
+
+
 @pytest.mark.parametrize(
     ("locale", "message"),
     [

@@ -46,6 +46,7 @@ from app.services.kline import KlineService
 from app.services.llm import LLMAPIError, LLMService
 from app.services.search import get_search_service
 from app.services.vietnam_evidence import get_vietnam_evidence_service
+from app.services.hose_entity_resolution import resolve_hose_request
 from app.config.data_sources import AkshareConfig, TradingEconomicsConfig
 from app.data.market_symbols_seed import search_symbols as seed_search_symbols, validate_hose_ai_target
 from app.data_providers.macro_series import get_macro_series_provider
@@ -797,11 +798,6 @@ _COMMON_ENTITY_ALIASES = (
     {"keys": ("小鹏", "小鵬", "xpeng", "xpev"), "terms": ("XPEV", "9868", "XPeng"), "symbol": "XPEV", "market": "USStock", "name": "XPeng Inc."},
     {"keys": ("理想汽车", "理想汽車", "li auto", "li"), "terms": ("LI", "2015", "Li Auto"), "symbol": "LI", "market": "USStock", "name": "Li Auto Inc."},
     {"keys": ("蔚来", "蔚來", "nio"), "terms": ("NIO", "9866", "NIO"), "symbol": "NIO", "market": "USStock", "name": "NIO Inc."},
-    {"keys": ("fpt", "fpt corporation"), "terms": ("FPT", "FPT Corporation"), "symbol": "FPT", "market": "VNStock", "name": "FPT Corporation"},
-    {"keys": ("vietcombank", "vcb"), "terms": ("VCB", "Vietcombank"), "symbol": "VCB", "market": "VNStock", "name": "Vietcombank"},
-    {"keys": ("hoa phat", "hpg"), "terms": ("HPG", "Hoa Phat"), "symbol": "HPG", "market": "VNStock", "name": "Hoa Phat Group"},
-    {"keys": ("vinamilk", "vnm"), "terms": ("VNM", "Vinamilk"), "symbol": "VNM", "market": "VNStock", "name": "Vinamilk"},
-    {"keys": ("vingroup", "vic"), "terms": ("VIC", "Vingroup"), "symbol": "VIC", "market": "VNStock", "name": "Vingroup"},
 )
 
 
@@ -1572,6 +1568,37 @@ def _build_research_context(context: dict, has_image: bool = False) -> dict:
         return {}
 
     candidates = _local_symbol_candidates(message)
+    hose_resolution = resolve_hose_request(
+        message,
+        {"market": context.get("market"), "symbol": context.get("symbol")},
+        seed_search_symbols,
+        validate_hose_ai_target,
+    )
+    if hose_resolution["status"] == "ambiguous":
+        return {
+            "entities": {"primary": {}, "candidates": hose_resolution["candidates"]},
+            "vietnamEvidence": {},
+            "data_gaps": [{"field": "instrument", "reason": "AMBIGUOUS_HOSE_TARGET"}],
+            "answer_policy": {"ask_to_select_hose_symbol": True, "do_not_invent_live_data": True},
+        }
+    if hose_resolution["status"] == "resolved":
+        target = hose_resolution["target"]
+        collision = any(
+            item.get("market") != "VNStock" and item.get("symbol") == target.get("symbol")
+            for item in candidates
+        )
+        explicit_hose = str(context.get("market") or "") == "VNStock" or "hose" in message.casefold()
+        if collision and not explicit_hose:
+            return {
+                "entities": {"primary": {}, "candidates": [target] + candidates},
+                "vietnamEvidence": {},
+                "data_gaps": [{"field": "instrument", "reason": "AMBIGUOUS_MARKET_TARGET"}],
+                "answer_policy": {"ask_to_select_market": True, "do_not_invent_live_data": True},
+            }
+        candidates = [target] + [
+            item for item in candidates
+            if (item.get("market"), item.get("symbol")) != ("VNStock", target.get("symbol"))
+        ]
     needs_symbol_discovery = flags["needs_market_data"] and not candidates
     search_context = _search_intelligence(message, candidates, language) if (flags["needs_news"] or flags["needs_fundamentals"] or needs_symbol_discovery) else {
         "web_results": [],
@@ -1949,6 +1976,17 @@ def _build_system_prompt(language: str, context: dict, intent: str, has_image: b
         "If evidence is insufficient, still provide a conditional plan using available data and list what is missing.\n"
     )
     base += "\n" + build_skill_prompt(language, str(context.get("user_message") or ""), intent) + "\n"
+    research = context.get("research_context") if isinstance(context.get("research_context"), dict) else {}
+    primary = (research.get("entities") or {}).get("primary") or {}
+    if context.get("market") == "VNStock" or primary.get("market") == "VNStock" or research.get("vietnamEvidence"):
+        base += (
+            "\n[HOSE Vietnam policy] This is a Vietnamese HOSE instrument quoted in VND, not a US stock. "
+            "Do not assume US trading sessions, USD prices, SEC filings, or US financial statements. "
+            "Use only supplied Vietnam Evidence for financial statements, fundamentals, company actions, and news. "
+            "Explicitly state missing BCTC/financial statements or news; never fill gaps by inference. "
+            "If price or technical evidence is missing, do not issue a directional verdict or neutral score of 50. "
+            "Distinguish source observation time from fetch time and say when latency is unknown.\n"
+        )
     base += "\n" + build_tool_prompt(language, intent) + "\n"
     if context.get("agent_task"):
         base += (
