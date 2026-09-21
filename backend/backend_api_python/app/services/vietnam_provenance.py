@@ -70,13 +70,26 @@ def build_hose_provenance(
     )
     existing_gaps = [dict(item) for item in evidence.get("dataGaps") or [] if isinstance(item, dict)]
     unavailable = {item.get("field") for item in existing_gaps if item.get("reason") == "PROVIDER_UNAVAILABLE"}
+    incomplete_observation = any(
+        not row.get("periodEnd") or not row.get("availableAt") or not row.get("source")
+        for row in observations if isinstance(row, dict)
+    )
+    unknown_scope = any(
+        str(row.get("reportScope") or "").upper() not in {"CONSOLIDATED", "STANDALONE"}
+        for row in observations if isinstance(row, dict)
+    )
+    fundamental_state = (
+        _coverage("unavailable", "PROVIDER_UNAVAILABLE") if "fundamentalStatements" in unavailable
+        else _coverage("partial", "PROVIDER_DOES_NOT_DISTINGUISH_SCOPE") if observations and unknown_scope
+        else _coverage("partial", "INCOMPLETE_POINT_IN_TIME_OBSERVATION") if observations and incomplete_observation
+        else _coverage("available") if observations
+        else _coverage("partial", "NO_POINT_IN_TIME_OBSERVATIONS") if has_fundamentals
+        else _coverage("missing", "NO_POINT_IN_TIME_OBSERVATIONS")
+    )
     coverage = {
         "price": _coverage("available" if has_price else "missing", "" if has_price else "NO_PRICE"),
         "technical": _coverage("available" if has_technical else "missing", "" if has_technical else "NO_TECHNICAL_DATA"),
-        "fundamentals": _coverage(
-            "available" if has_fundamentals else "unavailable" if "fundamentalStatements" in unavailable else "missing",
-            "" if has_fundamentals else "PROVIDER_UNAVAILABLE" if "fundamentalStatements" in unavailable else "NO_POINT_IN_TIME_OBSERVATIONS",
-        ),
+        "fundamentals": fundamental_state,
         "news": _coverage(
             "not_requested" if not news_requested else "unavailable" if news is None else "available" if news else "missing",
             "" if not news_requested or news else "NOT_CAPTURED" if news is None else "NO_RESULTS",

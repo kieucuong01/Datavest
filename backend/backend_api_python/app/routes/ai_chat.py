@@ -47,6 +47,7 @@ from app.services.llm import LLMAPIError, LLMService
 from app.services.search import get_search_service
 from app.services.vietnam_evidence import get_vietnam_evidence_service
 from app.services.hose_entity_resolution import resolve_hose_request
+from app.services.market_research_evidence import build_market_research_evidence
 from app.config.data_sources import AkshareConfig, TradingEconomicsConfig
 from app.data.market_symbols_seed import search_symbols as seed_search_symbols, validate_hose_ai_target
 from app.data_providers.macro_series import get_macro_series_provider
@@ -1553,12 +1554,22 @@ def _vietnam_evidence_context(context: dict, primary: dict | None, snapshot: dic
         "timeframe": snapshot_price.get("timeframe"),
     }
     technical = {"timeframes": market_snapshot.get("timeframes") or {}}
-    return get_vietnam_evidence_service().build(
+    evidence = get_vietnam_evidence_service().build(
         symbol=normalized_symbol,
         price=price,
         technical=technical,
         as_of=_now_utc(),
     )
+    normalized = build_market_research_evidence(
+        "VNStock", {"vietnam_evidence": evidence}, fetched_at=_now_utc(), news_requested=True,
+    )
+    # Preserve the Vietnam DTO for existing consumers while exposing the exact
+    # coverage policy Fast Analysis uses to the Copilot prompt and UI actions.
+    evidence["provenance"] = normalized["provenance"]
+    evidence["coverage"] = normalized["coverage"]
+    evidence["scoreEligibility"] = normalized["scoreEligibility"]
+    evidence["dataGaps"] = normalized["dataGaps"]
+    return evidence
 
 
 def _build_research_context(context: dict, has_image: bool = False) -> dict:

@@ -14,7 +14,7 @@ from app.services.market_data_collector import get_market_data_collector
 from app.services.fast_analysis_formatters import build_trend_outlook_summary, enrich_vietnam_provenance, safe_float_price
 from app.services.fast_analysis_geo import is_major_geopolitical_news_text
 from app.services.fast_analysis_scoring import FastAnalysisScoringMixin
-from app.services.vietnam_provenance import build_hose_provenance
+from app.services.market_research_evidence import build_market_research_evidence
 from app.data.market_symbols_seed import validate_hose_ai_target
 from app.utils.language import normalize_product_language
 
@@ -792,22 +792,25 @@ IMPORTANT:
         result = dict(result)
         price = data.get("price") if isinstance(data.get("price"), dict) else {}
         indicators = data.get("indicators") if isinstance(data.get("indicators"), dict) else {}
-        evidence = data.get("vietnam_evidence") if isinstance(data.get("vietnam_evidence"), dict) else {}
         news = data.get("news") if isinstance(data.get("news"), list) else []
         meta = data.get("_meta") if isinstance(data.get("_meta"), dict) else {}
         news_capture = None if "news" in (meta.get("failed_items") or []) else news
-        provenance = build_hose_provenance(
-            evidence or {
-                "instrument": {"market": "VNStock", "exchange": "HOSE", "symbol": result.get("symbol")},
-                "price": price, "technical": indicators,
-                "fundamentals": {"observations": [], "derivedMetrics": {}},
-            },
+        research_evidence = build_market_research_evidence(
+            "VNStock",
+            data,
             fetched_at=datetime.now(timezone.utc),
-            news=news_capture,
             news_requested=True,
         )
+        if news_capture is None:
+            research_evidence["coverage"]["news"] = {"status": "unavailable", "reason": "PROVIDER_UNAVAILABLE"}
+            research_evidence["scoreEligibility"]["sentiment"] = {
+                "eligible": False, "status": "unavailable", "reason": "PROVIDER_UNAVAILABLE",
+            }
+        provenance = research_evidence["provenance"]
         current_price = safe_float_price(price.get("price"))
-        objective = self._calculate_objective_score(data, current_price or 0.0, result.get("language") or "en-US")
+        objective = self._calculate_objective_score(
+            data, current_price or 0.0, result.get("language") or "en-US", research_evidence=research_evidence,
+        )
         score = objective.get("overall_score")
         sufficient = score is not None
         decision = self._score_to_decision(score, market="VNStock") if sufficient else "INSUFFICIENT_DATA"
@@ -818,7 +821,7 @@ IMPORTANT:
             "sentiment": display(objective.get("sentiment_score")),
             "overall": display(score),
         }
-        components = provenance["coverage"]
+        components = research_evidence["coverage"]
         partial = any(item["status"] != "available" for item in components.values())
         is_vi = result.get("language") == "vi-VN"
         summary = (
@@ -857,15 +860,27 @@ IMPORTANT:
             "confidence": None if not sufficient else max(20, min(80, int(40 + abs(score) * 0.25))),
             "summary": summary,
             "scores": scores,
-            "score_coverage": {"components": components, "partial": partial, "dataGaps": provenance["dataGaps"]},
+            "score_coverage": {
+                "components": components,
+                "eligibility": research_evidence["scoreEligibility"],
+                "partial": partial,
+                "dataGaps": research_evidence["dataGaps"],
+            },
             "provenance": provenance,
             "objective_score": objective,
             "score_based_decision": decision,
             "market_data": {"current_price": current_price, "change_24h": price.get("changePercent"),
                             "source": provenance["price"]["source"], "currency": "VND"},
-            "detailed_analysis": {"technical": technical_narrative, "fundamental": "", "sentiment": ""},
-            "reasons": [],
-            "risks": [item["reason"] for item in provenance["dataGaps"] if item.get("reason")],
+            "detailed_analysis": {
+                "technical": technical_narrative,
+                "fundamental": self._coverage_gap_summary(components.get("fundamentals"), is_vi),
+                "sentiment": self._coverage_gap_summary(components.get("news"), is_vi),
+            },
+            "reasons": [
+                item["reason"] for item in components.values()
+                if isinstance(item, dict) and item.get("status") != "available" and item.get("reason")
+            ],
+            "risks": [item["reason"] for item in research_evidence["dataGaps"] if item.get("reason")],
             "trading_plan": {},
             "indicators": indicators,
             "input_data": self._build_input_provenance(data, timeframe=result.get("timeframe") or "1D"),
@@ -879,6 +894,18 @@ IMPORTANT:
             if memory_id:
                 result["memory_id"] = memory_id
         return result
+
+    @staticmethod
+    def _coverage_gap_summary(component: Dict[str, Any] | None, is_vi: bool) -> str:
+        """Return a user-facing gap instead of empty or neutral report sections."""
+        component = component if isinstance(component, dict) else {}
+        if component.get("status") == "available":
+            return ""
+        reason = str(component.get("reason") or "DATA_UNAVAILABLE")
+        return (
+            f"Chưa đủ bằng chứng đã xác minh để phân tích phần này ({reason})."
+            if is_vi else f"Verified evidence is insufficient for this section ({reason})."
+        )
     
     def analyze(self, market: str, symbol: str, language: str = 'en-US', 
                 model: str = None, timeframe: str = "1D", user_id: int = None,

@@ -28,6 +28,14 @@ export function hoseLatencyLabel (provenance, language = 'vi-VN') {
   return vi ? 'Chưa xác định' : 'Unknown'
 }
 
+export function hoseCoverageStatusLabel (status, language = 'vi-VN') {
+  const vi = String(language).toLowerCase().startsWith('vi')
+  const labels = vi
+    ? { available: 'Đầy đủ', partial: 'Một phần', missing: 'Thiếu dữ liệu', unavailable: 'Không khả dụng', not_requested: 'Chưa yêu cầu' }
+    : { available: 'Available', partial: 'Partial', missing: 'Missing', unavailable: 'Unavailable', not_requested: 'Not requested' }
+  return labels[status] || (vi ? 'Chưa xác định' : 'Unknown')
+}
+
 export function hoseCoverageRows (coverage) {
   return Object.entries(coverage || {}).map(([key, entry]) => ({
     key,

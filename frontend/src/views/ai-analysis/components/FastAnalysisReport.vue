@@ -188,7 +188,7 @@
         </div>
         <div v-if="coverageRows.length" class="hose-coverage-list">
           <span v-for="row in coverageRows" :key="row.key" :class="['hose-coverage-item', `coverage-${row.status}`]">
-            {{ row.key }}: {{ row.status }}<em v-if="row.reason"> ({{ row.reason }})</em>
+            {{ row.key }}: {{ row.statusLabel }}<em v-if="row.reason"> ({{ row.reason }})</em>
           </span>
         </div>
       </div>
@@ -499,7 +499,7 @@
 <script>
 import { mapState } from 'vuex'
 import { submitFeedback as submitFeedbackApi, getPerformanceStats } from '@/api/fast-analysis'
-import { hosePriceLabel, hoseLatencyLabel, hoseScoreLabel, hoseCoverageRows, hasScore } from '@/utils/hosePresentation'
+import { hosePriceLabel, hoseLatencyLabel, hoseScoreLabel, hoseCoverageRows, hoseCoverageStatusLabel, hasScore } from '@/utils/hosePresentation'
 
 export default {
   name: 'FastAnalysisReport',
@@ -590,7 +590,9 @@ export default {
       return hoseLatencyLabel(this.provenance, this.$i18n ? this.$i18n.locale : 'vi-VN')
     },
     coverageRows () {
+      const language = this.$i18n ? this.$i18n.locale : 'vi-VN'
       return hoseCoverageRows(this.result?.score_coverage?.components || this.provenance?.coverage)
+        .map(row => ({ ...row, statusLabel: hoseCoverageStatusLabel(row.status, language) }))
     },
     decisionDisplayText () {
       return this.formatDecisionLabel(this.result?.decision)
