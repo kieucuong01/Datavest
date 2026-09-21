@@ -6,6 +6,7 @@ import {
   hosePriceLabel,
   hoseLatencyLabel,
   hoseScoreLabel,
+  hoseCoverageStatusLabel,
   hoseCoverageRows,
   hasScore
 } from '../../src/utils/hosePresentation.js'
@@ -25,6 +26,12 @@ test('unknown latency stays unknown and coverage exposes gaps', () => {
   assert.deepEqual(hoseCoverageRows({ fundamentals: { status: 'missing', reason: 'NO_STATEMENTS' } }), [
     { key: 'fundamentals', status: 'missing', reason: 'NO_STATEMENTS' }
   ])
+})
+
+test('coverage uses localized explicit gap labels instead of raw neutral states', () => {
+  assert.equal(hoseCoverageStatusLabel('partial', 'vi-VN'), 'Một phần')
+  assert.equal(hoseCoverageStatusLabel('unavailable', 'en-US'), 'Unavailable')
+  assert.equal(hoseCoverageStatusLabel('missing', 'vi-VN'), 'Thiếu dữ liệu')
 })
 
 test('Copilot filters HOSE server-side and does not invent a VN fallback symbol', () => {
