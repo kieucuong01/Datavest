@@ -22,6 +22,7 @@ from app.services.portfolio.positions import (
 from app.services.portfolio.pricing import fetch_price_map
 from app.services.symbol_name import resolve_symbol_name, normalize_crypto_symbol
 from app.data.market_symbols_seed import get_symbol_name as seed_get_symbol_name
+from app.data.market_symbols_seed import validate_hose_ai_target
 from app.utils.supported_markets import (
     canonicalize_supported_symbol,
     normalize_supported_market,
@@ -73,6 +74,11 @@ def _supported_position_identity(market, symbol):
         return None
     if canonical_market == 'Crypto':
         canonical_symbol = normalize_crypto_symbol(canonical_symbol)
+    if canonical_market == 'VNStock':
+        try:
+            canonical_symbol = validate_hose_ai_target(canonical_market, canonical_symbol)
+        except ValueError:
+            return None
     return canonical_market, canonical_symbol
 
 

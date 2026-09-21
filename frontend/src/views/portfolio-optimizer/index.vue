@@ -89,7 +89,13 @@
                   :market="instrument.market"
                   :size="24"
                 />
-                <a-input v-model="instrument.symbol" :placeholder="$t('portfolioOptimizer.symbol')" />
+                <a-auto-complete
+                  v-if="instrument.market === 'VNStock'"
+                  v-model="instrument.symbol"
+                  :data-source="instrument.hoseMatches || []"
+                  :placeholder="$t('portfolioOptimizer.symbol')"
+                  @search="searchHoseSymbols(instrument, $event)" />
+                <a-input v-else v-model="instrument.symbol" :placeholder="$t('portfolioOptimizer.symbol')" />
               </div>
               <a-select v-model="instrument.currency">
                 <a-select-option v-for="currency in currencies" :key="currency" :value="currency">
@@ -291,12 +297,13 @@ import {
   previewOptimizerRun
 } from '@/api/portfolio-optimizer'
 import CryptoAssetIcon from '@/components/CryptoAssetIcon'
+import { searchSymbols } from '@/api/market'
 
 let instrumentKey = 0
 
 function newInstrument (market = 'Crypto', symbol = '', currency = 'USDT') {
   instrumentKey += 1
-  return { key: instrumentKey, market, symbol, currency }
+  return { key: instrumentKey, market, symbol, currency, hoseMatches: [] }
 }
 
 export default {
@@ -382,6 +389,21 @@ export default {
       if (instrument.market === 'Crypto') instrument.currency = 'USDT'
       if (instrument.market === 'VNStock') instrument.currency = 'VND'
       if (instrument.market === 'Forex') instrument.currency = 'USD'
+      instrument.hoseMatches = []
+    },
+    async searchHoseSymbols (instrument, keyword) {
+      const value = String(keyword || '').trim()
+      if (!value || instrument.market !== 'VNStock') {
+        instrument.hoseMatches = []
+        return
+      }
+      try {
+        const response = await searchSymbols({ market: 'VNStock', exchange: 'HOSE', keyword: value, limit: 12 })
+        const rows = response && response.data ? response.data : response
+        instrument.hoseMatches = (Array.isArray(rows) ? rows : []).map(item => String(item.symbol || '').toUpperCase()).filter(Boolean)
+      } catch (_error) {
+        instrument.hoseMatches = []
+      }
     },
     payload () {
       return {

@@ -1,4 +1,5 @@
 import math
+from datetime import date
 
 import pandas as pd
 
@@ -49,3 +50,38 @@ def test_fundamentals_enter_panel_only_when_public_and_market_cap_can_be_derived
     assert enriched.loc["2026-01-05", "market_cap"] == 1_000
     assert enriched.loc["2026-01-10", "net_income"] == 60
     assert enriched.loc["2026-01-10", "market_cap"] == 2_000
+
+
+def test_vietnam_history_uses_evidence_observation_availability_not_current_values(monkeypatch):
+    from app.services import fundamental_data as module
+
+    evidence = {
+        "fundamentals": {"observations": [{
+            "metric": "revenue", "value": 500.0, "unit": "VND",
+            "periodEnd": "2025-12-31", "availableAt": "2026-02-15T00:00:00+00:00",
+            "frequency": "ANNUAL", "reportScope": "CONSOLIDATED", "source": "vndirect",
+        }]},
+        "checksum": "a" * 64,
+    }
+    persisted = []
+
+    class EvidenceService:
+        def build(self, **kwargs):
+            assert kwargs["symbol"] == "FPT"
+            assert kwargs["as_of"].tzinfo is not None
+            return evidence
+
+    monkeypatch.setattr(module, "VietnamEvidenceService", EvidenceService)
+    monkeypatch.setattr(module.VietnamEvidenceRepository, "_fundamental_snapshots", lambda _value: [{
+        "period_end": "2025-12-31", "available_at": "2026-02-15", "frequency": "annual",
+    }])
+    monkeypatch.setattr(FundamentalDataService, "upsert", staticmethod(lambda payload: persisted.append(payload)))
+
+    result = FundamentalDataService().sync_history(market="VNStock", symbol="FPT")
+
+    assert result == {
+        "market": "VNStock", "symbol": "FPT", "observations": 1,
+        "firstAvailableAt": "2026-02-15", "lastAvailableAt": "2026-02-15",
+    }
+    assert persisted[0]["available_at"] == date(2026, 2, 15)
+    assert persisted[0]["metadata"]["pointInTime"] is True

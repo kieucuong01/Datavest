@@ -191,6 +191,7 @@ def test_create_run_persists_returns_only_index_price_metadata():
     service = PortfolioOptimizerService(
         repository=repository,
         gateway=FakeGateway({"VNINDEX": index, "FPT": equity}),
+        hose_validator=lambda _market, symbol: symbol,
     )
 
     service.create_run(user_id=7, payload=payload)
@@ -224,6 +225,7 @@ def test_preview_rejects_returns_only_index_mark_to_market():
     service = PortfolioOptimizerService(
         repository=repository,
         gateway=FakeGateway({"VNINDEX": index, "FPT": equity}),
+        hose_validator=lambda _market, symbol: symbol,
     )
     service.create_run(user_id=7, payload=payload)
 
@@ -289,8 +291,26 @@ def test_request_accepts_full_ten_year_vietnam_calendar_window():
         ],
     }
 
-    parsed, instruments = PortfolioOptimizerService._parse(payload)
+    parsed, instruments = PortfolioOptimizerService._parse(payload, hose_validator=lambda _market, symbol: symbol)
 
     assert parsed["startDate"] == "2016-09-17"
     assert parsed["endDate"] == "2026-09-16"
     assert instruments[0].market == "VNStock"
+
+
+def test_request_rejects_inactive_hose_instrument(monkeypatch):
+    from app.services.portfolio_optimizer import service as module
+
+    payload = {
+        "method": "minimum_variance", "baseCurrency": "VND",
+        "startDate": "2026-01-01", "endDate": "2026-03-01", "maxWeight": 1.0,
+        "instruments": [{"market": "VNStock", "symbol": "OLD", "currency": "VND"}],
+    }
+    monkeypatch.setattr(
+        module,
+        "validate_hose_ai_target",
+        lambda *_args: (_ for _ in ()).throw(ValueError("inactive")),
+    )
+
+    with pytest.raises(ValueError, match="unsupported_or_inactive_vn_symbol"):
+        module.PortfolioOptimizerService._parse(payload)

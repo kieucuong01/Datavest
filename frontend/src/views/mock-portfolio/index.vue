@@ -102,7 +102,7 @@
       :wrap-class-name="isDarkTheme ? 'mock-portfolio-modal theme-dark' : 'mock-portfolio-modal'"
       @ok="savePosition"
       @cancel="modalVisible = false">
-      <a-form layout="vertical"><div class="form-grid"><a-form-item :label="$t('mockPortfolio.market')"><a-select v-model="form.market" :disabled="Boolean(editingId)" @change="onMarketChange"><a-select-option value="Crypto">{{ $t('mockPortfolio.markets.crypto') }}</a-select-option><a-select-option value="VNStock">{{ $t('mockPortfolio.markets.vn') }}</a-select-option><a-select-option value="Forex">{{ $t('mockPortfolio.markets.gold') }}</a-select-option></a-select></a-form-item><a-form-item :label="$t('mockPortfolio.symbol')"><a-input v-model="form.symbol" :disabled="Boolean(editingId)" :placeholder="symbolPlaceholder" /></a-form-item></div><div class="form-grid"><a-form-item :label="$t('mockPortfolio.side')"><a-select v-model="form.side" :disabled="Boolean(editingId)"><a-select-option value="long">{{ $t('mockPortfolio.long') }}</a-select-option><a-select-option value="short">{{ $t('mockPortfolio.short') }}</a-select-option></a-select></a-form-item><a-form-item :label="$t('mockPortfolio.quantity')"><a-input-number v-model="form.quantity" :min="0" :step="0.000001" class="full-width" /></a-form-item></div><div class="form-grid"><a-form-item :label="$t('mockPortfolio.entryPrice')"><a-input-number v-model="form.entry_price" :min="0" :step="0.01" class="full-width" /></a-form-item><a-form-item :label="$t('mockPortfolio.group')"><a-input v-model="form.group_name" :placeholder="$t('mockPortfolio.groupPlaceholder')" /></a-form-item></div><a-form-item :label="$t('mockPortfolio.notes')"><a-textarea v-model="form.notes" :rows="3" :placeholder="$t('mockPortfolio.notesPlaceholder')" /></a-form-item></a-form>
+      <a-form layout="vertical"><div class="form-grid"><a-form-item :label="$t('mockPortfolio.market')"><a-select v-model="form.market" :disabled="Boolean(editingId)" @change="onMarketChange"><a-select-option value="Crypto">{{ $t('mockPortfolio.markets.crypto') }}</a-select-option><a-select-option value="VNStock">{{ $t('mockPortfolio.markets.vn') }}</a-select-option><a-select-option value="Forex">{{ $t('mockPortfolio.markets.gold') }}</a-select-option></a-select></a-form-item><a-form-item :label="$t('mockPortfolio.symbol')"><a-auto-complete v-if="form.market === 'VNStock'" v-model="form.symbol" :disabled="Boolean(editingId)" :data-source="hoseMatches" :placeholder="symbolPlaceholder" @search="searchHoseSymbols" /><a-input v-else v-model="form.symbol" :disabled="Boolean(editingId)" :placeholder="symbolPlaceholder" /></a-form-item></div><div class="form-grid"><a-form-item :label="$t('mockPortfolio.side')"><a-select v-model="form.side" :disabled="Boolean(editingId)"><a-select-option value="long">{{ $t('mockPortfolio.long') }}</a-select-option><a-select-option value="short">{{ $t('mockPortfolio.short') }}</a-select-option></a-select></a-form-item><a-form-item :label="$t('mockPortfolio.quantity')"><a-input-number v-model="form.quantity" :min="0" :step="0.000001" class="full-width" /></a-form-item></div><div class="form-grid"><a-form-item :label="$t('mockPortfolio.entryPrice')"><a-input-number v-model="form.entry_price" :min="0" :step="0.01" class="full-width" /></a-form-item><a-form-item :label="$t('mockPortfolio.group')"><a-input v-model="form.group_name" :placeholder="$t('mockPortfolio.groupPlaceholder')" /></a-form-item></div><a-form-item :label="$t('mockPortfolio.notes')"><a-textarea v-model="form.notes" :rows="3" :placeholder="$t('mockPortfolio.notesPlaceholder')" /></a-form-item></a-form>
     </a-modal>
   </div>
 </template>
@@ -114,6 +114,7 @@ import { Empty } from 'ant-design-vue'
 import { addPosition, deletePosition, getPositions, getPortfolioSummary, updatePosition } from '@/api/portfolio'
 import { buildPortfolioAnalytics } from './portfolioAnalytics'
 import CryptoAssetIcon from '@/components/CryptoAssetIcon'
+import { searchSymbols } from '@/api/market'
 
 const emptySummary = () => ({ total_market_value: 0, total_cost: 0, total_pnl: 0, total_pnl_percent: 0, position_count: 0, market_distribution: [] })
 const emptyForm = () => ({ market: 'Crypto', symbol: 'BTC/USDT', name: '', side: 'long', quantity: null, entry_price: null, group_name: '', notes: '' })
@@ -121,7 +122,7 @@ const emptyForm = () => ({ market: 'Crypto', symbol: 'BTC/USDT', name: '', side:
 export default {
   name: 'MockPortfolio',
   components: { CryptoAssetIcon },
-  data () { return { loading: false, saving: false, modalVisible: false, editingId: null, positions: [], summary: emptySummary(), form: emptyForm(), errorMessage: '', allocationChartInstance: null } },
+  data () { return { loading: false, saving: false, modalVisible: false, editingId: null, positions: [], summary: emptySummary(), form: emptyForm(), hoseMatches: [], errorMessage: '', allocationChartInstance: null } },
   computed: {
     ...mapState({ navTheme: state => state.app.theme }),
     isDarkTheme () { return this.navTheme === 'dark' || this.navTheme === 'realdark' },
@@ -173,7 +174,16 @@ export default {
     resizeCharts () { if (this.allocationChartInstance) this.allocationChartInstance.resize() },
     openCreateModal () { this.editingId = null; this.form = emptyForm(); this.modalVisible = true },
     openEditModal (position) { this.editingId = position.id; this.form = { market: position.market, symbol: position.symbol, name: position.name || '', side: position.side || 'long', quantity: Number(position.quantity || 0), entry_price: Number(position.entry_price || 0), group_name: position.group_name || '', notes: position.notes || '' }; this.modalVisible = true },
-    onMarketChange () { if (this.form.market === 'Crypto') this.form.symbol = 'BTC/USDT'; if (this.form.market === 'VNStock') this.form.symbol = 'FPT'; if (this.form.market === 'Forex') this.form.symbol = 'XAUUSD' },
+    onMarketChange () { if (this.form.market === 'Crypto') this.form.symbol = 'BTC/USDT'; if (this.form.market === 'VNStock') this.form.symbol = ''; if (this.form.market === 'Forex') this.form.symbol = 'XAUUSD'; this.hoseMatches = [] },
+    async searchHoseSymbols (keyword) {
+      const value = String(keyword || '').trim()
+      if (!value || this.form.market !== 'VNStock') { this.hoseMatches = []; return }
+      try {
+        const response = await searchSymbols({ market: 'VNStock', exchange: 'HOSE', keyword: value, limit: 12 })
+        const rows = response && response.data ? response.data : response
+        this.hoseMatches = (Array.isArray(rows) ? rows : []).map(item => String(item.symbol || '').toUpperCase()).filter(Boolean)
+      } catch (_error) { this.hoseMatches = [] }
+    },
     async savePosition () {
       const quantity = Number(this.form.quantity || 0)
       const entryPrice = Number(this.form.entry_price || 0)

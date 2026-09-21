@@ -11,6 +11,7 @@ from typing import Any
 import numpy as np
 
 from app.utils.supported_markets import canonicalize_supported_symbol
+from app.data.market_symbols_seed import validate_hose_ai_target
 
 from .engine import OptimizerInput, optimize
 from .market_data import Instrument, MarketDataGateway, PriceSeries
@@ -71,7 +72,7 @@ def _validate_series(series: PriceSeries) -> None:
 
 
 class PortfolioOptimizerService:
-    def __init__(self, *, repository=None, gateway: MarketDataGateway | None = None) -> None:
+    def __init__(self, *, repository=None, gateway: MarketDataGateway | None = None, hose_validator=validate_hose_ai_target) -> None:
         if repository is None:
             from .repository import PortfolioOptimizerRepository
 
@@ -82,9 +83,10 @@ class PortfolioOptimizerService:
             gateway = QuantDingerOptimizerGateway()
         self.repository = repository
         self.gateway = gateway
+        self.hose_validator = hose_validator
 
     @staticmethod
-    def _parse(payload: dict[str, Any]) -> tuple[dict[str, Any], tuple[Instrument, ...]]:
+    def _parse(payload: dict[str, Any], *, hose_validator=None) -> tuple[dict[str, Any], tuple[Instrument, ...]]:
         if not isinstance(payload, dict):
             raise ValueError("invalid_optimizer_request")
         try:
@@ -118,6 +120,11 @@ class PortfolioOptimizerService:
                     raise ValueError("unsupported_optimizer_market") from exc
                 if currency != "USD":
                     raise ValueError("gold_currency_must_be_usd")
+            if market == "VNStock":
+                try:
+                    symbol = (hose_validator or validate_hose_ai_target)("VNStock", symbol)
+                except ValueError as exc:
+                    raise ValueError("unsupported_or_inactive_vn_symbol") from exc
             key = (market, symbol)
             if key in seen:
                 raise ValueError("duplicate_optimizer_instrument")
@@ -164,7 +171,7 @@ class PortfolioOptimizerService:
         return normalized, tuple(instruments)
 
     def create_run(self, *, user_id: int, payload: dict[str, Any]) -> dict[str, Any]:
-        request, instruments = self._parse(payload)
+        request, instruments = self._parse(payload, hose_validator=self.hose_validator)
         original_series: list[PriceSeries] = []
         converted: dict[str, dict[int, float]] = {}
         fx_series: list[PriceSeries] = []

@@ -3,13 +3,14 @@
 from __future__ import annotations
 
 import json
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 from typing import Any, Mapping
 
 import pandas as pd
 
 from app.utils.db import get_db_connection
 from app.utils.logger import get_logger
+from app.services.vietnam_evidence import VietnamEvidenceRepository, VietnamEvidenceService
 
 logger = get_logger(__name__)
 
@@ -219,6 +220,8 @@ class FundamentalDataService:
     def sync_history(self, *, market: str, symbol: str) -> dict[str, Any]:
         normalized_market = str(market or "").strip()
         normalized_symbol = str(symbol or "").strip().upper()
+        if normalized_market == "VNStock" and normalized_symbol:
+            return self._sync_vietnam_history(normalized_symbol)
         if normalized_market != "USStock" or not normalized_symbol:
             raise ValueError("factor.fundamentalHistoryMarketUnsupported")
 
@@ -311,6 +314,43 @@ class FundamentalDataService:
             "observations": stored,
             "firstAvailableAt": _availability_date(periods[0], earnings_dates)[0].isoformat(),
             "lastAvailableAt": _availability_date(periods[-1], earnings_dates)[0].isoformat(),
+        }
+
+    def _sync_vietnam_history(self, symbol: str) -> dict[str, Any]:
+        """Persist VNDIRECT statements at their own publication times only."""
+
+        evidence = VietnamEvidenceService().build(
+            symbol=symbol,
+            as_of=datetime.now(timezone.utc),
+        )
+        snapshots = VietnamEvidenceRepository._fundamental_snapshots(evidence)
+        if not snapshots:
+            raise ValueError("factor.fundamentalDataUnavailable")
+        stored = 0
+        available_dates: list[date] = []
+        for snapshot in snapshots:
+            available_at = pd.Timestamp(snapshot["available_at"]).date()
+            payload = {
+                "market": "VNStock",
+                "symbol": symbol,
+                "period_end": pd.Timestamp(snapshot["period_end"]).date(),
+                "available_at": available_at,
+                "frequency": snapshot.get("frequency") or "quarterly",
+                "currency": snapshot.get("currency") or "VND",
+                "source": snapshot.get("source") or "vndirect",
+                "source_version": snapshot.get("source_version") or "",
+                "metadata": {**dict(snapshot.get("metadata") or {}), "pointInTime": True},
+                **{field: snapshot.get(field) for field in FUNDAMENTAL_FIELDS},
+            }
+            self.upsert(payload)
+            stored += 1
+            available_dates.append(available_at)
+        return {
+            "market": "VNStock",
+            "symbol": symbol,
+            "observations": stored,
+            "firstAvailableAt": min(available_dates).isoformat(),
+            "lastAvailableAt": max(available_dates).isoformat(),
         }
 
 

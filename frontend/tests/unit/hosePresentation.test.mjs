@@ -36,3 +36,13 @@ test('Copilot filters HOSE server-side and does not invent a VN fallback symbol'
   assert.match(component, /HOSE · VND/)
   assert.match(component, /hoseOnly/)
 })
+
+test('portfolio forms search the active HOSE catalog instead of fabricating a ticker', () => {
+  const optimizer = readFileSync(new URL('../../src/views/portfolio-optimizer/index.vue', import.meta.url), 'utf8')
+  const mockPortfolio = readFileSync(new URL('../../src/views/mock-portfolio/index.vue', import.meta.url), 'utf8')
+  for (const component of [optimizer, mockPortfolio]) {
+    assert.match(component, /searchSymbols\(\{ market: 'VNStock', exchange: 'HOSE'/)
+    assert.match(component, /a-auto-complete/)
+  }
+  assert.doesNotMatch(mockPortfolio, /this\.form\.market === 'VNStock'\) this\.form\.symbol = 'FPT'/)
+})
