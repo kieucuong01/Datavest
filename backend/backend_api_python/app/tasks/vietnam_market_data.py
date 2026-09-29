@@ -16,7 +16,7 @@ from app.services.vietnam_market_health import (
     classify_provider_health,
     finalize_eod_batch,
 )
-from app.services.vietnam_market_history import VietnamDailyPriceRepository
+from app.services.vietnam_market_history import VietnamDailyPriceRepository, daily_window_coverage
 
 
 def _active_hose_symbols() -> list[str]:
@@ -125,12 +125,11 @@ def backfill_hose_history(
         canonical, "1D", (end - start).days + 1,
         after_time=after_time, before_time=before_time, price_mode="raw",
     )
-    expected_sessions = sum(
-        1 for offset in range((end - start).days + 1)
-        if (start + timedelta(days=offset)).weekday() < 5
-    )
     quality = dict(getattr(source, "last_kline_quality", {}) or {})
-    coverage = min(1.0, len(bars) / max(expected_sessions, 1))
+    coverage = daily_window_coverage(
+        (datetime.fromtimestamp(int(bar["time"]), tz=zone).date() for bar in bars),
+        start, end,
+    )
     provider_coverage = float(quality.get("coverage", coverage) or 0.0)
     coverage = min(coverage, provider_coverage) if bars else 0.0
     gaps = [] if coverage >= 0.95 else [{"field": "dailyPrices", "reason": "HISTORICAL_COVERAGE_INCOMPLETE"}]

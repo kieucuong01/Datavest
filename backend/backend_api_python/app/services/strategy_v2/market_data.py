@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+import os
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
@@ -11,6 +12,7 @@ import pandas as pd
 from app.data_sources import DataSourceFactory
 from app.services.backtest_cache import KlineCache
 from app.services.vietnam_execution import enrich_vietnam_execution_frame
+from app.services.vietnam_market_history import VN_ZONE, daily_window_coverage
 from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -109,13 +111,17 @@ def load_strategy_frame(
         return pd.DataFrame()
     raw_time = frame.pop(time_column)
     numeric = pd.to_numeric(raw_time, errors="coerce")
+    vietnam_daily = str(market) == "VNStock" and provider_timeframe == "1D"
     if numeric.notna().any():
         unit = "ms" if float(numeric.dropna().abs().median()) > 10_000_000_000 else "s"
         converted = pd.to_datetime(numeric, unit=unit, errors="coerce", utc=True)
-        frame.index = pd.DatetimeIndex(converted).tz_convert(None)
     else:
         converted = pd.to_datetime(raw_time, errors="coerce", utc=True)
-        frame.index = pd.DatetimeIndex(converted).tz_convert(None)
+    index = pd.DatetimeIndex(converted)
+    frame.index = (
+        index.tz_convert(VN_ZONE).normalize().tz_localize(None)
+        if vietnam_daily else index.tz_convert(None)
+    )
     frame = frame[~frame.index.isna()].sort_index()
     frame.columns = [str(column).strip().lower() for column in frame.columns]
     if any(column not in frame.columns for column in ("open", "high", "low", "close")):
@@ -124,16 +130,31 @@ def load_strategy_frame(
         if column not in frame.columns:
             frame[column] = 0.0
         frame[column] = pd.to_numeric(frame[column], errors="coerce")
-    requested_start = pd.Timestamp(start_utc).tz_localize(None)
-    requested_end = pd.Timestamp(end_utc).tz_localize(None)
+    requested_start = pd.Timestamp(start_utc.astimezone(VN_ZONE) if vietnam_daily else start_utc).tz_localize(None)
+    requested_end = pd.Timestamp(end_utc.astimezone(VN_ZONE) if vietnam_daily else end_utc).tz_localize(None)
+    if vietnam_daily:
+        requested_start = requested_start.normalize()
+        requested_end = requested_end.normalize()
     frame = frame[(frame.index >= requested_start) & (frame.index <= requested_end)].dropna(
         subset=["open", "high", "low", "close"]
     )
-    if str(market) == "VNStock" and provider_timeframe == "1D":
-        frame = enrich_vietnam_execution_frame(frame)
     closed_bar_cutoff = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(seconds=timeframe_seconds)
     if requested_end >= closed_bar_cutoff:
         frame = frame[frame.index <= pd.Timestamp(closed_bar_cutoff)]
+    if vietnam_daily and not frame.empty:
+        effective_end = min(requested_end.date(), closed_bar_cutoff.date())
+        coverage = daily_window_coverage((stamp.date() for stamp in frame.index), requested_start.date(), effective_end)
+        try:
+            minimum_coverage = float(os.getenv("VN_BACKTEST_MIN_COVERAGE", "0.90"))
+        except ValueError:
+            minimum_coverage = 0.90
+        if coverage < max(0.0, min(1.0, minimum_coverage)):
+            logger.warning(
+                "Vietnam daily history undercovered for %s: %.3f from %s to %s",
+                symbol, coverage, requested_start.date(), effective_end,
+            )
+            return pd.DataFrame()
+        frame = enrich_vietnam_execution_frame(frame)
     if not frame.empty:
         _cache.put(cache_key, frame, timeframe)
     return frame.copy()

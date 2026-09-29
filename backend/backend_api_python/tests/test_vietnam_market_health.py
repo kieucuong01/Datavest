@@ -136,3 +136,27 @@ def test_hose_history_backfill_reports_a_coverage_gap_without_fabricating_days(m
     assert result["market"] == "VNStock"
     assert result["coverage"] < 1.0
     assert result["dataGaps"] == [{"field": "dailyPrices", "reason": "HISTORICAL_COVERAGE_INCOMPLETE"}]
+
+
+def test_hose_history_backfill_does_not_count_duplicate_bars_as_extra_sessions(monkeypatch):
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+    from app.tasks import vietnam_market_data as task_module
+
+    stamp = int(datetime(2025, 1, 2, tzinfo=ZoneInfo("Asia/Ho_Chi_Minh")).timestamp())
+
+    class Source:
+        last_kline_provider = "yahoo-vn"
+        last_kline_attempts = ("vndirect", "yahoo-vn")
+        last_kline_quality = {"coverage": 1.0, "flags": []}
+
+        def get_kline(self, *_args, **_kwargs):
+            return [{"time": stamp}] * 20
+
+    monkeypatch.setattr(task_module, "validate_hose_ai_target", lambda _market, symbol: symbol)
+    result = task_module.backfill_hose_history(
+        symbol="FPT", start_date="2025-01-01", end_date="2025-01-31", source=Source(),
+    )
+
+    assert result["coverage"] < 0.1
+    assert result["dataGaps"] == [{"field": "dailyPrices", "reason": "HISTORICAL_COVERAGE_INCOMPLETE"}]

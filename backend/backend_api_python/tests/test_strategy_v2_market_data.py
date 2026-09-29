@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 
 from app.services.strategy_v2 import market_data
 
@@ -139,3 +140,37 @@ def test_vietnam_daily_strategy_adds_hose_execution_metadata(monkeypatch):
     assert frame["settlement_sessions"].tolist() == [2, 2]
     assert frame["sell_tax_rate"].tolist() == [0.001, 0.001]
     assert frame["limit_up"].tolist() == [False, True]
+
+
+def test_vietnam_daily_strategy_rejects_truncated_five_year_history(monkeypatch):
+    start = datetime(2020, 1, 1, tzinfo=ZoneInfo("Asia/Ho_Chi_Minh"))
+    monkeypatch.setattr(market_data.DataSourceFactory, "get_kline", lambda **_kwargs: [
+        {"time": int((datetime(2025, 1, 2, tzinfo=start.tzinfo) + timedelta(days=offset)).timestamp()),
+         "open": 100, "high": 100, "low": 100, "close": 100, "volume": 1000}
+        for offset in range(60)
+    ])
+    monkeypatch.setattr(market_data._cache, "get", lambda _key: None)
+    monkeypatch.setattr(market_data._cache, "put", lambda *_args: None)
+
+    frame = market_data.load_strategy_frame(
+        "VNStock", "FPT", "1d", start, datetime(2025, 1, 31, tzinfo=start.tzinfo),
+    )
+
+    assert frame.empty
+
+
+def test_vietnam_daily_strategy_indexes_bars_by_local_trading_day(monkeypatch):
+    zone = ZoneInfo("Asia/Ho_Chi_Minh")
+    monkeypatch.setattr(market_data.DataSourceFactory, "get_kline", lambda **_kwargs: [
+        {"time": int(datetime(2025, 1, day, tzinfo=zone).timestamp()),
+         "open": 100, "high": 100, "low": 100, "close": 100, "volume": 1000}
+        for day in (2, 3)
+    ])
+    monkeypatch.setattr(market_data._cache, "get", lambda _key: None)
+    monkeypatch.setattr(market_data._cache, "put", lambda *_args: None)
+
+    frame = market_data.load_strategy_frame(
+        "VNStock", "FPT", "1d", datetime(2025, 1, 2), datetime(2025, 1, 3),
+    )
+
+    assert [day.date().isoformat() for day in frame.index] == ["2025-01-02", "2025-01-03"]

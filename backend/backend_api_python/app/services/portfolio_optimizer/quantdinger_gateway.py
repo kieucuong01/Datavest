@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
-from datetime import date, datetime, time, timezone
+from datetime import date, datetime, time, timedelta, timezone
 import math
 import os
 import re
 from typing import Callable
 
 from app.data_sources import DataSourceFactory
+from app.services.vietnam_market_history import VN_ZONE, daily_window_coverage
 
 from .market_data import Instrument, PriceSeries, series_checksum
 
@@ -16,6 +17,10 @@ from .market_data import Instrument, PriceSeries, series_checksum
 def _unix(day: date, *, end: bool = False) -> int:
     clock = time.max if end else time.min
     return int(datetime.combine(day, clock, tzinfo=timezone.utc).timestamp())
+
+
+def _vn_unix(day: date) -> int:
+    return int(datetime.combine(day, time.min, tzinfo=VN_ZONE).timestamp())
 
 
 class QuantDingerOptimizerGateway:
@@ -67,8 +72,8 @@ class QuantDingerOptimizerGateway:
                 symbol,
                 "1D",
                 limit,
-                before_time=_unix(end, end=True) + 1,
-                after_time=_unix(start),
+                before_time=_vn_unix(end + timedelta(days=1)),
+                after_time=_vn_unix(start),
                 price_mode="total_return",
             )
         except Exception as exc:
@@ -84,7 +89,7 @@ class QuantDingerOptimizerGateway:
                 close_price = float(record["close"])
                 if not math.isfinite(close_price) or close_price <= 0:
                     raise ValueError("invalid close")
-                if not _unix(start) <= timestamp <= _unix(end, end=True):
+                if not start <= datetime.fromtimestamp(timestamp, tz=VN_ZONE).date() <= end:
                     continue
                 if timestamp in seen_timestamps:
                     raise ValueError("duplicate timestamp")
@@ -103,14 +108,16 @@ class QuantDingerOptimizerGateway:
             raise ValueError("vn_market_data_unavailable: provider_unknown")
         attempts = tuple(str(value) for value in (getattr(source, "last_kline_attempts", ()) or ()) if value)
         fallback_chain = attempts or (provider,)
-        expected = sum(
-            1
-            for offset in range(days)
-            if date.fromordinal(start.toordinal() + offset).weekday() < 5
+        computed_coverage = daily_window_coverage(
+            (datetime.fromtimestamp(timestamp, tz=VN_ZONE).date() for timestamp in timestamps),
+            start, end,
         )
-        computed_coverage = min(1.0, len(rows) / max(expected, 1))
         source_quality = getattr(source, "last_kline_quality", {}) or {}
-        coverage = float(source_quality.get("coverage", computed_coverage))
+        try:
+            provider_coverage = float(source_quality.get("coverage", 1.0))
+        except (TypeError, ValueError, OverflowError):
+            provider_coverage = 0.0
+        coverage = min(computed_coverage, provider_coverage) if math.isfinite(provider_coverage) else 0.0
         try:
             minimum_coverage = float(os.getenv("VN_OPTIMIZER_MIN_COVERAGE", "0.90"))
         except ValueError:

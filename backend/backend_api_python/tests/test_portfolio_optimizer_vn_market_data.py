@@ -1,6 +1,7 @@
 """Vietnam optimizer inputs use the shared VNDIRECT/Yahoo adapter."""
 
-from datetime import date, datetime, time, timezone
+from datetime import date, datetime, time, timedelta, timezone
+from zoneinfo import ZoneInfo
 
 import pytest
 
@@ -10,6 +11,10 @@ from app.services.portfolio_optimizer.quantdinger_gateway import QuantDingerOpti
 
 def unix(day: date, *, end=False):
     return int(datetime.combine(day, time.max if end else time.min, tzinfo=timezone.utc).timestamp())
+
+
+def vn_unix(day: date):
+    return int(datetime.combine(day, time.min, tzinfo=ZoneInfo("Asia/Ho_Chi_Minh")).timestamp())
 
 
 class FakeVNSource:
@@ -40,8 +45,8 @@ def test_vn_daily_uses_shared_adapter_and_preserves_winning_fallback_provider():
     )
 
     assert source.calls == [(
-        "FPT", "1D", 31, unix(date(2025, 1, 3), end=True) + 1,
-        unix(date(2025, 1, 2)), "total_return",
+        "FPT", "1D", 31, vn_unix(date(2025, 1, 4)),
+        vn_unix(date(2025, 1, 2)), "total_return",
     )]
     assert series.closes == (101250.0, 102500.0)
     assert series.provider == "yahoo-vn"
@@ -65,6 +70,59 @@ def test_vn_optimizer_rejects_undercovered_history():
             Instrument(market="VNStock", symbol="FPT", currency="VND"),
             start_date="2025-01-02", end_date="2025-01-03",
         )
+
+
+def test_vn_optimizer_rejects_truncated_five_year_window_even_if_provider_reports_full_coverage():
+    source = FakeVNSource([
+        {"time": unix(date(2025, 1, 2) + timedelta(days=offset)), "close": 100_000.0}
+        for offset in range(90)
+        if (date(2025, 1, 2) + timedelta(days=offset)).weekday() < 5
+    ])
+    source.last_kline_quality = {"coverage": 1.0, "flags": []}
+    gateway = QuantDingerOptimizerGateway(vn_source_factory=lambda: source)
+
+    with pytest.raises(ValueError, match="vn_market_data_unavailable: insufficient_coverage"):
+        gateway.fetch_daily(
+            Instrument(market="VNStock", symbol="FPT", currency="VND"),
+            start_date="2020-01-01", end_date="2025-01-31",
+        )
+
+
+def test_vn_optimizer_accepts_nearly_complete_ten_year_window():
+    start = date(2016, 9, 29)
+    end = date(2026, 9, 28)
+    source = FakeVNSource([
+        {"time": unix(day), "close": 100_000.0}
+        for offset in range((end - start).days + 1)
+        if (day := start + timedelta(days=offset)).weekday() < 5 and day.day != 1
+    ])
+    source.last_kline_quality = {"coverage": 1.0, "flags": []}
+    gateway = QuantDingerOptimizerGateway(vn_source_factory=lambda: source)
+
+    series = gateway.fetch_daily(
+        Instrument(market="VNStock", symbol="FPT", currency="VND"),
+        start_date=start.isoformat(), end_date=end.isoformat(),
+    )
+
+    assert 0.90 <= series.coverage < 1.0
+    assert series.timestamps[0] >= unix(start)
+    assert series.timestamps[-1] <= unix(end, end=True)
+
+
+def test_vn_optimizer_keeps_first_local_midnight_bar():
+    source = FakeVNSource([
+        {"time": vn_unix(day), "close": 100_000.0}
+        for day in (date(2025, 1, 2), date(2025, 1, 3))
+    ])
+    gateway = QuantDingerOptimizerGateway(vn_source_factory=lambda: source)
+
+    series = gateway.fetch_daily(
+        Instrument(market="VNStock", symbol="FPT", currency="VND"),
+        start_date="2025-01-02", end_date="2025-01-03",
+    )
+
+    assert series.timestamps == (vn_unix(date(2025, 1, 2)), vn_unix(date(2025, 1, 3)))
+    assert series.coverage == 1.0
 
 
 def test_vn_index_keeps_index_points_semantics():

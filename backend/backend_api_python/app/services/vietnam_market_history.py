@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from hashlib import sha256
 import json
 import math
@@ -13,6 +13,26 @@ from zoneinfo import ZoneInfo
 
 PRICE_MODES = frozenset({"raw", "adjusted", "total_return"})
 VN_ZONE = ZoneInfo("Asia/Ho_Chi_Minh")
+
+
+def daily_window_coverage(trading_days: Iterable[date], start: date, end: date) -> float:
+    """Share of requested HOSE weekdays with a distinct daily bar.
+
+    Public providers do not publish a reliable historical holiday calendar, so
+    weekdays are a conservative denominator. Provider-overlap quality is a
+    separate measure and must not replace this requested-window measure.
+    """
+    if end < start:
+        return 0.0
+    expected = sum(
+        1 for offset in range((end - start).days + 1)
+        if (start + timedelta(days=offset)).weekday() < 5
+    )
+    observed = {
+        day for day in trading_days
+        if start <= day <= end and day.weekday() < 5
+    }
+    return min(1.0, len(observed) / max(expected, 1))
 
 
 def normalize_price_mode(value: Any) -> str:
@@ -108,7 +128,22 @@ def select_vietnam_daily_bars(
         ]
         if len(usable) != len(source_rows):
             flags.append("invalid_or_zero_volume_removed")
-        if reference_days:
+        usable_days = {
+            datetime.fromtimestamp(int(row["time"]), tz=VN_ZONE).date()
+            for row in usable
+        }
+        reference_complete = bool(reference_days)
+        if reference_days and len(usable_days) >= 30:
+            # A partial VNDIRECT response must not censor a longer Yahoo fallback.
+            overlap = len(reference_days & usable_days) / len(usable_days)
+            reference_complete = (
+                overlap >= 0.90
+                and min(reference_days) <= min(usable_days) + timedelta(days=14)
+                and max(reference_days) >= max(usable_days) - timedelta(days=14)
+            )
+            if not reference_complete:
+                flags.append("reference_calendar_incomplete")
+        if reference_complete:
             matched = [
                 row for row in usable
                 if datetime.fromtimestamp(int(row["time"]), tz=VN_ZONE).date() in reference_days
@@ -192,6 +227,7 @@ class VietnamDailyPriceRepository:
 
 
 __all__ = [
-    "PRICE_MODES", "VietnamBarSelection", "VietnamDailyPriceRepository",
+    "PRICE_MODES", "VN_ZONE", "VietnamBarSelection", "VietnamDailyPriceRepository",
+    "daily_window_coverage",
     "normalize_price_mode", "select_vietnam_daily_bars",
 ]

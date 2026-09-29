@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
 from app.data_sources.vn_market_providers import (
@@ -41,6 +41,27 @@ def test_adjusted_daily_matches_provider_bars_by_vietnam_session_date():
     assert selection.bars[0]["close"] == 80_000
     assert selection.coverage == 1.0
     assert "outside_reference_calendar_removed" in selection.flags
+
+
+def test_adjusted_history_keeps_full_yahoo_window_when_vndirect_reference_is_truncated():
+    start = date(2025, 1, 2)
+    yahoo = [
+        {"time": int(datetime.combine(day, datetime.min.time(), tzinfo=VN_ZONE).timestamp()),
+         "open": 100.0, "high": 100.0, "low": 100.0, "close": 100.0,
+         "volume": 1000.0, "adjusted_close": 80.0, "adjustment_factor": 0.8}
+        for offset in range(100)
+        if (day := start + timedelta(days=offset)).weekday() < 5
+    ]
+    reference = [{key: value for key, value in bar.items() if key not in {"adjusted_close", "adjustment_factor"}}
+                 for bar in yahoo[-5:]]
+
+    selection = select_vietnam_daily_bars(
+        [("vndirect", reference), ("yahoo-vn", yahoo)], "adjusted",
+    )
+
+    assert len(selection.bars) == len(yahoo)
+    assert selection.bars[0]["time"] == yahoo[0]["time"]
+    assert "reference_calendar_incomplete" in selection.flags
 
 
 class DictCache:
