@@ -124,7 +124,8 @@ def test_hose_fast_analysis_uses_llm_for_supported_narrative_only():
 
     assert calls and "HOSE" in calls[0][0]
     assert result["detailed_analysis"]["technical"] == "RSI cho thấy trạng thái quá bán."
-    assert result["detailed_analysis"]["fundamental"] == ""
+    assert "NO_POINT_IN_TIME_OBSERVATIONS" in result["detailed_analysis"]["fundamental"]
+    assert "Invented revenue" not in result["detailed_analysis"]["fundamental"]
     assert result["summary"] != "Model tried to replace verdict"
 
 

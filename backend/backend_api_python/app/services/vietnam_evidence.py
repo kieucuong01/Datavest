@@ -20,6 +20,10 @@ _FUNDAMENTAL_SNAPSHOT_FIELDS = (
     "free_cash_flow", "shares_outstanding", "market_cap", "pe_ratio", "pb_ratio",
     "return_on_equity", "revenue_growth", "debt_to_equity",
 )
+_ANNUAL_COVERAGE_METRICS = (
+    "revenue", "total_operating_income", "net_income", "shareholder_equity", "total_debt", "operating_cash_flow",
+    "earnings_per_share",
+)
 
 
 def _aware_utc(value: datetime | None) -> datetime:
@@ -294,6 +298,13 @@ class VietnamEvidenceService:
             gaps.append({"field": "fundamentalStatements", "reason": "NO_POINT_IN_TIME_OBSERVATIONS"})
         if any(row.get("reportScope") == "UNKNOWN" for row in observations):
             gaps.append({"field": "reportScope", "reason": "PROVIDER_DOES_NOT_DISTINGUISH_SCOPE"})
+        annual_coverage = self._annual_coverage(observations, cutoff)
+        if any(
+            metric["status"] == "observed" and metric["overall"][window]["missingYears"]
+            for metric in annual_coverage["metrics"].values()
+            for window in ("5y", "10y")
+        ):
+            gaps.append({"field": "fundamentalHistory", "reason": "INSUFFICIENT_ANNUAL_HISTORY"})
 
         instrument = {
             "market": "VNStock",
@@ -334,6 +345,7 @@ class VietnamEvidenceService:
                     key=lambda row: (str(row.get("periodEnd") or ""), str(row.get("metric") or "")),
                 ),
                 "derivedMetrics": derived,
+                "annualCoverage": annual_coverage,
             },
             "corporateActions": [row for row in events if row.get("category") == "corporateAction"],
             "disclosures": [row for row in events if row.get("category") != "corporateAction"],
@@ -359,15 +371,65 @@ class VietnamEvidenceService:
             return default
 
     @staticmethod
+    def _annual_coverage(observations: list[dict[str, Any]], cutoff: datetime) -> dict[str, Any]:
+        last_year = cutoff.year - 1
+        windows = {
+            f"{span}y": list(range(last_year - span + 1, last_year + 1))
+            for span in (5, 10)
+        }
+        years_by_metric: dict[str, dict[str, set[int]]] = {
+            metric: {} for metric in _ANNUAL_COVERAGE_METRICS
+        }
+        observed_metrics = {
+            str(row.get("metric") or "")
+            for row in observations
+            if str(row.get("metric") or "") in years_by_metric
+        }
+        for row in observations:
+            metric = str(row.get("metric") or "")
+            if metric not in years_by_metric or row.get("frequency") != "ANNUAL":
+                continue
+            period_end = _parse_date(row.get("periodEnd"))
+            if period_end is None:
+                continue
+            scope = str(row.get("reportScope") or "UNKNOWN").upper()
+            years_by_metric[metric].setdefault(scope, set()).add(period_end.year)
+
+        def summarize(available: set[int]) -> dict[str, dict[str, Any]]:
+            return {
+                window: {
+                    "availableYears": sorted(available.intersection(expected)),
+                    "missingYears": sorted(set(expected).difference(available)),
+                }
+                for window, expected in windows.items()
+            }
+
+        return {
+            "lastCompletedFiscalYear": last_year,
+            "expectedYears": windows,
+            "metrics": {
+                metric: {
+                    "status": "observed" if metric in observed_metrics else "not_observed",
+                    "overall": summarize(set().union(*scopes.values()) if scopes else set()),
+                    "byReportScope": {
+                        scope: summarize(years) for scope, years in sorted(scopes.items())
+                    },
+                }
+                for metric, scopes in years_by_metric.items()
+            },
+        }
+
+    @staticmethod
     def _derive_metrics(
         observations: list[dict[str, Any]], instrument: dict[str, Any], price: dict[str, Any]
     ) -> dict[str, Any]:
         values: dict[str, float] = {}
         flow_metrics = {
-            "revenue", "net_income", "free_cash_flow", "operating_cash_flow", "earnings_per_share"
+            "revenue", "total_operating_income", "net_income", "free_cash_flow",
+            "operating_cash_flow", "earnings_per_share"
         }
         for metric in (
-            "revenue", "net_income", "shareholder_equity", "total_debt",
+            "revenue", "total_operating_income", "net_income", "shareholder_equity", "total_debt",
             "free_cash_flow", "operating_cash_flow", "earnings_per_share",
         ):
             row = _latest(observations, metric, prefer_annual=metric in flow_metrics)
@@ -375,26 +437,27 @@ class VietnamEvidenceService:
             if value is not None:
                 values[metric] = value
 
-        annual_revenue = [
-            row for row in observations
-            if row.get("metric") == "revenue" and row.get("frequency") == "ANNUAL"
-        ]
-        revenue_rows = sorted(
-            annual_revenue or [row for row in observations if row.get("metric") == "revenue"],
-            key=lambda row: str(row.get("periodEnd") or ""),
-        )
-        revenue_by_period: dict[str, dict[str, Any]] = {}
-        for row in revenue_rows:
-            period = str(row.get("periodEnd") or "")
-            current = revenue_by_period.get(period)
-            if current is None or abs(_finite(row.get("value")) or 0.0) > abs(_finite(current.get("value")) or 0.0):
-                revenue_by_period[period] = row
-        revenue_rows = [revenue_by_period[key] for key in sorted(revenue_by_period)]
-        if len(revenue_rows) >= 2:
-            previous = _finite(revenue_rows[-2].get("value"))
-            latest = _finite(revenue_rows[-1].get("value"))
-            if latest is not None and previous not in (None, 0.0):
-                values["revenue_growth"] = (latest / previous - 1.0) * 100.0
+        for metric, growth_metric in (
+            ("revenue", "revenue_growth"),
+            ("total_operating_income", "operating_income_growth"),
+        ):
+            annual_rows = [
+                row for row in observations
+                if row.get("metric") == metric and row.get("frequency") == "ANNUAL"
+            ]
+            candidate_rows = annual_rows or [row for row in observations if row.get("metric") == metric]
+            by_period: dict[str, dict[str, Any]] = {}
+            for row in candidate_rows:
+                period = str(row.get("periodEnd") or "")
+                current = by_period.get(period)
+                if current is None or abs(_finite(row.get("value")) or 0.0) > abs(_finite(current.get("value")) or 0.0):
+                    by_period[period] = row
+            recent = [by_period[key] for key in sorted(by_period)[-2:]]
+            if len(recent) == 2:
+                previous = _finite(recent[0].get("value"))
+                latest = _finite(recent[1].get("value"))
+                if latest is not None and previous not in (None, 0.0):
+                    values[growth_metric] = (latest / previous - 1.0) * 100.0
 
         income = values.get("net_income")
         equity = values.get("shareholder_equity")

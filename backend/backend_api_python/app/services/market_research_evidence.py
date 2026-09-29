@@ -36,7 +36,7 @@ def _hose_fundamental_coverage(evidence: Mapping[str, Any], base: Mapping[str, A
         return _coverage("partial" if fundamentals.get("derivedMetrics") else str(base.get("status") or "missing"),
                          "NO_POINT_IN_TIME_OBSERVATIONS" if fundamentals.get("derivedMetrics") else str(base.get("reason") or "NO_POINT_IN_TIME_OBSERVATIONS"))
     if "PROVIDER_DOES_NOT_DISTINGUISH_SCOPE" in reasons or any(
-        str(row.get("reportScope") or "").upper() not in {"CONSOLIDATED", "STANDALONE"}
+        str(row.get("reportScope") or "").upper() not in {"CONSOLIDATED", "SEPARATE", "STANDALONE"}
         for row in observations
     ):
         return _coverage("partial", "PROVIDER_DOES_NOT_DISTINGUISH_SCOPE")

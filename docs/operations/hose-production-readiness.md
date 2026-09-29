@@ -22,3 +22,16 @@ Read-only provider sample on 2026-09-29 for windows ending 2026-09-28, after OHL
 | VCB | 1,225 / 93.94% | 2,413 / 92.52% |
 
 Yahoo returned adjusted-close factors on every retained bar in this sample. VNDIRECT's daily-history endpoint returned HTTP 406 in the same check; the full FPT 10-year `VNStockDataSource` request selected `yahoo-vn` after attempting both providers. This verifies the sampled symbols and dates, **not** all HOSE symbols or a guaranteed provider SLA. Recheck source availability and window coverage before relying on a new backtest date range or newly listed symbol.
+
+## Fundamental annual coverage (5–10 years)
+
+The VNDIRECT financial-statement adapter requests the current year plus the preceding ten fiscal years, follows all result pages, excludes estimates, and retains only mapped financial metrics. `VietnamEvidence.fundamentals.annualCoverage` reports available and missing fiscal years for each metric and for each provider-reported statement scope. It uses only observations whose `periodEnd` and `availableAt` precede the analysis cutoff. A metric never observed by the provider is `not_observed`; that does **not** prove the metric is inapplicable. A partially covered observed metric adds `fundamentalHistory` to `dataGaps`.
+
+Read-only sample on 2026-09-29, for completed fiscal years 2016–2025:
+
+| Symbol | 10-year annual metrics present | Explicit gaps |
+| --- | --- | --- |
+| FPT | Revenue, net income, shareholder equity, total debt, operating cash flow: 10/10 years | EPS: 8/10 years; statement scope unknown |
+| VCB | Total operating income, net income, shareholder equity, total debt, operating cash flow: 10/10 years | Revenue and EPS not observed; statement scope unknown |
+
+For banks, `total_operating_income` is a distinct metric; it must not be silently substituted for corporate `revenue`. The source's `createdDate` is used as a provider-reported `availableAt` proxy, but it is **not a verified exchange filing timestamp**. In this sample, FPT's FY2016 revenue row has provider `availableAt` in November 2019, so it is not eligible for a 2016–2018 point-in-time backtest. The public endpoint has no published availability SLA or guaranteed historical point-in-time revision contract. These spot checks do not establish coverage for every HOSE symbol or make historical fundamentals automatically safe for backtesting. If the endpoint is blocked or incomplete, preserve the data gap; do not backfill from current values or forecast rows. VNDIRECT's public [DStock](https://dstock.vndirect.com.vn/) is a reference display, while [HOSE disclosures](https://www.hsx.vn/) remain the primary place to verify original filings.

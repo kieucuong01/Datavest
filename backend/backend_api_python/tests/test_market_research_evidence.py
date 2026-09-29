@@ -102,6 +102,21 @@ def test_complete_hose_evidence_is_eligible_and_preserves_observation_fields():
     assert result["fundamentals"]["observations"][0]["source"] == "vndirect"
 
 
+def test_known_separate_hose_report_is_not_marked_unknown():
+    result = build_market_research_evidence("VNStock", {
+        "vietnam_evidence": {
+            "instrument": {"market": "VNStock", "exchange": "HOSE", "symbol": "FPT"},
+            "fundamentals": {"observations": [{
+                "metric": "revenue", "value": 100.0, "periodEnd": "2025-12-31",
+                "availableAt": "2026-03-20T00:00:00Z", "reportScope": "SEPARATE", "source": "vndirect",
+            }]},
+        },
+    })
+
+    assert result["coverage"]["fundamentals"]["status"] == "available"
+    assert result["scoreEligibility"]["fundamental"]["eligible"] is True
+
+
 def test_generic_market_projection_is_additive_and_does_not_mutate_payload():
     """Changing an existing generic payload while normalizing it must fail here."""
     payload = {

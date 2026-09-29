@@ -75,7 +75,7 @@ def build_hose_provenance(
         for row in observations if isinstance(row, dict)
     )
     unknown_scope = any(
-        str(row.get("reportScope") or "").upper() not in {"CONSOLIDATED", "STANDALONE"}
+        str(row.get("reportScope") or "").upper() not in {"CONSOLIDATED", "SEPARATE", "STANDALONE"}
         for row in observations if isinstance(row, dict)
     )
     fundamental_state = (

@@ -103,3 +103,14 @@ def test_unknown_or_incomplete_financial_observations_are_partial_not_available(
         "status": "partial",
         "reason": "PROVIDER_DOES_NOT_DISTINGUISH_SCOPE",
     }
+
+
+def test_known_separate_report_scope_is_available():
+    result = build_hose_provenance({
+        "fundamentals": {"observations": [{
+            "metric": "revenue", "value": 100.0, "periodEnd": "2025-12-31",
+            "availableAt": "2026-03-20T00:00:00Z", "reportScope": "SEPARATE", "source": "vndirect",
+        }]},
+    })
+
+    assert result["coverage"]["fundamentals"]["status"] == "available"

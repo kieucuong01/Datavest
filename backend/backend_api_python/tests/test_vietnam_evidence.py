@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
 
 from app.data_sources.vn_market_providers import VndirectProvider
 
@@ -126,6 +127,54 @@ def test_vndirect_normalizes_point_in_time_financial_observations():
     }]
 
 
+def test_vndirect_financial_history_continues_when_later_pages_omit_total_pages():
+    statement_pages = []
+
+    def get(url, **kwargs):
+        if url.endswith("/financial_models"):
+            return Response({"data": [{"itemCode": 21001, "modelType": 2, "itemVnName": "Doanh thu thuần"}],
+                             "totalPages": 1})
+        page = kwargs["params"]["page"]
+        statement_pages.append(page)
+        records = {
+            1: ("2025-12-31", "2026-03-01 00:00:00"),
+            2: ("2020-12-31", "2021-03-01 00:00:00"),
+            3: ("2016-12-31", "2017-03-01 00:00:00"),
+        }
+        period, published = records[page]
+        payload = {
+            "data": [{"code": "FPT", "itemCode": 21001, "modelType": 2,
+                      "reportType": "ANNUAL", "numericValue": page * 100,
+                      "fiscalDate": period, "createdDate": published}],
+            "currentPage": page,
+        }
+        if page == 1:
+            payload["totalPages"] = 3
+        return Response(payload)
+
+    rows = VndirectProvider(http_get=get).fetch_financial_statements("FPT")
+
+    assert statement_pages == [1, 2, 3]
+    assert [row["periodEnd"] for row in rows] == ["2025-12-31", "2020-12-31", "2016-12-31"]
+    assert all(row["metric"] == "revenue" for row in rows)
+
+
+def test_vndirect_financial_observations_exclude_estimates():
+    def get(url, **_kwargs):
+        if url.endswith("/financial_models"):
+            return Response({"data": [], "totalPages": 1})
+        return Response({"data": [
+            {"code": "FPT", "itemCode": 21001, "reportType": "ESTIMATION", "modelType": 33,
+             "numericValue": 999, "fiscalDate": "2026-12-31", "createdDate": "2026-04-13 00:00:00"},
+            {"code": "FPT", "itemCode": 21001, "reportType": "ANNUAL", "modelType": 2,
+             "numericValue": 100, "fiscalDate": "2025-12-31", "createdDate": "2026-03-19 00:00:00"},
+        ], "totalPages": 1})
+
+    rows = VndirectProvider(http_get=get).fetch_financial_statements("FPT")
+
+    assert [(row["periodEnd"], row["value"]) for row in rows] == [("2025-12-31", 100.0)]
+
+
 def test_vndirect_normalizes_profile_events_and_disclosures():
     def get(url, **kwargs):
         if url.endswith("/company_profiles"):
@@ -225,11 +274,51 @@ def test_vndirect_maps_live_numeric_item_codes_using_item_names():
     assert rows[1]["metric"] == "earnings_per_share"
     assert cached_rows == rows
     assert statement_params == [{
-        "size": 1000,
+        "size": 5000,
         "page": 1,
-        "q": "code:FPT",
+        "q": f"code:FPT~fiscalDate:gte:{datetime.now(ZoneInfo('Asia/Ho_Chi_Minh')).year - 10}-01-01",
         "sort": "fiscalDate:desc,modifiedDate:desc",
     }]
+
+
+def test_vndirect_only_returns_useful_statement_metrics():
+    def get(url, **_kwargs):
+        if url.endswith("/financial_models"):
+            return Response({"data": [], "totalPages": 1})
+        return Response({"data": [
+            {"code": "FPT", "itemCode": 21001, "reportType": "ANNUAL", "modelType": 2,
+             "numericValue": 100, "fiscalDate": "2025-12-31", "createdDate": "2026-03-19 00:00:00"},
+            {"code": "FPT", "itemCode": 999999, "reportType": "ANNUAL", "modelType": 2,
+             "numericValue": 300, "fiscalDate": "2025-12-31", "createdDate": "2026-03-19 00:00:00"},
+        ], "totalPages": 1})
+
+    rows = VndirectProvider(http_get=get).fetch_financial_statements("FPT")
+
+    assert [row["metric"] for row in rows] == ["revenue"]
+
+
+def test_bank_total_operating_income_is_not_mislabeled_as_revenue():
+    from app.services.vietnam_evidence import VietnamEvidenceService
+
+    def get(url, **_kwargs):
+        if url.endswith("/financial_models"):
+            return Response({"data": [{"itemCode": 421701, "modelType": 102,
+                                     "itemVnName": "Tổng thu nhập hoạt động"}], "totalPages": 1})
+        return Response({"data": [
+            {"code": "VCB", "itemCode": 421701, "modelType": 102, "reportType": "ANNUAL",
+             "numericValue": 100, "fiscalDate": "2025-12-31", "createdDate": "2026-03-01 00:00:00"},
+            {"code": "VCB", "itemCode": 421701, "modelType": 102, "reportType": "ANNUAL",
+             "numericValue": 80, "fiscalDate": "2024-12-31", "createdDate": "2025-03-01 00:00:00"},
+        ], "totalPages": 1})
+
+    rows = VndirectProvider(http_get=get).fetch_financial_statements("VCB")
+    coverage = VietnamEvidenceService._annual_coverage(rows, datetime(2026, 9, 1, tzinfo=timezone.utc))
+    derived = VietnamEvidenceService._derive_metrics(rows, {}, {})
+
+    assert [row["metric"] for row in rows] == ["total_operating_income", "total_operating_income"]
+    assert coverage["metrics"]["total_operating_income"]["overall"]["5y"]["availableYears"] == [2024, 2025]
+    assert derived["operating_income_growth"] == 25.0
+    assert "revenue" not in derived
 
 
 def test_vietnam_evidence_is_point_in_time_and_exposes_explicit_gaps():
@@ -315,6 +404,11 @@ def test_vietnam_evidence_is_point_in_time_and_exposes_explicit_gaps():
     assert metrics["pe_ratio"] == 20.0
     assert metrics["pb_ratio"] == 2.5
     assert metrics["ratioUnit"] == "PERCENTAGE_POINTS"
+    annual_coverage = evidence["fundamentals"]["annualCoverage"]
+    assert annual_coverage["metrics"]["revenue"]["overall"]["5y"]["availableYears"] == [2024, 2025]
+    assert annual_coverage["metrics"]["revenue"]["overall"]["5y"]["missingYears"] == [2021, 2022, 2023]
+    assert annual_coverage["metrics"]["revenue"]["byReportScope"]["CONSOLIDATED"]["10y"]["availableYears"] == [2024, 2025]
+    assert {gap["field"] for gap in evidence["dataGaps"]} >= {"fundamentalHistory"}
     assert evidence["corporateActions"][0]["id"] == "77"
     assert evidence["marketContext"]["benchmarks"]["VNINDEX"]["price"] == 1300.0
     assert {gap["field"] for gap in evidence["dataGaps"]} >= {"foreignRoom", "ownershipStructure"}
@@ -353,6 +447,35 @@ def test_vietnam_evidence_reports_unknown_financial_statement_scope_as_a_gap():
     ).build(symbol="FPT", price={"price": 1}, technical={}, as_of=datetime(2026, 9, 1, tzinfo=timezone.utc))
 
     assert {gap["field"] for gap in evidence["dataGaps"]} >= {"reportScope"}
+    assert evidence["fundamentals"]["annualCoverage"]["metrics"]["revenue"]["byReportScope"]["UNKNOWN"]["5y"]["availableYears"] == [2025]
+
+
+def test_absent_sector_specific_metric_does_not_create_false_history_gap():
+    from app.services.vietnam_evidence import VietnamEvidenceService
+
+    class Provider:
+        def fetch_company_profile(self, _symbol):
+            return {}
+
+        def fetch_financial_statements(self, symbol):
+            return [{
+                "symbol": symbol, "metric": "revenue", "value": float(year),
+                "periodEnd": f"{year}-12-31", "availableAt": f"{year + 1}-03-01T00:00:00+00:00",
+                "frequency": "ANNUAL", "reportScope": "UNKNOWN", "source": "vndirect",
+            } for year in range(2016, 2026)]
+
+        def fetch_events(self, _symbol):
+            return []
+
+    evidence = VietnamEvidenceService(
+        provider=Provider(),
+        instrument_loader=lambda symbol: {"symbol": symbol, "trading_status": "ACTIVE"},
+        market_context_loader=lambda: {},
+        persist=lambda _evidence: None,
+    ).build(symbol="FPT", as_of=datetime(2026, 9, 1, tzinfo=timezone.utc))
+
+    assert "fundamentalHistory" not in {gap["field"] for gap in evidence["dataGaps"]}
+    assert evidence["fundamentals"]["annualCoverage"]["metrics"]["total_operating_income"]["status"] == "not_observed"
 
 
 def test_vietnam_evidence_derives_pe_from_annual_eps_without_share_count():
@@ -503,7 +626,7 @@ def test_ai_chat_consumes_shared_vietnam_evidence_for_inferred_hose_symbol(monke
     assert validated == [("VNStock", "FPT")]
     assert context["vietnamEvidence"] is evidence
     assert context["fundamentals"]["derivedMetrics"]["pe_ratio"] == 20.0
-    assert {gap["field"] for gap in context["data_gaps"]} == {"foreignRoom"}
+    assert "foreignRoom" in {gap["field"] for gap in context["data_gaps"]}
 
 
 def test_ai_chat_rejects_inferred_inactive_vn_symbol_before_evidence_provider(monkeypatch):

@@ -175,6 +175,7 @@ def _canonical_financial_metric(label: Any, item_code: Any) -> str:
     code = _item_code(item_code)
     code_metrics = {
         "21001": "revenue",
+        "421701": "total_operating_income",
         "23003": "net_income",
         "14000": "shareholder_equity",
         "13000": "total_debt",
@@ -436,7 +437,10 @@ class VndirectProvider:
     ) -> list[dict[str, Any]]:
         rows: list[dict[str, Any]] = []
         page = 1
+        total_pages: int | None = None
         while True:
+            if page > 100:
+                raise ValueError("VNDIRECT pagination exceeded 100 pages")
             self.rate_gate.acquire()
             params: dict[str, Any] = {"size": size, "page": page}
             if query:
@@ -451,9 +455,18 @@ class VndirectProvider:
             )
             response.raise_for_status()
             payload = response.json()
-            rows.extend(record for record in (payload.get("data") or []) if isinstance(record, dict))
-            total_pages = max(1, int(payload.get("totalPages") or 1))
-            if page >= total_pages:
+            data = payload.get("data") or []
+            rows.extend(record for record in data if isinstance(record, dict))
+            if payload.get("totalPages") is not None:
+                reported_pages = int(payload["totalPages"])
+                if reported_pages < page or (total_pages is not None and reported_pages != total_pages):
+                    raise ValueError("VNDIRECT pagination metadata changed")
+                total_pages = reported_pages
+            if total_pages is not None and page < total_pages and not data:
+                raise ValueError("VNDIRECT returned an empty page before the last page")
+            if (total_pages is not None and page >= total_pages) or (
+                total_pages is None and len(data) < size
+            ):
                 return rows
             page += 1
 
@@ -478,11 +491,15 @@ class VndirectProvider:
 
         records = self._fetch_paged(
             self.financial_statements_url,
-            query=f"code:{canonical}",
+            query=f"code:{canonical}~fiscalDate:gte:{datetime.now(VN_ZONE).year - 10}-01-01",
+            size=5000,
             sort="fiscalDate:desc,modifiedDate:desc",
         )
         result: list[dict[str, Any]] = []
         for record in records:
+            report_type = str(record.get("reportType") or "").strip().upper()
+            if report_type not in {"ANNUAL", "ANNUAL2", "YEAR", "YEAR2", "QUARTER", "QUARTER2"}:
+                continue
             item_code = _item_code(record.get("itemCode"))
             period_end = _parse_date(record.get("fiscalDate"))
             available_at = _iso_utc(record.get("createdDate") or record.get("modifiedDate"))
@@ -503,9 +520,15 @@ class VndirectProvider:
                 or model.get("modelTypeName")
                 or item_code
             ).strip()
+            metric = _canonical_financial_metric(label, item_code)
+            if metric not in {
+                "revenue", "total_operating_income", "net_income", "shareholder_equity", "total_debt",
+                "operating_cash_flow", "free_cash_flow", "earnings_per_share",
+            }:
+                continue
             result.append({
                 "symbol": canonical,
-                "metric": _canonical_financial_metric(label, item_code),
+                "metric": metric,
                 "itemCode": item_code,
                 "label": label,
                 "value": value,
