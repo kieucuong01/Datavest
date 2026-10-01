@@ -405,7 +405,7 @@ class VndirectProvider:
                 "from": int(datetime.combine(start, day_time.min, tzinfo=VN_ZONE).timestamp()),
                 "to": int(datetime.combine(end + timedelta(days=1), day_time.min, tzinfo=VN_ZONE).timestamp()),
             },
-            headers={"Accept": "application/json", "User-Agent": "DataVest-MarketData/1.0"},
+            headers={"User-Agent": "DataVest-MarketData/1.0"},
             timeout=self.settings.timeout_seconds,
         )
         response.raise_for_status()
@@ -645,7 +645,7 @@ class YahooVietnamProvider:
         effective_start = max(start, end - timedelta(days=max_history_days)) if max_history_days else start
         start_dt = datetime.combine(effective_start, day_time.min, tzinfo=VN_ZONE)
         end_dt = datetime.combine(end + timedelta(days=1), day_time.min, tzinfo=VN_ZONE)
-        yahoo_symbol = f"^{symbol}" if symbol in {"VNINDEX", "VN30"} else f"{symbol}.VN"
+        yahoo_symbol = {"VNINDEX": "^VNINDEX.VN", "VN30": "^VN30"}.get(symbol, f"{symbol}.VN")
         response = requests.get(
             f"https://query1.finance.yahoo.com/v8/finance/chart/{yahoo_symbol}",
             params={
@@ -671,7 +671,7 @@ class YahooVietnamProvider:
                 "AdjustedClose": _at(adjusted.get("adjclose"), index),
             })
         bars = _normalize_bars(records)
-        if timeframe == "1D":
+        if timeframe == "1D" and symbol not in {"VNINDEX", "VN30"}:
             bars = [bar for bar in bars if float(bar.get("volume") or 0.0) > 0]
         if merge > 1:
             bars = _resample(bars, merge)

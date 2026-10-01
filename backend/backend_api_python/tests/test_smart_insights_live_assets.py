@@ -75,6 +75,22 @@ def test_live_asset_snapshot_preserves_unavailable_and_stale_truth():
     assert by_symbol["ETH"]["price"] == 0
 
 
+def test_vietnam_daily_index_is_not_labeled_live_and_keeps_observed_at():
+    stamp = 1790812800
+    result = get_live_asset_snapshot(
+        quote_fetcher=lambda _items, timeout_sec: [
+            {"market": "VNStock", "symbol": "VNINDEX", "price": 1758.05,
+             "source": "vndirect", "time": stamp, "timeframe": "1D"},
+        ],
+        fetched_at="2026-10-01T06:00:00+00:00",
+    )
+
+    index = next(row for row in result["assets"] if row["displaySymbol"] == "VNINDEX")
+    assert index["status"] == "DAILY"
+    assert index["timeframe"] == "1D"
+    assert index["observedAt"] == "2026-10-01T00:00:00+00:00"
+
+
 def test_live_asset_route_requires_jwt_and_returns_bounded_snapshot(client, monkeypatch):
     assert client.get("/api/smart-insights/live-assets").status_code == 401
 

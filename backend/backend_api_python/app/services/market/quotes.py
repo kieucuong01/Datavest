@@ -1,5 +1,6 @@
 """Quote fetching and cache helpers for watchlist pricing."""
 
+import math
 import os
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError, as_completed
 
@@ -114,6 +115,17 @@ def normalize_price_payload(
         out["stale"] = True
     if price_data.get("source"):
         out["source"] = price_data.get("source")
+    if market == "VNStock":
+        observed_time = price_data.get("time")
+        if (
+            isinstance(observed_time, (int, float))
+            and not isinstance(observed_time, bool)
+            and math.isfinite(observed_time)
+            and observed_time > 0
+        ):
+            out["time"] = int(observed_time)
+        if price_data.get("timeframe") in {"1D", "1m", "3m", "5m", "15m", "30m", "1H", "4H"}:
+            out["timeframe"] = price_data["timeframe"]
     if source_exchange_id:
         out["source_exchange_id"] = source_exchange_id
     if source_market_type:

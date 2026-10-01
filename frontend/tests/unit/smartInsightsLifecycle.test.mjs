@@ -50,6 +50,25 @@ function marketPulseSection (browser = {}) {
   Object.entries(definition.methods).forEach(([key, fn]) => { instance[key] = fn.bind(instance) })
   return { definition, emitted, instance }
 }
+
+test('equity analysis date is absent when the overview has no HOSE report', () => {
+  const { definition, instance } = marketPulseSection()
+  instance.overview = { asOf: '2026-09-02T11:20:01+00:00', opinions: [
+    { market: 'crypto', symbol: 'BTC', report: { generatedAt: '2026-09-02T11:20:01+00:00' } }
+  ] }
+
+  assert.equal(definition.computed.analysisDate.call(instance), '—')
+})
+
+test('equity report count and date come from the VNStock report, not overview asOf', () => {
+  const { definition, instance } = marketPulseSection()
+  instance.overview = { asOf: '2026-09-02T11:20:01+00:00', opinions: [
+    { market: 'VNStock', symbol: 'FPT', report: { generatedAt: '2026-09-30T11:00:00+00:00' } }
+  ] }
+
+  assert.equal(definition.computed.equityReportCount.call(instance), 1)
+  assert.equal(definition.computed.analysisDate.call(instance), '2026-09-30')
+})
 const deferred = () => {
   let resolve, reject
   const promise = new Promise((a, b) => { resolve = a; reject = b })

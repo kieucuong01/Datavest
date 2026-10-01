@@ -46,6 +46,11 @@ def get_live_asset_snapshot(
         quote = indexed.get((item["market"], item["symbol"]), {})
         price = _number(quote.get("price"))
         stale = bool(quote.get("stale"))
+        timeframe = str(quote.get("timeframe") or "") if item["market"] == "VNStock" else ""
+        try:
+            observed_at = datetime.fromtimestamp(int(quote["time"]), tz=timezone.utc).isoformat()
+        except (KeyError, TypeError, ValueError, OverflowError, OSError):
+            observed_at = None
         assets.append(
             {
                 **item,
@@ -57,9 +62,13 @@ def get_live_asset_snapshot(
                 "sourceMarketType": str(quote.get("source_market_type") or ""),
                 "cached": bool(quote.get("cached")),
                 "stale": stale,
+                "timeframe": timeframe,
+                "observedAt": observed_at,
                 "status": (
                     "STALE"
                     if price > 0 and stale
+                    else "DAILY"
+                    if price > 0 and item["market"] == "VNStock" and timeframe == "1D"
                     else "LIVE"
                     if price > 0
                     else "UNAVAILABLE"

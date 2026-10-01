@@ -17,7 +17,7 @@
                 <strong class="asset-price">{{ formatLiveAssetPrice(item.price, item.displaySymbol) }}</strong>
                 <span :class="changeClass(item.changePercent)">{{ item.price === null ? '—' : signedPercent(item.changePercent) }}</span>
                 <span class="asset-status">{{ statusLabel(item.status) }}</span>
-                <small>{{ item.source || $t('smartInsights.dataUnavailableShort') }}</small>
+                <small :title="sourceDetail(item)">{{ sourceDetail(item) }}</small>
               </article>
             </div>
             <div v-if="rows.length" class="live-data-ticker-set" aria-hidden="true">
@@ -26,7 +26,7 @@
                 <strong class="asset-price">{{ formatLiveAssetPrice(item.price, item.displaySymbol) }}</strong>
                 <span :class="changeClass(item.changePercent)">{{ item.price === null ? '—' : signedPercent(item.changePercent) }}</span>
                 <span class="asset-status">{{ statusLabel(item.status) }}</span>
-                <small>{{ item.source || $t('smartInsights.dataUnavailableShort') }}</small>
+                <small :title="sourceDetail(item)">{{ sourceDetail(item) }}</small>
               </article>
             </div>
           </div>
@@ -40,7 +40,7 @@
 
 <script>
 import { formatLiveAssetPrice } from '../liveAssets'
-import { formatVietnamTime } from '@/utils/vietnamTime'
+import { formatVietnamDateTime, formatVietnamTime } from '@/utils/vietnamTime'
 
 export default {
   name: 'LiveDataSources',
@@ -51,7 +51,7 @@ export default {
     error: { type: String, default: '' }
   },
   computed: {
-    liveCount () { return this.rows.filter(item => item && (item.status === 'LIVE' || item.status === 'STALE')).length },
+    liveCount () { return this.rows.filter(item => item && ['LIVE', 'DAILY', 'STALE'].includes(item.status)).length },
     fetchedAtLabel () {
       if (!this.fetchedAt) return this.$t('smartInsights.waitingForData')
       return formatVietnamTime(this.fetchedAt, { locale: this.$i18n && this.$i18n.locale === 'vi-VN' ? 'vi-VN' : 'en-US', fallback: this.fetchedAt })
@@ -61,7 +61,13 @@ export default {
     formatLiveAssetPrice,
     statusClass (status) { return `status-${String(status || 'UNAVAILABLE').toLowerCase()}` },
     statusLabel (status) {
-      return ({ LIVE: this.$t('smartInsights.live'), STALE: this.$t('smartInsights.stale'), UNAVAILABLE: this.$t('smartInsights.unavailableShort') })[status] || this.$t('smartInsights.unavailableShort')
+      return ({ LIVE: this.$t('smartInsights.live'), DAILY: this.$t('smartInsights.dailyPrice'), STALE: this.$t('smartInsights.stale'), UNAVAILABLE: this.$t('smartInsights.unavailableShort') })[status] || this.$t('smartInsights.unavailableShort')
+    },
+    sourceDetail (item) {
+      const source = item.source || this.$t('smartInsights.dataUnavailableShort')
+      if (!item.observedAt) return source
+      const locale = this.$i18n && this.$i18n.locale === 'vi-VN' ? 'vi-VN' : 'en-US'
+      return `${source} · ${formatVietnamDateTime(item.observedAt, { locale })}`
     },
     signedPercent (value) {
       const number = Number(value)
@@ -94,7 +100,10 @@ export default {
 .asset-price { font-size: 13px; }
 .live-asset-chip > span { font-size: 11px; font-variant-numeric: tabular-nums; }
 .live-asset-chip small { max-width: 84px; overflow: hidden; color: var(--ticker-muted); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+.live-asset-chip.status-daily { min-width: 300px; }
+.live-asset-chip.status-daily small { max-width: 165px; }
 .asset-status { color: #1caa78; font-size: 10px !important; text-transform: uppercase; }
+.status-daily .asset-status { color: #486aa6; }
 .status-stale .asset-status { color: #b78117; }
 .status-unavailable .asset-status { color: var(--ticker-muted); }
 .change-up { color: #1caa78; }

@@ -198,6 +198,23 @@ def test_vndirect_provider_keeps_index_prices_as_points():
     assert bars[0]["close"] == 1265.5
 
 
+def test_vndirect_history_does_not_send_json_accept_header():
+    stamp = int(datetime(2026, 9, 15, tzinfo=VN_ZONE).timestamp())
+
+    def endpoint(_url, **kwargs):
+        if kwargs.get("headers", {}).get("Accept") == "application/json":
+            raise AssertionError("dchart rejects explicit JSON Accept with HTTP 406")
+        return Response({
+            "s": "ok", "t": [stamp], "o": [1260.0], "h": [1270.0],
+            "l": [1255.0], "c": [1265.5], "v": [500_000_000],
+        })
+
+    provider = VndirectProvider(http_get=endpoint, rate_gate=RequestRateGate(100, 1))
+    bars = provider.fetch_ohlcv("VNINDEX", "1D", date(2026, 9, 1), date(2026, 9, 16), 5)
+
+    assert bars[0]["close"] == 1265.5
+
+
 def test_vndirect_provider_skips_malformed_bar_without_losing_valid_bars():
     first_stamp = int(datetime(2026, 9, 15, tzinfo=VN_ZONE).timestamp())
     second_stamp = int(datetime(2026, 9, 16, tzinfo=VN_ZONE).timestamp())
@@ -341,6 +358,38 @@ def test_yahoo_daily_exposes_adjustment_factor_and_rejects_zero_volume_rows(monk
         "adjusted_close": 80.0,
         "adjustment_factor": 0.8,
     }]
+
+
+def test_yahoo_vnindex_uses_listed_symbol_and_keeps_zero_volume_index_bar(monkeypatch):
+    from app.data_sources import vn_market_providers
+
+    stamp = int(datetime(2026, 9, 30, 14, 45, tzinfo=VN_ZONE).timestamp())
+    calls = []
+
+    class IndexResponse:
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {"chart": {"result": [{
+                "timestamp": [stamp],
+                "indicators": {"quote": [{
+                    "open": [1770.0], "high": [1780.0], "low": [1760.0],
+                    "close": [1768.62], "volume": [0],
+                }]},
+            }]}}
+
+    monkeypatch.setattr(
+        vn_market_providers.requests, "get",
+        lambda url, **_kwargs: calls.append(url) or IndexResponse(),
+    )
+    provider = YahooVietnamProvider(rate_gate=RequestRateGate(100, 1))
+
+    bars = provider.fetch_ohlcv("VNINDEX", "1D", date(2026, 9, 29), date(2026, 9, 30), 5)
+
+    assert calls[0].endswith("/^VNINDEX.VN")
+    assert len(bars) == 1
+    assert bars[0]["close"] == 1768.62
 
 
 def test_adjusted_daily_uses_vndirect_sessions_and_yahoo_adjusted_ohlc():

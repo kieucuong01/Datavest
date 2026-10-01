@@ -36,11 +36,11 @@
       <section v-else-if="activeKey === 'equities'" class="legacy-card pulse-summary">
         <div class="card-heading compact-heading">
           <div><h3>{{ tabLabel(activeTab) }}</h3><p>{{ $t('smartInsights.equitiesPulseDesc') }}</p></div>
-          <a-tag :color="equityReportCount ? 'green' : 'orange'">{{ equityReportCount ? $t('smartInsights.availableStatus') : $t('smartInsights.unavailableShort') }}</a-tag>
+          <a-tag :color="equityReportCount ? 'green' : 'orange'">{{ equityReportCount ? $t('smartInsights.availableStatus') : $t('smartInsights.publicHoseReportsUnavailable') }}</a-tag>
         </div>
         <div class="pulse-tiles">
           <article class="pulse-tile"><span>VNINDEX · VN30</span><strong>{{ $t('smartInsights.liveDataSources') }}</strong><small>{{ $t('smartInsights.equitiesTickerHint') }}</small></article>
-          <article class="pulse-tile"><span>{{ $t('smartInsights.equitiesWatchlist') }}</span><strong>{{ equityReportCount }}</strong><small>{{ $t('smartInsights.latestAiAnalysis') }}</small></article>
+          <article class="pulse-tile"><span>{{ $t('smartInsights.equitiesWatchlist') }}</span><strong>{{ equityReportCount }}</strong><small>{{ equityReportCount ? $t('smartInsights.latestAiAnalysis') : $t('smartInsights.publicHoseReportsUnavailable') }}</small></article>
           <article class="pulse-tile"><span>{{ $t('smartInsights.analysisDate') }}</span><strong>{{ analysisDate }}</strong><small>{{ $t('smartInsights.equitiesSourceHint') }}</small></article>
         </div>
       </section>
@@ -117,10 +117,16 @@ export default {
     },
     equityReportCount () {
       return Array.isArray(this.overview && this.overview.opinions)
-        ? this.overview.opinions.filter(item => String(item && item.market || '').toLowerCase() === 'vn' && item.report).length
+        ? this.overview.opinions.filter(item => ['vn', 'vnstock'].includes(String(item && item.market || '').toLowerCase()) && item.report).length
         : 0
     },
-    analysisDate () { return String((this.overview && this.overview.asOf) || '—') }
+    analysisDate () {
+      const reports = Array.isArray(this.overview && this.overview.opinions)
+        ? this.overview.opinions.filter(item => ['vn', 'vnstock'].includes(String(item && item.market || '').toLowerCase()) && item.report)
+        : []
+      const dates = reports.map(item => item.report.generatedAt || item.report.createdAt || '').filter(Boolean).sort()
+      return dates.length ? dates[dates.length - 1].slice(0, 10) : '—'
+    }
   },
   methods: {
     tabLabel (tab) { return pulseTabLabel(tab, this.locale === 'vi-VN' || this.locale === 'vi' ? 'vi' : 'en') },

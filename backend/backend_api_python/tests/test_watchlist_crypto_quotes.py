@@ -1,11 +1,32 @@
 import threading
 import time
 import uuid
+import math
 from concurrent.futures import ThreadPoolExecutor
 
 from app.data_sources.crypto import CryptoDataSource
 from app.services.market import quotes
 from app.utils.request_guard import guarded_cached
+
+
+def test_vietnam_quote_keeps_observation_time_and_daily_timeframe():
+    stamp = 1790812800
+    result = quotes.normalize_price_payload(
+        "VNStock", "VNINDEX",
+        {"price": 1758.05, "change": -10.57, "changePercent": -0.6,
+         "source": "vndirect", "time": stamp, "timeframe": "1D"},
+    )
+
+    assert result["time"] == stamp
+    assert result["timeframe"] == "1D"
+
+
+def test_vietnam_quote_ignores_nonfinite_provider_observation_time():
+    result = quotes.normalize_price_payload(
+        "VNStock", "VNINDEX", {"price": 1758.05, "time": math.inf},
+    )
+
+    assert "time" not in result
 
 
 def _unique_symbol() -> str:
