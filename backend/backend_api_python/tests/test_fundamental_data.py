@@ -68,7 +68,7 @@ def test_vietnam_history_uses_evidence_observation_availability_not_current_valu
     class EvidenceService:
         def build(self, **kwargs):
             assert kwargs["symbol"] == "FPT"
-            assert kwargs["as_of"].tzinfo is not None
+            assert "as_of" not in kwargs
             return evidence
 
     monkeypatch.setattr(module, "VietnamEvidenceService", EvidenceService)

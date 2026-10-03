@@ -24,6 +24,7 @@ _ANNUAL_COVERAGE_METRICS = (
     "revenue", "total_operating_income", "net_income", "shareholder_equity", "total_debt", "operating_cash_flow",
     "earnings_per_share",
 )
+_KNOWN_REPORT_SCOPES = frozenset({"CONSOLIDATED", "SEPARATE"})
 
 
 def _aware_utc(value: datetime | None) -> datetime:
@@ -89,9 +90,18 @@ def enrich_vietnam_provenance(
 
 
 def _latest(
-    rows: list[dict[str, Any]], metric: str, *, prefer_annual: bool = False
+    rows: list[dict[str, Any]],
+    metric: str,
+    *,
+    prefer_annual: bool = False,
+    report_scope: str | None = None,
+    period_end: str | None = None,
 ) -> dict[str, Any] | None:
     matching = [row for row in rows if row.get("metric") == metric]
+    if report_scope is not None:
+        matching = [row for row in matching if str(row.get("reportScope") or "").upper() == report_scope]
+    if period_end is not None:
+        matching = [row for row in matching if str(row.get("periodEnd") or "")[:10] == period_end]
     if not matching:
         return None
     annual = [row for row in matching if row.get("frequency") == "ANNUAL"]
@@ -101,7 +111,7 @@ def _latest(
         matching,
         key=lambda row: (
             str(row.get("periodEnd") or ""),
-            1 if row.get("reportScope") == "CONSOLIDATED" else 0,
+            1 if str(row.get("reportScope") or "").upper() == "CONSOLIDATED" else 0,
             str(row.get("availableAt") or ""),
             abs(_finite(row.get("value")) or 0.0),
         ),
@@ -195,17 +205,22 @@ class VietnamEvidenceRepository:
     @staticmethod
     def _fundamental_snapshots(evidence: dict[str, Any]) -> list[dict[str, Any]]:
         rows = (evidence.get("fundamentals") or {}).get("observations") or []
-        groups: dict[tuple[str, str, str, str], list[dict[str, Any]]] = {}
+        groups: dict[tuple[str, str, str, str, str], list[dict[str, Any]]] = {}
         for row in rows:
             period_end = str(row.get("periodEnd") or "")[:10]
             available_at = str(row.get("availableAt") or "")[:10]
             source = str(row.get("source") or "vndirect")
             frequency = str(row.get("frequency") or "quarterly").lower()
+            report_scope = str(row.get("reportScope") or "UNKNOWN").upper()
+            # Strategy snapshots have no scope column. Publish only verified
+            # consolidated statements so separate/unknown rows cannot win an upsert.
+            if report_scope != "CONSOLIDATED":
+                continue
             if period_end and available_at:
-                groups.setdefault((period_end, available_at, source, frequency), []).append(row)
+                groups.setdefault((period_end, available_at, source, frequency, report_scope), []).append(row)
 
         snapshots: list[dict[str, Any]] = []
-        for (period_end, available_at, source, frequency), group in sorted(groups.items()):
+        for (period_end, available_at, source, frequency, report_scope), group in sorted(groups.items()):
             metrics: dict[str, float] = {}
             for row in group:
                 metric = str(row.get("metric") or "")
@@ -217,10 +232,10 @@ class VietnamEvidenceRepository:
             income = metrics.get("net_income")
             equity = metrics.get("shareholder_equity")
             debt = metrics.get("total_debt")
-            if income is not None and equity not in (None, 0.0):
+            if report_scope in _KNOWN_REPORT_SCOPES and income is not None and equity not in (None, 0.0):
                 multiplier = 1.0 if frequency == "annual" else 4.0
                 metrics["return_on_equity"] = income * multiplier / equity
-            if debt is not None and equity not in (None, 0.0):
+            if report_scope in _KNOWN_REPORT_SCOPES and debt is not None and equity not in (None, 0.0):
                 metrics["debt_to_equity"] = debt / equity
             if not metrics:
                 continue
@@ -233,7 +248,7 @@ class VietnamEvidenceRepository:
                 "source_version": str(evidence.get("checksum") or "")[:64],
                 "metadata": {
                     "pointInTime": True,
-                    "reportScope": str(group[0].get("reportScope") or "UNKNOWN"),
+                    "reportScope": report_scope,
                     "observationCount": len(group),
                 },
                 **metrics,
@@ -268,12 +283,17 @@ class VietnamEvidenceService:
         if not catalog:
             raise ValueError("unsupported_or_inactive_vn_symbol")
         cutoff = _aware_utc(as_of)
+        historical_cutoff = as_of is not None
         gaps: list[dict[str, str]] = [
             {"field": "foreignRoom", "reason": "NO_VERIFIED_FREE_SOURCE"},
             {"field": "ownershipStructure", "reason": "NO_VERIFIED_FREE_SOURCE"},
         ]
 
-        profile = self._load_optional("companyProfile", gaps, self.provider.fetch_company_profile, canonical, default={})
+        if historical_cutoff:
+            profile = {}
+            gaps.append({"field": "companyProfile", "reason": "NO_POINT_IN_TIME_SOURCE"})
+        else:
+            profile = self._load_optional("companyProfile", gaps, self.provider.fetch_company_profile, canonical, default={})
         raw_observations = self._load_optional(
             "fundamentalStatements", gaps, self.provider.fetch_financial_statements, canonical, default=[]
         )
@@ -284,6 +304,13 @@ class VietnamEvidenceService:
             if isinstance(row, dict)
             and (instant := _parse_instant(row.get("availableAt"))) is not None
             and instant <= cutoff
+            and (
+                not row.get("revisionAt")
+                or (
+                    (revision := _parse_instant(row.get("revisionAt"))) is not None
+                    and revision <= cutoff
+                )
+            )
             and (period_end := _parse_date(row.get("periodEnd"))) is not None
             and period_end <= cutoff.date()
         ]
@@ -296,7 +323,10 @@ class VietnamEvidenceService:
         ]
         if not observations and not any(gap["field"] == "fundamentalStatements" for gap in gaps):
             gaps.append({"field": "fundamentalStatements", "reason": "NO_POINT_IN_TIME_OBSERVATIONS"})
-        if any(row.get("reportScope") == "UNKNOWN" for row in observations):
+        if any(
+            str(row.get("reportScope") or "").upper() not in _KNOWN_REPORT_SCOPES
+            for row in observations
+        ):
             gaps.append({"field": "reportScope", "reason": "PROVIDER_DOES_NOT_DISTINGUISH_SCOPE"})
         annual_coverage = self._annual_coverage(observations, cutoff)
         if any(
@@ -310,12 +340,12 @@ class VietnamEvidenceService:
             "market": "VNStock",
             "symbol": canonical,
             "exchange": "HOSE",
-            "name": profile.get("name") or catalog.get("name") or canonical,
+            "name": canonical if historical_cutoff else profile.get("name") or catalog.get("name") or canonical,
             "shortName": profile.get("shortName") or "",
             "assetClass": profile.get("assetClass") or catalog.get("asset_class") or "equity",
-            "sector": profile.get("sector") or catalog.get("sector") or "",
-            "listedDate": profile.get("listedDate") or catalog.get("listed_date"),
-            "tradingStatus": catalog.get("trading_status") or "ACTIVE",
+            "sector": "" if historical_cutoff else profile.get("sector") or catalog.get("sector") or "",
+            "listedDate": None if historical_cutoff else profile.get("listedDate") or catalog.get("listed_date"),
+            "tradingStatus": "UNKNOWN_AS_OF" if historical_cutoff else catalog.get("trading_status") or "ACTIVE",
             "website": profile.get("website") or "",
             "sharesOutstanding": _finite(profile.get("sharesOutstanding")),
         }
@@ -326,12 +356,16 @@ class VietnamEvidenceService:
             gaps.append({"field": "peRatio", "reason": "INSUFFICIENT_FREE_SOURCE_DATA"})
         if "pb_ratio" not in derived:
             gaps.append({"field": "pbRatio", "reason": "INSUFFICIENT_FREE_SOURCE_DATA"})
-        try:
-            market_context = self.market_context_loader() or {}
-        except Exception as exc:
-            logger.warning("VN market context unavailable: %s", exc)
+        if historical_cutoff:
             market_context = {}
-            gaps.append({"field": "marketContext", "reason": "PROVIDER_UNAVAILABLE"})
+            gaps.append({"field": "marketContext", "reason": "NO_POINT_IN_TIME_SOURCE"})
+        else:
+            try:
+                market_context = self.market_context_loader() or {}
+            except Exception as exc:
+                logger.warning("VN market context unavailable: %s", exc)
+                market_context = {}
+                gaps.append({"field": "marketContext", "reason": "PROVIDER_UNAVAILABLE"})
 
         evidence = {
             "version": "vietnam-evidence-v1",
@@ -424,6 +458,10 @@ class VietnamEvidenceService:
         observations: list[dict[str, Any]], instrument: dict[str, Any], price: dict[str, Any]
     ) -> dict[str, Any]:
         values: dict[str, float] = {}
+        scoped_observations = [
+            row for row in observations
+            if str(row.get("reportScope") or "").upper() in _KNOWN_REPORT_SCOPES
+        ]
         flow_metrics = {
             "revenue", "total_operating_income", "net_income", "free_cash_flow",
             "operating_cash_flow", "earnings_per_share"
@@ -442,30 +480,87 @@ class VietnamEvidenceService:
             ("total_operating_income", "operating_income_growth"),
         ):
             annual_rows = [
-                row for row in observations
+                row for row in scoped_observations
                 if row.get("metric") == metric and row.get("frequency") == "ANNUAL"
             ]
-            candidate_rows = annual_rows or [row for row in observations if row.get("metric") == metric]
-            by_period: dict[str, dict[str, Any]] = {}
-            for row in candidate_rows:
-                period = str(row.get("periodEnd") or "")
-                current = by_period.get(period)
-                if current is None or abs(_finite(row.get("value")) or 0.0) > abs(_finite(current.get("value")) or 0.0):
-                    by_period[period] = row
-            recent = [by_period[key] for key in sorted(by_period)[-2:]]
-            if len(recent) == 2:
-                previous = _finite(recent[0].get("value"))
-                latest = _finite(recent[1].get("value"))
-                if latest is not None and previous not in (None, 0.0):
-                    values[growth_metric] = (latest / previous - 1.0) * 100.0
+            candidate_rows = annual_rows or [row for row in scoped_observations if row.get("metric") == metric]
+            growth_candidates: list[tuple[str, float]] = []
+            observed_scopes = {
+                str(row.get("reportScope") or "UNKNOWN").upper()
+                for row in candidate_rows
+            }
+            for scope in sorted(observed_scopes):
+                by_period: dict[str, dict[str, Any]] = {}
+                for row in candidate_rows:
+                    if str(row.get("reportScope") or "").upper() != scope:
+                        continue
+                    period = str(row.get("periodEnd") or "")
+                    current = by_period.get(period)
+                    if current is None or abs(_finite(row.get("value")) or 0.0) > abs(_finite(current.get("value")) or 0.0):
+                        by_period[period] = row
+                recent = [by_period[key] for key in sorted(by_period)[-2:]]
+                if len(recent) == 2:
+                    previous = _finite(recent[0].get("value"))
+                    latest = _finite(recent[1].get("value"))
+                    if latest is not None and previous not in (None, 0.0):
+                        growth_candidates.append(
+                            (str(recent[1].get("periodEnd") or ""), (latest / previous - 1.0) * 100.0)
+                        )
+            if growth_candidates:
+                values[growth_metric] = max(growth_candidates, key=lambda item: item[0])[1]
 
-        income = values.get("net_income")
-        equity = values.get("shareholder_equity")
-        debt = values.get("total_debt")
+        def common_period_values(metrics: tuple[str, ...]) -> dict[str, Any]:
+            candidates: list[tuple[str, str, dict[str, Any]]] = []
+            for scope in sorted(_KNOWN_REPORT_SCOPES):
+                period_sets = [
+                    {
+                        str(row.get("periodEnd") or "")
+                        for row in scoped_observations
+                        if row.get("metric") == metric
+                        and str(row.get("reportScope") or "").upper() == scope
+                    }
+                    for metric in metrics
+                ]
+                common_periods = set.intersection(*period_sets) if period_sets else set()
+                for period in common_periods:
+                    selected = {
+                        metric: _latest(
+                            scoped_observations,
+                            metric,
+                            report_scope=scope,
+                            period_end=period,
+                            prefer_annual=metric in flow_metrics,
+                        )
+                        for metric in metrics
+                    }
+                    if all(row is not None for row in selected.values()):
+                        candidates.append((period, scope, selected))
+            if not candidates:
+                return {}
+            return max(candidates, key=lambda item: (item[0], item[1]))[2]
+
+        roe_rows = common_period_values(("net_income", "shareholder_equity"))
+        income = _finite(roe_rows.get("net_income", {}).get("value")) if roe_rows else None
+        equity = _finite(roe_rows.get("shareholder_equity", {}).get("value")) if roe_rows else None
         if income is not None and equity not in (None, 0.0):
             values["return_on_equity"] = income / equity * 100.0
-        if debt is not None and equity not in (None, 0.0):
-            values["debt_to_equity"] = debt / equity
+
+        leverage_rows = common_period_values(("total_debt", "shareholder_equity"))
+        debt = _finite(leverage_rows.get("total_debt", {}).get("value")) if leverage_rows else None
+        equity_for_leverage = _finite(leverage_rows.get("shareholder_equity", {}).get("value")) if leverage_rows else None
+        if debt is not None and equity_for_leverage not in (None, 0.0):
+            values["debt_to_equity"] = debt / equity_for_leverage
+
+        scoped_values: dict[str, float] = {}
+        for metric in (
+            "net_income", "shareholder_equity", "earnings_per_share",
+        ):
+            row = _latest(scoped_observations, metric, prefer_annual=metric in flow_metrics)
+            value = _finite(row.get("value")) if row else None
+            if value is not None:
+                scoped_values[metric] = value
+        income = scoped_values.get("net_income")
+        equity = scoped_values.get("shareholder_equity")
 
         shares = _finite(instrument.get("sharesOutstanding"))
         last_price = _finite(price.get("price"))
@@ -475,7 +570,7 @@ class VietnamEvidenceService:
                 values["pe_ratio"] = values["market_cap"] / income
             if equity not in (None, 0.0):
                 values["pb_ratio"] = values["market_cap"] / equity
-        eps = values.get("earnings_per_share")
+        eps = scoped_values.get("earnings_per_share")
         if "pe_ratio" not in values and last_price is not None and eps not in (None, 0.0):
             values["pe_ratio"] = last_price / eps
         values["ratioUnit"] = "PERCENTAGE_POINTS"

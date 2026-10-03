@@ -79,6 +79,29 @@ def test_evidence_repository_bridges_same_period_observations_to_strategy_fundam
     assert params[18] == 0.5
 
 
+def test_strategy_snapshots_keep_only_verified_consolidated_scope():
+    from app.services.vietnam_evidence import VietnamEvidenceRepository
+
+    base = {
+        "metric": "net_income", "periodEnd": "2025-12-31",
+        "availableAt": "2026-03-30T00:00:00+00:00",
+        "frequency": "ANNUAL", "source": "vndirect", "unit": "VND",
+    }
+    evidence = {
+        "fundamentals": {"observations": [
+            {**base, "reportScope": "UNKNOWN", "value": 100.0},
+            {**base, "reportScope": "SEPARATE", "value": 80.0},
+            {**base, "reportScope": "CONSOLIDATED", "value": 120.0},
+        ]},
+    }
+
+    snapshots = VietnamEvidenceRepository._fundamental_snapshots(evidence)
+
+    assert len(snapshots) == 1
+    assert snapshots[0]["net_income"] == 120.0
+    assert snapshots[0]["metadata"]["reportScope"] == "CONSOLIDATED"
+
+
 def test_vndirect_normalizes_point_in_time_financial_observations():
     def get(url, **kwargs):
         if url.endswith("/financial_models"):
@@ -317,7 +340,7 @@ def test_bank_total_operating_income_is_not_mislabeled_as_revenue():
 
     assert [row["metric"] for row in rows] == ["total_operating_income", "total_operating_income"]
     assert coverage["metrics"]["total_operating_income"]["overall"]["5y"]["availableYears"] == [2024, 2025]
-    assert derived["operating_income_growth"] == 25.0
+    assert "operating_income_growth" not in derived
     assert "revenue" not in derived
 
 
@@ -401,8 +424,8 @@ def test_vietnam_evidence_is_point_in_time_and_exposes_explicit_gaps():
     assert metrics["revenue_growth"] == 25.0
     assert metrics["return_on_equity"] == 12.5
     assert metrics["debt_to_equity"] == 0.5
-    assert metrics["pe_ratio"] == 20.0
-    assert metrics["pb_ratio"] == 2.5
+    assert "pe_ratio" not in metrics
+    assert "pb_ratio" not in metrics
     assert metrics["ratioUnit"] == "PERCENTAGE_POINTS"
     annual_coverage = evidence["fundamentals"]["annualCoverage"]
     assert annual_coverage["metrics"]["revenue"]["overall"]["5y"]["availableYears"] == [2024, 2025]
@@ -410,8 +433,10 @@ def test_vietnam_evidence_is_point_in_time_and_exposes_explicit_gaps():
     assert annual_coverage["metrics"]["revenue"]["byReportScope"]["CONSOLIDATED"]["10y"]["availableYears"] == [2024, 2025]
     assert {gap["field"] for gap in evidence["dataGaps"]} >= {"fundamentalHistory"}
     assert evidence["corporateActions"][0]["id"] == "77"
-    assert evidence["marketContext"]["benchmarks"]["VNINDEX"]["price"] == 1300.0
-    assert {gap["field"] for gap in evidence["dataGaps"]} >= {"foreignRoom", "ownershipStructure"}
+    assert evidence["marketContext"] == {}
+    assert {gap["field"] for gap in evidence["dataGaps"]} >= {
+        "foreignRoom", "ownershipStructure", "companyProfile", "marketContext",
+    }
     assert evidence["sources"][0]["provider"] == "vndirect"
     assert evidence["provenance"]["price"]["latencyClass"] == "unknown"
     assert evidence["provenance"]["coverage"]["fundamentals"]["status"] == "available"
@@ -448,6 +473,147 @@ def test_vietnam_evidence_reports_unknown_financial_statement_scope_as_a_gap():
 
     assert {gap["field"] for gap in evidence["dataGaps"]} >= {"reportScope"}
     assert evidence["fundamentals"]["annualCoverage"]["metrics"]["revenue"]["byReportScope"]["UNKNOWN"]["5y"]["availableYears"] == [2025]
+
+
+def test_vietnam_evidence_does_not_derive_ratios_from_unknown_scope():
+    from app.services.vietnam_evidence import VietnamEvidenceService
+
+    class Provider:
+        def fetch_company_profile(self, symbol):
+            return {"symbol": symbol, "sharesOutstanding": 10.0, "source": "vndirect"}
+
+        def fetch_financial_statements(self, symbol):
+            base = {
+                "symbol": symbol,
+                "availableAt": "2026-03-30T02:00:00+00:00",
+                "frequency": "ANNUAL",
+                "reportScope": "UNKNOWN",
+                "source": "vndirect",
+            }
+            return [
+                {**base, "metric": "net_income", "value": 10.0, "periodEnd": "2025-12-31"},
+                {**base, "metric": "shareholder_equity", "value": 80.0, "periodEnd": "2025-12-31"},
+                {**base, "metric": "earnings_per_share", "value": 5.0, "periodEnd": "2025-12-31"},
+            ]
+
+        def fetch_events(self, symbol):
+            return []
+
+    evidence = VietnamEvidenceService(
+        provider=Provider(),
+        instrument_loader=lambda symbol: {"symbol": symbol, "trading_status": "ACTIVE"},
+        market_context_loader=lambda: {},
+        persist=lambda _evidence: None,
+    ).build(
+        symbol="FPT",
+        price={"price": 100.0},
+        as_of=datetime(2026, 9, 1, tzinfo=timezone.utc),
+    )
+
+    metrics = evidence["fundamentals"]["derivedMetrics"]
+    assert "return_on_equity" not in metrics
+    assert "debt_to_equity" not in metrics
+    assert "pe_ratio" not in metrics
+    assert "pb_ratio" not in metrics
+    assert {gap["field"] for gap in evidence["dataGaps"]} >= {"reportScope", "peRatio", "pbRatio"}
+
+
+def test_vietnam_evidence_does_not_mix_periods_for_ratios():
+    from app.services.vietnam_evidence import VietnamEvidenceService
+
+    rows = [
+        {
+            "metric": "net_income", "value": 10.0, "periodEnd": "2025-12-31",
+            "availableAt": "2026-03-30T02:00:00+00:00", "frequency": "ANNUAL",
+            "reportScope": "CONSOLIDATED",
+        },
+        {
+            "metric": "shareholder_equity", "value": 100.0, "periodEnd": "2026-06-30",
+            "availableAt": "2026-08-01T02:00:00+00:00", "frequency": "QUARTERLY",
+            "reportScope": "CONSOLIDATED",
+        },
+        {
+            "metric": "total_debt", "value": 50.0, "periodEnd": "2026-06-30",
+            "availableAt": "2026-08-01T02:00:00+00:00", "frequency": "QUARTERLY",
+            "reportScope": "CONSOLIDATED",
+        },
+    ]
+
+    metrics = VietnamEvidenceService._derive_metrics(
+        rows,
+        {"sharesOutstanding": 100.0},
+        {"price": 10.0},
+    )
+
+    assert "return_on_equity" not in metrics
+    assert metrics["debt_to_equity"] == 0.5
+
+
+def test_historical_vietnam_evidence_does_not_use_current_profile_or_market_context():
+    from app.services.vietnam_evidence import VietnamEvidenceService
+
+    class Provider:
+        def fetch_company_profile(self, symbol):
+            raise AssertionError("current profile must not be fetched for a historical run")
+
+        def fetch_financial_statements(self, symbol):
+            return []
+
+        def fetch_events(self, symbol):
+            return []
+
+    service = VietnamEvidenceService(
+        provider=Provider(),
+        instrument_loader=lambda symbol: {
+            "symbol": symbol,
+            "name": "Catalog FPT",
+            "sector": "Công nghệ",
+            "trading_status": "ACTIVE",
+        },
+        market_context_loader=lambda: (_ for _ in ()).throw(
+            AssertionError("current benchmark must not be fetched for a historical run")
+        ),
+        persist=lambda _evidence: None,
+    )
+
+    evidence = service.build(
+        symbol="FPT",
+        price={"price": 100.0},
+        as_of=datetime(2025, 9, 1, tzinfo=timezone.utc),
+    )
+
+    assert evidence["instrument"]["sharesOutstanding"] is None
+    assert evidence["marketContext"] == {}
+    gaps = {(gap["field"], gap["reason"]) for gap in evidence["dataGaps"]}
+    assert ("companyProfile", "NO_POINT_IN_TIME_SOURCE") in gaps
+    assert ("marketContext", "NO_POINT_IN_TIME_SOURCE") in gaps
+
+
+def test_vietnam_evidence_excludes_statement_revised_after_cutoff():
+    from app.services.vietnam_evidence import VietnamEvidenceService
+
+    class Provider:
+        def fetch_financial_statements(self, symbol):
+            return [
+                {
+                    "metric": "revenue", "value": 100.0, "periodEnd": "2025-12-31",
+                    "availableAt": "2026-03-30T00:00:00+00:00",
+                    "revisionAt": "2026-10-01T00:00:00+00:00",
+                    "reportScope": "CONSOLIDATED", "frequency": "ANNUAL", "source": "vndirect",
+                },
+            ]
+
+        def fetch_events(self, symbol):
+            return []
+
+    evidence = VietnamEvidenceService(
+        provider=Provider(),
+        instrument_loader=lambda symbol: {"symbol": symbol, "trading_status": "ACTIVE"},
+        persist=lambda _evidence: None,
+    ).build(symbol="FPT", as_of=datetime(2026, 9, 1, tzinfo=timezone.utc))
+
+    assert evidence["fundamentals"]["observations"] == []
+    assert {gap["field"] for gap in evidence["dataGaps"]} >= {"fundamentalStatements"}
 
 
 def test_absent_sector_specific_metric_does_not_create_false_history_gap():
@@ -505,8 +671,8 @@ def test_vietnam_evidence_derives_pe_from_annual_eps_without_share_count():
         persist=lambda evidence: None,
     ).build(symbol="FPT", price={"price": 100.0}, technical={}, as_of=datetime(2026, 9, 1, tzinfo=timezone.utc))
 
-    assert evidence["fundamentals"]["derivedMetrics"]["pe_ratio"] == 20.0
-    assert {gap["field"] for gap in evidence["dataGaps"]} >= {"pbRatio"}
+    assert "pe_ratio" not in evidence["fundamentals"]["derivedMetrics"]
+    assert {gap["field"] for gap in evidence["dataGaps"]} >= {"peRatio", "pbRatio", "reportScope"}
 
 
 def test_market_data_collector_attaches_vietnam_evidence_to_legacy_fast_analysis_shape(monkeypatch):

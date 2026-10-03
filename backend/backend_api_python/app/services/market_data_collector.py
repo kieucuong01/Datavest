@@ -16,7 +16,7 @@
 
 import time
 from typing import Dict, List, Any, Optional
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from concurrent.futures import ThreadPoolExecutor, as_completed, TimeoutError
 
 import yfinance as yf
@@ -248,7 +248,6 @@ class MarketDataCollector:
             symbol=symbol,
             price=data.get("price") or {},
             technical=data.get("indicators") or {},
-            as_of=datetime.now(timezone.utc),
         )
     
     

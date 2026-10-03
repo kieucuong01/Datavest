@@ -1558,7 +1558,6 @@ def _vietnam_evidence_context(context: dict, primary: dict | None, snapshot: dic
         symbol=normalized_symbol,
         price=price,
         technical=technical,
-        as_of=_now_utc(),
     )
     normalized = build_market_research_evidence(
         "VNStock", {"vietnam_evidence": evidence}, fetched_at=_now_utc(), news_requested=True,

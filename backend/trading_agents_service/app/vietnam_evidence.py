@@ -15,6 +15,9 @@ from zoneinfo import ZoneInfo
 _CHECKSUM_RE = re.compile(r"^[a-f0-9]{64}$")
 _MAX_EVIDENCE_BYTES = 512 * 1024
 _MAX_CONTEXT_CHARS = 12_000
+_TEMPORAL_KEYS = frozenset({
+    "asOf", "availableAt", "revisionAt", "observedAt", "time", "timestamp",
+})
 
 
 class VietnamEvidenceValidationError(ValueError):
@@ -26,6 +29,14 @@ def _canonical_json(value: Any) -> str:
 
 
 def _instant(value: Any) -> datetime | None:
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        try:
+            timestamp = float(value)
+            if timestamp > 10_000_000_000:
+                timestamp /= 1000.0
+            return datetime.fromtimestamp(timestamp, tz=timezone.utc)
+        except (OverflowError, OSError, ValueError):
+            return None
     try:
         parsed = datetime.fromisoformat(str(value or "").replace("Z", "+00:00"))
     except ValueError:
@@ -33,6 +44,22 @@ def _instant(value: Any) -> datetime | None:
     if parsed.tzinfo is None or parsed.utcoffset() is None:
         parsed = parsed.replace(tzinfo=timezone.utc)
     return parsed.astimezone(timezone.utc)
+
+
+def _validate_temporal_fields(value: Any, cutoff: datetime, *, path: str = "evidence") -> None:
+    if isinstance(value, Mapping):
+        for key, item in value.items():
+            field = str(key)
+            if field in _TEMPORAL_KEYS:
+                instant = _instant(item)
+                if instant is not None and instant > cutoff:
+                    raise VietnamEvidenceValidationError(
+                        f"Vietnam evidence field {path}.{field} exceeds analysis cutoff"
+                    )
+            _validate_temporal_fields(item, cutoff, path=f"{path}.{field}")
+    elif isinstance(value, list):
+        for index, item in enumerate(value):
+            _validate_temporal_fields(item, cutoff, path=f"{path}[{index}]")
 
 
 def _cutoff(analysis_date: str) -> datetime:
@@ -109,6 +136,13 @@ def validate_vietnam_evidence(
         available_at = _instant(row.get("availableAt"))
         if available_at is not None and available_at > cutoff:
             raise VietnamEvidenceValidationError("Vietnam evidence contains data after cutoff")
+        period_end = row.get("periodEnd")
+        if period_end:
+            period_instant = _instant(period_end)
+            if period_instant is not None and period_instant.date() > cutoff.date():
+                raise VietnamEvidenceValidationError("Vietnam evidence period exceeds analysis cutoff")
+
+    _validate_temporal_fields(normalized, cutoff)
 
     normalized["checksum"] = supplied_checksum
     return normalized

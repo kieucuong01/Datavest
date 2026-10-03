@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from datetime import date, datetime, timedelta, timezone
+from datetime import date, timedelta
 from typing import Any, Mapping
 
 import pandas as pd
@@ -321,7 +321,6 @@ class FundamentalDataService:
 
         evidence = VietnamEvidenceService().build(
             symbol=symbol,
-            as_of=datetime.now(timezone.utc),
         )
         snapshots = VietnamEvidenceRepository._fundamental_snapshots(evidence)
         if not snapshots:

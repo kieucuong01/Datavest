@@ -112,3 +112,69 @@ def test_rejects_malformed_fundamental_section_with_contract_error():
         validate_vietnam_evidence(
             _evidence(fundamentals=["invalid"]), ticker="FPT.VN", analysis_date="2026-09-16"
         )
+
+
+def test_rejects_fundamental_period_after_analysis_cutoff():
+    from app.vietnam_evidence import VietnamEvidenceValidationError, validate_vietnam_evidence
+
+    evidence = _evidence(fundamentals={
+        "observations": [{
+            "metric": "revenue",
+            "value": 1000,
+            "periodEnd": "2026-09-30",
+            "availableAt": "2026-09-10T00:00:00+00:00",
+            "source": "vndirect",
+        }],
+        "derivedMetrics": {},
+    })
+
+    with pytest.raises(VietnamEvidenceValidationError, match="period"):
+        validate_vietnam_evidence(evidence, ticker="FPT.VN", analysis_date="2026-09-16")
+
+
+def test_rejects_future_market_context_timestamp():
+    from app.vietnam_evidence import VietnamEvidenceValidationError, validate_vietnam_evidence
+
+    evidence = _evidence(marketContext={
+        "benchmarks": {
+            "VNINDEX": {
+                "price": 1500,
+                "observedAt": "2026-09-17T00:00:00+00:00",
+            }
+        }
+    })
+
+    with pytest.raises(VietnamEvidenceValidationError, match="cutoff"):
+        validate_vietnam_evidence(evidence, ticker="FPT.VN", analysis_date="2026-09-16")
+
+
+def test_allows_later_fetch_time_and_announced_future_event_date():
+    from app.vietnam_evidence import validate_vietnam_evidence
+
+    evidence = _evidence(
+        provenance={"price": {"fetchedAt": "2026-10-03T00:00:00+00:00"}},
+        corporateActions=[{
+            "availableAt": "2026-09-10T00:00:00+00:00",
+            "effectiveDate": "2026-10-15",
+            "title": "Dividend announced before analysis date",
+        }],
+    )
+
+    assert validate_vietnam_evidence(
+        evidence, ticker="FPT.VN", analysis_date="2026-09-16"
+    )["checksum"] == evidence["checksum"]
+
+
+def test_rejects_fundamental_revision_after_analysis_cutoff():
+    from app.vietnam_evidence import VietnamEvidenceValidationError, validate_vietnam_evidence
+
+    evidence = _evidence(fundamentals={
+        "observations": [{
+            "metric": "revenue", "value": 1000, "periodEnd": "2025-12-31",
+            "availableAt": "2026-03-30T00:00:00+00:00",
+            "revisionAt": "2026-10-01T00:00:00+00:00",
+        }],
+    })
+
+    with pytest.raises(VietnamEvidenceValidationError, match="revisionAt"):
+        validate_vietnam_evidence(evidence, ticker="FPT.VN", analysis_date="2026-09-16")
