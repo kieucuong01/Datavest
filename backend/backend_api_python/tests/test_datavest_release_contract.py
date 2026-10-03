@@ -7,6 +7,7 @@ from pathlib import Path
 import re
 import shutil
 import subprocess
+from types import SimpleNamespace
 
 import yaml
 
@@ -116,6 +117,8 @@ def _render_datavest_compose(flag_values: dict[str, str | None]) -> dict:
             [
                 docker,
                 "compose",
+                "--profile",
+                "trading-agents",
                 "-f",
                 str(COMPOSE_FILES[0]),
                 "-f",
@@ -170,6 +173,22 @@ def test_datavest_merged_compose_resolves_approved_services_and_images():
     assert str(services["frontend"]["build"]["context"]).replace("\\", "/").endswith(
         "/frontend"
     )
+
+
+def test_datavest_compose_includes_opt_in_trading_agents_profile_when_docker_is_available(monkeypatch):
+    commands = []
+    monkeypatch.setattr(shutil, "which", lambda name: "docker" if name == "docker" else None)
+    monkeypatch.setattr(
+        subprocess,
+        "run",
+        lambda command, **_kwargs: commands.append(command) or SimpleNamespace(
+            returncode=0, stdout='{"name":"datavest","services":{}}', stderr=""
+        ),
+    )
+
+    _render_datavest_compose({})
+
+    assert commands[0][:4] == ["docker", "compose", "--profile", "trading-agents"]
 
 
 def test_datavest_merged_compose_enables_smart_insights_and_optimizer_by_default():
