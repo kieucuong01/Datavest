@@ -127,6 +127,33 @@ def test_public_service_uses_only_fixed_shared_assets_and_never_tenant_imports()
     ]
 
 
+def test_public_overview_labels_old_snapshot_as_archive(monkeypatch):
+    from app.services.smart_insights import public_access
+
+    monkeypatch.setattr(public_access, "vietnam_calendar_date", lambda: "2026-10-03")
+    result = public_access.PublicSmartInsightsService(
+        repository=PublicRepositoryDouble()
+    ).get_overview()
+
+    assert result["snapshotFreshness"] == "STALE"
+    assert result["snapshotAgeDays"] == 21
+    assert result["mode"] == "archive"
+    assert result["asOf"] == "2026-09-12"
+
+
+def test_public_overview_keeps_recent_snapshot_live(monkeypatch):
+    from app.services.smart_insights import public_access
+
+    monkeypatch.setattr(public_access, "vietnam_calendar_date", lambda: "2026-09-13")
+    result = public_access.PublicSmartInsightsService(
+        repository=PublicRepositoryDouble()
+    ).get_overview()
+
+    assert result["snapshotFreshness"] == "FRESH"
+    assert result["snapshotAgeDays"] == 1
+    assert result["mode"] == "live"
+
+
 def test_public_evidence_and_health_remove_internal_fields():
     from app.services.smart_insights.public_access import PublicSmartInsightsService
 

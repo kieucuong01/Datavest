@@ -21,6 +21,7 @@ from .watchlist_scope import opinion_key
 
 
 PUBLIC_ASSET_SCOPE = PUBLIC_GUEST_ASSET_SCOPE
+PUBLIC_SNAPSHOT_MAX_AGE_DAYS = 7
 
 PUBLIC_EVIDENCE_FIELDS = frozenset(
     {
@@ -179,7 +180,20 @@ class PublicSmartInsightsService:
         ]
         result["assets"] = assets
         result["scope"] = "PUBLIC_COMMON_ASSETS"
-        result["mode"] = "live"
+        snapshot_date = str(result.get("asOf") or "")[:10]
+        try:
+            age_days = (date.fromisoformat(vietnam_calendar_date()) - date.fromisoformat(snapshot_date)).days
+        except ValueError:
+            age_days = None
+        if str(result.get("status") or "").upper() == "UNAVAILABLE" or age_days is None or age_days < 0:
+            freshness = "UNAVAILABLE"
+        elif age_days > PUBLIC_SNAPSHOT_MAX_AGE_DAYS:
+            freshness = "STALE"
+        else:
+            freshness = "FRESH"
+        result["snapshotFreshness"] = freshness
+        result["snapshotAgeDays"] = age_days if age_days is not None and age_days >= 0 else None
+        result["mode"] = "archive" if freshness == "STALE" else "live"
         result["locale"] = str(locale or "vi-VN")[:16]
         return result
 

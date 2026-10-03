@@ -11,6 +11,8 @@
         :rows="opinionRows"
         :loading="opinionsLoading || overviewLoading"
         :guest="isGuest"
+        :snapshot-freshness="isGuest && overview ? overview.snapshotFreshness : ''"
+        :snapshot-as-of="isGuest && overview ? overview.asOf : ''"
         @refresh="retrySection('opinions')"
         @open-deep-analysis="openDeepAnalysis"
       />

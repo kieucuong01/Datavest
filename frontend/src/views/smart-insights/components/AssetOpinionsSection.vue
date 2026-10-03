@@ -15,6 +15,15 @@
       </div>
     </div>
 
+    <a-alert
+      v-if="guest && snapshotFreshness === 'STALE'"
+      class="legacy-alert"
+      type="warning"
+      show-icon
+      :message="$t('smartInsights.archivedSnapshotTitle')"
+      :description="$t('smartInsights.archivedSnapshotDesc', { date: String(snapshotAsOf || '').slice(0, 10) })"
+    />
+
     <div v-if="loading" class="opinion-loading" aria-live="polite">
       <a-skeleton active :paragraph="{ rows: 4 }" />
     </div>
@@ -110,7 +119,9 @@ export default {
     rows: { type: Array, default: () => [] },
     mode: { type: String, default: 'live' },
     loading: { type: Boolean, default: false },
-    guest: { type: Boolean, default: false }
+    guest: { type: Boolean, default: false },
+    snapshotFreshness: { type: String, default: '' },
+    snapshotAsOf: { type: String, default: '' }
   },
   methods: {
     percent (value) {
