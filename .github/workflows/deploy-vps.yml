@@ -37,6 +37,34 @@ jobs:
         working-directory: frontend
         run: pnpm install --frozen-lockfile
 
+      - name: Test frontend
+        working-directory: frontend
+        run: pnpm test:unit
+
+      - name: Use Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: backend/backend_api_python/requirements.lock
+
+      - name: Install locked backend test runtime
+        run: |
+          python -m pip install --disable-pip-version-check --require-hashes --only-binary=:all: -r backend/backend_api_python/requirements.lock
+          python -m pip install --disable-pip-version-check 'pytest==9.0.2'
+
+      - name: Test backend and HOSE evidence boundary
+        working-directory: backend
+        env:
+          SECRET_KEY: test-secret-key-for-unit-tests-32-bytes-minimum
+          ADMIN_USER: testadmin
+          ADMIN_PASSWORD: testpass123
+          SKIP_STARTUP_HOOKS: '1'
+          CACHE_ENABLED: 'false'
+        run: |
+          python -m pytest backend_api_python/tests -q
+          python -m pytest trading_agents_service/tests/test_vietnam_evidence.py -q
+
       - name: Build frontend
         working-directory: frontend
         env:
@@ -99,3 +127,4 @@ jobs:
         run: |
           curl --fail --show-error --silent --retry 8 --retry-delay 5 https://datavest.vn/health
           curl --fail --show-error --silent --retry 8 --retry-delay 5 https://datavest.vn/api/health/ready
+          python deploy/vps/check_public_contract.py
