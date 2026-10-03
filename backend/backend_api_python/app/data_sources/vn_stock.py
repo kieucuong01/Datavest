@@ -220,8 +220,8 @@ class VNStockDataSource(BaseDataSource):
         if observed > now + timedelta(minutes=5):
             return False
         if timeframe == "1D":
-            expected = now.date() if now.time() >= day_time(15, 15) else _previous_business_day(now.date())
-            tolerance = max(1, int(os.getenv("VN_DAILY_MAX_STALENESS_DAYS", "10")))
+            expected = expected_vietnam_daily_date(now)
+            tolerance = max(1, int(os.getenv("VN_DAILY_MAX_STALENESS_DAYS", "3")))
             return observed.date() >= expected - timedelta(days=tolerance)
         minute_size = _TIMEFRAME_MINUTES[timeframe]
         in_session = now.weekday() < 5 and (
@@ -294,6 +294,14 @@ def _previous_business_day(value: date) -> date:
     while candidate.weekday() >= 5:
         candidate -= timedelta(days=1)
     return candidate
+
+
+def expected_vietnam_daily_date(now: datetime) -> date:
+    """Latest expected daily bar using trading weekdays and the EOD publication buffer."""
+    local_now = now.astimezone(_VN_ZONE)
+    if local_now.weekday() < 5 and local_now.time() >= day_time(15, 15):
+        return local_now.date()
+    return _previous_business_day(local_now.date())
 
 
 def _provider_error_code(error: Exception) -> str:

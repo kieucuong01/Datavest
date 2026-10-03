@@ -89,6 +89,54 @@ def test_vietnam_daily_index_is_not_labeled_live_and_keeps_observed_at():
     assert index["status"] == "DAILY"
     assert index["timeframe"] == "1D"
     assert index["observedAt"] == "2026-10-01T00:00:00+00:00"
+    assert index["tradeDate"] == "2026-10-01"
+    assert index["retrievedAt"] == "2026-10-01T06:00:00+00:00"
+
+
+def test_vietnam_daily_index_is_stale_after_a_new_trading_session():
+    stamp = 1790812800  # 2026-10-01 UTC
+    result = get_live_asset_snapshot(
+        quote_fetcher=lambda _items, timeout_sec: [
+            {"market": "VNStock", "symbol": "VNINDEX", "price": 1758.05,
+             "source": "vndirect", "time": stamp, "timeframe": "1D"},
+        ],
+        fetched_at="2026-10-05T10:00:00+00:00",
+    )
+    index = next(row for row in result["assets"] if row["displaySymbol"] == "VNINDEX")
+    assert index["status"] == "STALE"
+    assert index["tradeDate"] == "2026-10-01"
+
+
+def test_vietnam_intraday_quote_is_delayed_not_unverified_realtime():
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+
+    stamp = int(datetime(2026, 10, 5, 10, 0, tzinfo=ZoneInfo("Asia/Ho_Chi_Minh")).timestamp())
+    result = get_live_asset_snapshot(
+        quote_fetcher=lambda _items, timeout_sec: [
+            {"market": "VNStock", "symbol": "VN30", "price": 1500,
+             "source": "vndirect", "time": stamp, "timeframe": "5m"},
+        ],
+        fetched_at="2026-10-05T03:10:00+00:00",
+    )
+    index = next(row for row in result["assets"] if row["displaySymbol"] == "VN30")
+    assert index["status"] == "DELAYED"
+
+
+def test_friday_daily_bar_remains_current_over_weekend():
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+
+    stamp = int(datetime(2026, 10, 2, 15, 0, tzinfo=ZoneInfo("Asia/Ho_Chi_Minh")).timestamp())
+    result = get_live_asset_snapshot(
+        quote_fetcher=lambda _items, timeout_sec: [
+            {"market": "VNStock", "symbol": "VNINDEX", "price": 1758,
+             "source": "vndirect", "time": stamp, "timeframe": "1D"},
+        ],
+        fetched_at="2026-10-03T10:00:00+00:00",
+    )
+    index = next(row for row in result["assets"] if row["displaySymbol"] == "VNINDEX")
+    assert index["status"] == "DAILY"
 
 
 def test_live_asset_route_requires_jwt_and_returns_bounded_snapshot(client, monkeypatch):

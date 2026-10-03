@@ -51,7 +51,7 @@ export default {
     error: { type: String, default: '' }
   },
   computed: {
-    liveCount () { return this.rows.filter(item => item && ['LIVE', 'DAILY', 'STALE'].includes(item.status)).length },
+    liveCount () { return this.rows.filter(item => item && ['LIVE', 'DELAYED', 'DAILY', 'STALE'].includes(item.status)).length },
     fetchedAtLabel () {
       if (!this.fetchedAt) return this.$t('smartInsights.waitingForData')
       return formatVietnamTime(this.fetchedAt, { locale: this.$i18n && this.$i18n.locale === 'vi-VN' ? 'vi-VN' : 'en-US', fallback: this.fetchedAt })
@@ -61,13 +61,14 @@ export default {
     formatLiveAssetPrice,
     statusClass (status) { return `status-${String(status || 'UNAVAILABLE').toLowerCase()}` },
     statusLabel (status) {
-      return ({ LIVE: this.$t('smartInsights.live'), DAILY: this.$t('smartInsights.dailyPrice'), STALE: this.$t('smartInsights.stale'), UNAVAILABLE: this.$t('smartInsights.unavailableShort') })[status] || this.$t('smartInsights.unavailableShort')
+      return ({ LIVE: this.$t('smartInsights.live'), DELAYED: this.$t('smartInsights.delayedPrice'), DAILY: this.$t('smartInsights.dailyPrice'), STALE: this.$t('smartInsights.stale'), UNAVAILABLE: this.$t('smartInsights.unavailableShort') })[status] || this.$t('smartInsights.unavailableShort')
     },
     sourceDetail (item) {
       const source = item.source || this.$t('smartInsights.dataUnavailableShort')
       if (!item.observedAt) return source
       const locale = this.$i18n && this.$i18n.locale === 'vi-VN' ? 'vi-VN' : 'en-US'
-      return `${source} · ${formatVietnamDateTime(item.observedAt, { locale })}`
+      const tradeDate = item.tradeDate ? `${item.tradeDate} · ` : ''
+      return `${source} · ${tradeDate}${formatVietnamDateTime(item.observedAt, { locale })}`
     },
     signedPercent (value) {
       const number = Number(value)

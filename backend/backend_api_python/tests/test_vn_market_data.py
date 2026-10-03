@@ -271,6 +271,15 @@ def test_vn_source_defaults_to_vndirect_then_yahoo_without_credentials():
     assert [provider.name for provider in source.providers] == ["vndirect", "yahoo-vn"]
 
 
+def test_vn_source_rejects_week_old_daily_bar_by_default(monkeypatch):
+    monkeypatch.delenv("VN_DAILY_MAX_STALENESS_DAYS", raising=False)
+    now = datetime(2026, 10, 5, 17, tzinfo=VN_ZONE)
+    old = datetime(2026, 9, 25, 15, tzinfo=VN_ZONE)
+    source = VNStockDataSource(providers=[], cache=DictCache(), now=lambda: now)
+
+    assert source._is_fresh(int(old.timestamp()), "1D") is False
+
+
 def test_yahoo_fallback_uses_vn_ticker_and_normalizes_chart_schema(monkeypatch):
     from app.data_sources import vn_market_providers
 

@@ -28,7 +28,9 @@ export function normalizeLiveAssetRows (payload = {}) {
       stale: Boolean(item.stale),
       timeframe: item.timeframe || '',
       observedAt: item.observedAt || null,
-      status: ['STALE', 'LIVE', 'DAILY'].includes(item.status) ? item.status : price ? 'LIVE' : 'UNAVAILABLE'
+      tradeDate: item.tradeDate || null,
+      retrievedAt: item.retrievedAt || null,
+      status: ['STALE', 'LIVE', 'DAILY', 'DELAYED'].includes(item.status) ? item.status : price ? 'LIVE' : 'UNAVAILABLE'
     }
   })
 }

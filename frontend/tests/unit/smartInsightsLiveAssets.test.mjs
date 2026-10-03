@@ -28,6 +28,15 @@ test('preserves daily classification and observation time for a HOSE index', () 
   assert.equal(index.observedAt, '2026-10-01T00:00:00+00:00')
 })
 
+test('preserves a delayed HOSE status and explicit trade and retrieval dates', () => {
+  const rows = normalizeLiveAssetRows({ assets: [{ displaySymbol: 'VN30', market: 'VNStock', price: 1500,
+    timeframe: '5m', status: 'DELAYED', tradeDate: '2026-10-05', retrievedAt: '2026-10-05T03:10:00Z' }] })
+  const index = rows.find(row => row.displaySymbol === 'VN30')
+  assert.equal(index.status, 'DELAYED')
+  assert.equal(index.tradeDate, '2026-10-05')
+  assert.equal(index.retrievedAt, '2026-10-05T03:10:00Z')
+})
+
 test('ticker shows the source and Vietnam observation time for daily HOSE data', () => {
   const source = fs.readFileSync(new URL('../../src/views/smart-insights/components/LiveDataSources.vue', import.meta.url), 'utf8')
   const script = source.split('<script>')[1].split('</script>')[0]
