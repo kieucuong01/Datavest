@@ -164,10 +164,10 @@ test('Header logo links back to Smart Insights', () => {
   assert.match(layoutSource, /goSmartInsights/u)
 })
 
-test('Mobile navigation centers the trigger and uses a light drawer surface', () => {
+test('Compact navigation puts the trigger beside the brand and raises its drawer above the header', () => {
   assert.match(layoutSource, /:logo="currentLogo"/u)
-  assert.match(layoutStyles, /@media \(max-width: 768px\)[\s\S]*?\.basic-layout-wrapper \.ant-pro-global-header\s*\{[\s\S]*?position:\s*relative\s*!important/u)
-  assert.match(layoutStyles, /@media \(max-width: 768px\)[\s\S]*?\.basic-layout-wrapper \.ant-pro-global-header-trigger[\s\S]*?position:\s*absolute\s*!important[\s\S]*?left:\s*50%\s*!important[\s\S]*?transform:\s*translate\(-50%,\s*-50%\)\s*!important/u)
-  assert.match(layoutSource, /@media \(max-width: 768px\)[\s\S]*?\.ant-drawer\.ant-drawer-left\.ant-drawer-open[\s\S]*?background:\s*var\(--mobile-drawer-bg,\s*#f8fafc\)\s*!important/u)
-  assert.match(layoutSource, /\.ant-drawer\.ant-drawer-left\.ant-drawer-open[\s\S]*?\.ant-menu-dark[\s\S]*?background:\s*transparent\s*!important/u)
+  assert.match(layoutSource, /class="mobile-header-start"[\s\S]*?class="mobile-header-menu-button"[\s\S]*?class="mobile-header-brand"/u)
+  assert.match(layoutStyles, /\.basic-layout-wrapper--compact\s*\{[\s\S]*?& \.ant-pro-global-header-trigger\s*\{\s*display:\s*none !important;/u)
+  assert.match(layoutSource, /@media \(max-width: 1200px\)[\s\S]*?\.ant-drawer\.ant-drawer-left\.ant-drawer-open[\s\S]*?z-index:\s*1400 !important;/u)
+  assert.match(layoutSource, /\.ant-drawer-header-no-title\s*\{\s*position:\s*relative;\s*z-index:\s*20;/u)
 })

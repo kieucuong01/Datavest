@@ -1,5 +1,7 @@
 export default {
   'en-US': {
+    'navBar.lang': 'Language',
+    'menu.header.openMenu': 'Open navigation menu',
     'common.swipeForMore': 'Swipe sideways for more →',
     'menu.group.smartInsights': 'Smart Insights',
     'menu.group.aiAssistant': 'AI Assistant',
@@ -178,6 +180,7 @@ export default {
     'common.iconApplication': 'Brand and application icons'
   },
   'vi-VN': {
+    'menu.header.openMenu': 'Mở menu điều hướng',
     'common.swipeForMore': 'Vuốt ngang để xem thêm →',
     'menu.group.smartInsights': 'Thông tin chuyên sâu',
     'menu.group.aiAssistant': 'Trợ lý AI',

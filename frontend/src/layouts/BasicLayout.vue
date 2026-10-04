@@ -1,5 +1,5 @@
 <template>
-  <div :class="['basic-layout-wrapper', settings.theme, { 'basic-layout-wrapper--multi-tab': multiTab }]">
+  <div :class="['basic-layout-wrapper', settings.theme, { 'basic-layout-wrapper--multi-tab': multiTab, 'basic-layout-wrapper--compact': isMobile }]">
     <pro-layout
       :menus="menus"
       :collapsed="collapsed"
@@ -29,7 +29,22 @@
         </a>
       </template>
       <template #headerContentRender>
-        <div>
+        <div v-if="isMobile" class="mobile-header-start">
+          <button
+            type="button"
+            class="mobile-header-menu-button"
+            :aria-label="$t('menu.header.openMenu')"
+            :aria-expanded="isDrawerOpen ? 'true' : 'false'"
+            aria-controls="datavest-mobile-route-drawer"
+            @click="handleCollapse(false)"
+          >
+            <a-icon type="menu" />
+          </button>
+          <a href="#/smart-insights" class="mobile-header-brand" :aria-label="(brandConfig && brandConfig.app_name) || 'DataVest'" @click.prevent="goSmartInsights">
+            <img :src="currentLogo" :alt="(brandConfig && brandConfig.app_name) || 'DataVest'" />
+          </a>
+        </div>
+        <div v-else>
           <a-tooltip :title="$t('menu.header.refreshPage')">
             <a-icon type="reload" style="font-size: 18px;cursor: pointer;" @click="handleRefresh" />
           </a-tooltip>
@@ -150,16 +165,6 @@
         <route-view :key="refreshKey" :keep-alive="multiTab" />
       </div>
     </pro-layout>
-
-    <button
-      v-if="isMobile && isDrawerOpen"
-      type="button"
-      class="mobile-menu-close"
-      :aria-label="$t('common.close')"
-      @click="closeMobileMenu"
-    >
-      <a-icon type="close" />
-    </button>
 
     <div v-if="false" class="custom-menu-footer" :class="{ 'collapsed': collapsed, 'drawer-open': isMobile && isDrawerOpen, 'drawer-animating': isMobile && isDrawerAnimating }">
       <div v-if="!collapsed" class="menu-footer-content">
@@ -312,6 +317,7 @@ export default {
       isDrawerOpen: false,
       isDrawerAnimating: false,
       mobileDrawerCloseTimer: null,
+      mobileFocusRestoreTimer: null,
       isInitialThemeColorLoad: true,
       liveAssets: [],
       liveAssetsFetchedAt: '',
@@ -325,7 +331,8 @@ export default {
     ...mapState({
       mainMenu: state => state.permission.addRouters,
       brandConfig: state => state.brand.config,
-      multiTab: state => state.app.multiTab
+      multiTab: state => state.app.multiTab,
+      currentLang: state => state.app.lang
     }),
     menus () {
       const routes = this.mainMenu.find(item => item.path === '/')
@@ -514,6 +521,7 @@ export default {
     })
 
     window.addEventListener('resize', this.updateMenuFooterPosition)
+    document.addEventListener('keydown', this.handleMobileDrawerKeydown)
 
     if (!this.isMobile) {
       this._desktopFooterInterval = setInterval(() => {
@@ -524,7 +532,7 @@ export default {
 
     const observer = new MutationObserver(() => {
       if (this.isMobile) {
-        const drawer = document.querySelector('.ant-drawer.ant-drawer-open')
+        const drawer = document.querySelector('.ant-drawer.ant-drawer-left.ant-drawer-open')
         const wasOpen = this.isDrawerOpen
         const isOpen = !!drawer
 
@@ -533,6 +541,11 @@ export default {
 
         if (wasOpen !== this.isDrawerOpen) {
           if (this.isDrawerOpen) {
+            drawer.id = 'datavest-mobile-route-drawer'
+            drawer.setAttribute('role', 'dialog')
+            drawer.setAttribute('aria-modal', 'true')
+            drawer.setAttribute('aria-label', this.$t('menu.header.openMenu'))
+            drawer.querySelector('.ant-drawer-close')?.focus()
             this.isDrawerAnimating = true
             setTimeout(() => {
               this.isDrawerAnimating = false
@@ -542,6 +555,7 @@ export default {
           } else {
             this.isDrawerAnimating = false
             this.updateMenuFooterPosition()
+            this.scheduleMobileFocusRestore()
           }
         }
       }
@@ -558,7 +572,7 @@ export default {
 
     this._menuFooterInterval = setInterval(() => {
       if (this.isMobile) {
-        const drawer = document.querySelector('.ant-drawer.ant-drawer-open')
+        const drawer = document.querySelector('.ant-drawer.ant-drawer-left.ant-drawer-open')
         const currentState = !!drawer
         if (this.isDrawerOpen !== currentState) {
           this.isDrawerOpen = currentState
@@ -582,6 +596,7 @@ export default {
   beforeDestroy () {
     this.$root.$off('show-setting-drawer')
     window.removeEventListener('resize', this.updateMenuFooterPosition)
+    document.removeEventListener('keydown', this.handleMobileDrawerKeydown)
 
     if (this._menuFooterObserver) {
       this._menuFooterObserver.disconnect()
@@ -612,8 +627,31 @@ export default {
       window.clearTimeout(this.mobileDrawerCloseTimer)
     }
     this.mobileDrawerCloseTimer = null
+    if (this.mobileFocusRestoreTimer) window.clearTimeout(this.mobileFocusRestoreTimer)
+    this.mobileFocusRestoreTimer = null
   },
   methods: {
+    handleMobileDrawerKeydown (event) {
+      if (!this.isMobile || !this.isDrawerOpen) return
+      if (event.key === 'Escape' && document.getElementById('datavest-mobile-drawer-utilities')?.contains(document.activeElement)) {
+        this.closeMobileMenu()
+        return
+      }
+      if (event.key !== 'Tab') return
+      const drawer = document.querySelector('.ant-drawer.ant-drawer-left.ant-drawer-open')
+      const utilities = document.getElementById('datavest-mobile-drawer-utilities')
+      if (!drawer || !utilities) return
+      const selector = 'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+      const focusable = [...drawer.querySelectorAll(selector)]
+        .filter(element => element.getClientRects().length && getComputedStyle(element).visibility !== 'hidden')
+      if (!focusable.length) return
+      event.preventDefault()
+      const current = focusable.indexOf(document.activeElement)
+      const next = event.shiftKey
+        ? (current <= 0 ? focusable.length - 1 : current - 1)
+        : (current < 0 || current === focusable.length - 1 ? 0 : current + 1)
+      focusable[next].focus()
+    },
     stopLiveAssetPolling () {
       if (this.liveAssetRefreshTimer) window.clearInterval(this.liveAssetRefreshTimer)
       this.liveAssetRefreshTimer = null
@@ -644,13 +682,34 @@ export default {
       }
     },
     i18nRender,
+    renderMobileDrawerUtilities (h) {
+      const languageOption = (lang, label) => h('button', {
+        attrs: { type: 'button', 'aria-pressed': this.currentLang === lang ? 'true' : 'false' },
+        class: { 'is-active': this.currentLang === lang },
+        on: { click: () => this.setMobileLanguage(lang) }
+      }, label)
+      return h('div', { class: 'mobile-drawer-utilities', attrs: { id: 'datavest-mobile-drawer-utilities' } }, [
+        h('div', { class: 'mobile-drawer-language', attrs: { role: 'group', 'aria-label': this.$t('navBar.lang') } }, [
+          h('div', { class: 'mobile-drawer-utility-label' }, [h('a-icon', { props: { type: 'global' } }), this.$t('navBar.lang')]),
+          h('div', { class: 'mobile-drawer-language-options' }, [
+            languageOption('vi-VN', 'Tiếng Việt'),
+            languageOption('en-US', 'English')
+          ])
+        ]),
+        h('button', { class: 'mobile-drawer-settings', attrs: { type: 'button' }, on: { click: this.openMobileSettings } }, [
+          h('a-icon', { props: { type: 'setting' } }),
+          h('span', this.$t('app.setting.tooltip')),
+          h('a-icon', { props: { type: 'right' } })
+        ])
+      ])
+    },
     topMenuRender (h, props) {
       // Use the custom horizontal groups only for the desktop top menu. The
       // mobile Drawer still needs a truthy renderer so ProLayout keeps its
       // hamburger trigger; returning a real BaseMenu vnode avoids the
       // component's function fallback rendering the literal "undefined".
       if (!props || props.layout !== 'topmenu' || props.isMobile) {
-        return h(BaseMenu, {
+        const menu = h(BaseMenu, {
           props: {
             menus: this.menus,
             collapsed: !!(props && props.collapsed),
@@ -659,6 +718,9 @@ export default {
             i18nRender: this.i18nRender
           }
         })
+        return props && props.isMobile
+          ? h('div', { class: 'mobile-drawer-menu' }, [menu, this.isDrawerOpen ? this.renderMobileDrawerUtilities(h) : null])
+          : menu
       }
       return h(TopMenu, {
         props: {
@@ -845,7 +907,7 @@ export default {
           if (!menuFooter) return
 
           if (this.isMobile) {
-            const drawer = document.querySelector('.ant-drawer.ant-drawer-open')
+            const drawer = document.querySelector('.ant-drawer.ant-drawer-left.ant-drawer-open')
             this.isDrawerOpen = !!drawer
             this.syncMobileScrollLock(this.isDrawerOpen)
 
@@ -876,7 +938,7 @@ export default {
             } else {
               menuFooter.style.display = 'none'
               menuFooter.style.opacity = '0'
-              const drawer = document.querySelector('.ant-drawer')
+              const drawer = document.querySelector('.ant-drawer.ant-drawer-left')
               if (drawer) {
                 const drawerBody = drawer.querySelector('.ant-drawer-body')
                 if (drawerBody) {
@@ -931,7 +993,10 @@ export default {
     },
     handleMediaQuery (val) {
       this.query = val
-      if (this.isMobile && !val['screen-xs']) {
+      // The horizontal navigation needs more room than ProLayout's 575px xs
+      // breakpoint. Keep its drawer through tablet widths as well.
+      const compactNavigation = Boolean(val['screen-xs'] || val['screen-sm'] || val['screen-md'])
+      if (this.isMobile && !compactNavigation) {
         this.isMobile = false
         this.$nextTick(() => {
           this.updateMenuFooterPosition()
@@ -939,7 +1004,7 @@ export default {
         this.syncMobileScrollLock(false)
         return
       }
-      if (!this.isMobile && val['screen-xs']) {
+      if (!this.isMobile && compactNavigation) {
         this.isMobile = true
         // A mobile drawer must start closed. The header trigger is the only
         // action that should open the route menu.
@@ -980,6 +1045,26 @@ export default {
       this.handleCollapse(true)
       this.isDrawerOpen = false
       this.syncMobileScrollLock(false)
+      this.scheduleMobileFocusRestore()
+    },
+    scheduleMobileFocusRestore () {
+      if (this.mobileFocusRestoreTimer) window.clearTimeout(this.mobileFocusRestoreTimer)
+      this.mobileFocusRestoreTimer = window.setTimeout(() => {
+        this.mobileFocusRestoreTimer = null
+        const active = document.activeElement
+        if (this.isMobile && !this.isDrawerOpen && (active === document.body || active?.closest('.ant-drawer.ant-drawer-left'))) {
+          this.$el.querySelector('.mobile-header-menu-button')?.focus()
+        }
+      }, 320)
+    },
+    setMobileLanguage (lang) {
+      if (lang !== this.currentLang) this.$store.dispatch('setLang', lang)
+    },
+    openMobileSettings () {
+      this.closeMobileMenu()
+      this.$nextTick(() => {
+        if (this.$refs.settingDrawer) this.$refs.settingDrawer.showDrawer()
+      })
     },
     syncMobileScrollLock (locked) {
       if (typeof document === 'undefined' || !document.body) return
@@ -1473,17 +1558,26 @@ body.datavest-mobile-drawer-open {
   overflow: hidden !important;
 }
 
-@media (max-width: 768px) {
-  /* Mobile route drawer: keep navigation light even when the app shell uses realdark. */
+@media (max-width: 1200px) {
+  /* The route drawer owns the whole viewport while open, including the app bar. */
   .ant-drawer.ant-drawer-left.ant-drawer-open,
   body > .ant-drawer.ant-drawer-left.ant-drawer-open {
-    --mobile-drawer-bg: #f8fafc;
+    --mobile-drawer-bg: #ffffff;
+    --mobile-drawer-text: #263a57;
+    --mobile-drawer-active: #e8f0ff;
+    --mobile-drawer-active-text: #123e7a;
+    z-index: 1400 !important;
 
     .ant-drawer-content,
     .ant-drawer-wrapper-body,
     .ant-drawer-body {
-      background: var(--mobile-drawer-bg, #f8fafc) !important;
-      color: #17253d !important;
+      background: var(--mobile-drawer-bg) !important;
+      color: var(--mobile-drawer-text) !important;
+    }
+
+    .ant-drawer-content-wrapper {
+      width: min(320px, calc(100vw - 24px)) !important;
+      box-shadow: 14px 0 32px rgba(15, 23, 42, 0.18) !important;
     }
 
     .ant-pro-sider-menu-sider,
@@ -1491,16 +1585,42 @@ body.datavest-mobile-drawer-open {
     .ant-pro-sider,
     .ant-layout-sider-children,
     .ant-pro-sider-menu-logo {
-      background: var(--mobile-drawer-bg, #f8fafc) !important;
-      color: #17253d !important;
+      background: var(--mobile-drawer-bg) !important;
+      color: var(--mobile-drawer-text) !important;
     }
 
-    .ant-drawer-content-wrapper {
-      box-shadow: 14px 0 32px rgba(15, 23, 42, 0.14) !important;
+    .ant-layout-sider {
+      flex: 0 0 100% !important;
+      width: 100% !important;
+      min-width: 100% !important;
+      max-width: 100% !important;
+    }
+
+    .ant-drawer-header-no-title {
+      position: relative;
+      z-index: 20;
+    }
+
+    .ant-drawer-close {
+      top: 8px;
+      right: 8px;
+      z-index: 2;
+      width: 44px;
+      height: 44px;
+      border-radius: 9px;
+      color: var(--mobile-drawer-text);
+      background: rgba(100, 116, 139, 0.1);
+      font-size: 17px;
+    }
+
+    .ant-drawer-close:focus-visible {
+      outline: 2px solid var(--primary-color, #1890ff);
+      outline-offset: 2px;
     }
 
     .ant-drawer-body {
-      padding-bottom: 18px !important;
+      height: 100dvh !important;
+      padding-bottom: 168px !important;
       scrollbar-color: rgba(37, 99, 235, 0.22) transparent;
 
       &::-webkit-scrollbar-thumb {
@@ -1514,22 +1634,24 @@ body.datavest-mobile-drawer-open {
     .ant-menu-dark,
     .ant-menu.ant-menu-dark {
       background: transparent !important;
-      color: #475569 !important;
+      color: var(--mobile-drawer-text) !important;
     }
 
     .ant-menu-dark .ant-menu-item,
     .ant-menu-dark .ant-menu-submenu-title,
     .ant-menu-dark .ant-menu-item > a,
     .ant-menu-dark .ant-menu-title-content {
-      color: #475569 !important;
+      color: var(--mobile-drawer-text) !important;
     }
 
     .ant-menu-item,
     .ant-menu-submenu-title {
       width: calc(100% - 24px) !important;
-      margin: 3px 12px !important;
-      border-radius: 10px !important;
-      color: #475569 !important;
+      min-height: 48px !important;
+      margin: 4px 12px !important;
+      border-radius: 9px !important;
+      color: var(--mobile-drawer-text) !important;
+      line-height: 48px !important;
       transition: color 0.18s ease, background-color 0.18s ease !important;
     }
 
@@ -1539,22 +1661,41 @@ body.datavest-mobile-drawer-open {
     }
 
     .ant-menu-item-selected {
-      color: #174ca8 !important;
-      background: rgba(37, 99, 235, 0.1) !important;
+      color: var(--mobile-drawer-active-text) !important;
+      background: var(--mobile-drawer-active) !important;
+    }
+
+    .ant-menu-item-selected > a,
+    .ant-menu-item-selected > a > span,
+    .ant-menu-item-selected .anticon {
+      color: var(--mobile-drawer-active-text) !important;
+      font-weight: 600;
     }
 
     .ant-menu-item:hover,
     .ant-menu-submenu-title:hover {
-      color: #174ca8 !important;
-      background: rgba(37, 99, 235, 0.07) !important;
+      color: var(--mobile-drawer-active-text) !important;
+      background: var(--mobile-drawer-active) !important;
     }
 
     .ant-drawer-mask {
-      background: rgba(15, 23, 42, 0.36) !important;
+      background: rgba(15, 23, 42, 0.52) !important;
     }
   }
 
-  .ant-drawer.ant-drawer-open {
+  body.dark .ant-drawer.ant-drawer-left.ant-drawer-open,
+  body.realdark .ant-drawer.ant-drawer-left.ant-drawer-open {
+    --mobile-drawer-bg: #172232;
+    --mobile-drawer-text: #e6edf7;
+    --mobile-drawer-active: #263d5a;
+    --mobile-drawer-active-text: #e6f0ff;
+
+    .ant-menu.ant-menu-dark {
+      background: var(--mobile-drawer-bg) !important;
+    }
+  }
+
+  .ant-drawer.ant-drawer-left.ant-drawer-open {
     .ant-drawer-content-wrapper {
       overflow: visible;
     }
@@ -1564,6 +1705,7 @@ body.datavest-mobile-drawer-open {
       flex-direction: column;
       height: 100%;
       overflow: visible;
+      position: relative;
     }
 
     .ant-drawer-wrapper-body {
@@ -1576,7 +1718,7 @@ body.datavest-mobile-drawer-open {
     .ant-drawer-body {
       overflow-y: auto !important;
       overflow-x: hidden !important;
-      padding-bottom: var(--footer-height, 280px) !important;
+      padding-bottom: 168px !important;
       -webkit-overflow-scrolling: touch;
       scrollbar-width: thin;
       scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
@@ -1596,6 +1738,104 @@ body.datavest-mobile-drawer-open {
       min-height: 0;
       flex: 1;
     }
+  }
+}
+
+.mobile-drawer-utilities {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  z-index: 21;
+  box-sizing: border-box;
+  width: min(320px, calc(100vw - 24px));
+  padding: 12px 16px calc(14px + env(safe-area-inset-bottom));
+  border-top: 1px solid #e2e8f0;
+  color: #263a57;
+  background: #ffffff;
+}
+
+.mobile-drawer-utility-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.mobile-drawer-language-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.mobile-drawer-language-options button,
+.mobile-drawer-settings {
+  min-height: 44px;
+  border: 1px solid #dce5f0;
+  border-radius: 9px;
+  color: #263a57;
+  background: #f8fafc;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.mobile-drawer-language-options button.is-active {
+  border-color: #b6cef2;
+  color: #123e7a;
+  background: #e8f0ff;
+}
+
+.mobile-drawer-settings {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  margin-top: 10px;
+  padding: 0 12px;
+  text-align: left;
+}
+
+.mobile-drawer-settings .anticon-right {
+  margin-left: auto;
+}
+
+.mobile-drawer-language-options button:focus-visible,
+.mobile-drawer-settings:focus-visible {
+  outline: 2px solid var(--primary-color, #1890ff);
+  outline-offset: 2px;
+}
+
+body.dark .mobile-drawer-utilities,
+body.realdark .mobile-drawer-utilities {
+  border-color: #33465f;
+  color: #e6edf7;
+  background: #172232;
+}
+
+body.dark .mobile-drawer-language-options button,
+body.realdark .mobile-drawer-language-options button,
+body.dark .mobile-drawer-settings,
+body.realdark .mobile-drawer-settings {
+  border-color: #3b4d66;
+  color: #e6edf7;
+  background: #22334a;
+}
+
+body.dark .mobile-drawer-language-options button.is-active,
+body.realdark .mobile-drawer-language-options button.is-active {
+  border-color: #6a8bb8;
+  color: #ffffff;
+  background: #31537b;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ant-drawer.ant-drawer-left .ant-drawer-content-wrapper,
+  .ant-drawer.ant-drawer-left .ant-drawer-mask {
+    transition-duration: 0.01ms !important;
   }
 }
 

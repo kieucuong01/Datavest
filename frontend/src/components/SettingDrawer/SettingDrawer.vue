@@ -335,7 +335,7 @@ export default {
 
 <style lang="less" scoped>
   :deep(.ant-drawer) {
-    z-index: 1300;
+    z-index: 1500;
   }
 
   :deep(.ant-drawer-handle),

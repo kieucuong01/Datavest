@@ -139,60 +139,92 @@
   white-space: nowrap !important;
 }
 
-.mobile-menu-close {
-  position: fixed;
-  top: 10px;
-  left: min(220px, calc(100vw - 44px));
-  z-index: 1102;
-  width: 36px;
-  height: 36px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0;
-  border: 1px solid rgba(148, 163, 184, 0.3);
-  border-radius: 8px;
-  color: #174ca8;
-  background: #ffffff;
-  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.14);
-  cursor: pointer;
-}
+/* Mobile app bar: one navigation control, one brand, one account action. */
+.basic-layout-wrapper--compact {
+  & .ant-layout-header,
+  & .ant-pro-global-header,
+  & .layout-top-actions,
+  & .ant-pro-global-header-index-right {
+    height: 56px !important;
+    line-height: 56px !important;
+  }
 
-/* Keep the mobile menu trigger as a centered, predictable touch target. */
-@media (max-width: 768px) {
-  .basic-layout-wrapper .ant-pro-top-nav-header-left {
-    flex: 0 0 auto !important;
-    width: auto !important;
+  & .ant-pro-global-header {
+    align-items: center !important;
+    padding: 0 8px !important;
+  }
+
+  & .ant-pro-global-header-logo,
+  & .ant-pro-global-header-trigger {
+    display: none !important;
+  }
+
+  & .ant-pro-global-header-content {
+    display: flex !important;
+    flex: 0 1 auto !important;
     min-width: 0 !important;
   }
 
-  .basic-layout-wrapper .ant-pro-global-header {
-    position: relative !important;
+  .mobile-header-start {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
   }
 
-  .basic-layout-wrapper .ant-pro-global-header-trigger {
-    position: absolute !important;
-    top: 50% !important;
-    left: 50% !important;
-    display: inline-flex !important;
-    align-items: center !important;
-    justify-content: center !important;
-    flex: 0 0 48px !important;
-    width: 48px !important;
-    min-width: 48px !important;
-    height: 56px !important;
-    margin: 0 !important;
-    padding: 0 !important;
-    line-height: 1 !important;
-    border-radius: 10px !important;
-    transform: translate(-50%, -50%) !important;
-    z-index: 2 !important;
+  .mobile-header-menu-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 44px;
+    width: 44px;
+    height: 44px;
+    padding: 0;
+    border: 0;
+    border-radius: 9px;
+    color: #1e3555;
+    background: transparent;
+    font-size: 19px;
+    cursor: pointer;
+    touch-action: manipulation;
   }
 
-  .basic-layout-wrapper .ant-pro-global-header-trigger .anticon {
-    margin: 0 !important;
-    font-size: 18px !important;
-    line-height: 1 !important;
+  .mobile-header-menu-button:hover,
+  .mobile-header-menu-button:active {
+    background: rgba(30, 53, 85, 0.08);
+  }
+
+  .mobile-header-menu-button:focus-visible,
+  .mobile-header-brand:focus-visible {
+    outline: 2px solid var(--primary-color, #1890ff);
+    outline-offset: 2px;
+  }
+
+  .mobile-header-brand {
+    display: inline-flex;
+    align-items: center;
+    flex: 0 1 112px;
+    min-width: 0;
+    height: 44px;
+  }
+
+  .mobile-header-brand img {
+    display: block;
+    width: 112px;
+    max-width: 100%;
+    height: 30px;
+    object-fit: contain;
+    object-position: left center;
+  }
+
+  body.dark & .mobile-header-menu-button,
+  body.realdark & .mobile-header-menu-button {
+    color: #e8eef8;
+  }
+
+  body.dark & .mobile-header-menu-button:hover,
+  body.realdark & .mobile-header-menu-button:hover {
+    background: rgba(255, 255, 255, 0.1);
   }
 }
 
@@ -1221,35 +1253,6 @@ body.realdark .basic-layout-wrapper .ant-layout-header .ant-menu-horizontal > .a
     line-height: 56px !important;
   }
 
-  .basic-layout-wrapper .ant-pro-global-header-logo,
-  .basic-layout-wrapper .ant-layout-header .ant-pro-sider-menu-logo {
-    flex: 0 0 104px !important;
-    width: 104px !important;
-    min-width: 104px !important;
-    padding: 0 10px !important;
-  }
-
-  .basic-layout-wrapper .ant-pro-global-header-logo img,
-  .basic-layout-wrapper .ant-layout-header .ant-pro-sider-menu-logo img,
-  .basic-layout-wrapper .ant-layout-header .sidebar-logo-wrapper .sidebar-logo {
-    width: 84px !important;
-    height: 28px !important;
-    max-width: 84px !important;
-    max-height: 28px !important;
-  }
-
-  .basic-layout-wrapper .ant-pro-global-header-trigger {
-    flex: 0 0 48px !important;
-    width: 48px !important;
-    min-width: 48px !important;
-    height: 56px !important;
-    line-height: 56px !important;
-  }
-
-  .basic-layout-wrapper .ant-pro-global-header-content {
-    display: none !important;
-  }
-
   .basic-layout-wrapper .layout-top-actions,
   .basic-layout-wrapper .ant-pro-global-header-index-right {
     min-width: 0 !important;
@@ -1271,16 +1274,18 @@ body.realdark .basic-layout-wrapper .ant-layout-header .ant-menu-horizontal > .a
     min-width: 52px !important;
   }
 
-  .mobile-menu-close {
-    top: 6px;
-    left: min(202px, calc(100vw - 50px));
-    width: 44px;
-    height: 44px;
-  }
 }
 
 @media (max-width: 340px) {
-  .basic-layout-wrapper .ant-pro-global-header-trigger {
-    left: calc(50% - 24px) !important;
+  .mobile-header-start {
+    gap: 4px;
+  }
+
+  .mobile-header-brand {
+    flex-basis: 96px;
+  }
+
+  .mobile-header-brand img {
+    width: 96px;
   }
 }

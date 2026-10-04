@@ -5,8 +5,8 @@
     <a-button v-else type="primary" class="guest-login-button" icon="login" @click="openLogin">
       {{ $t('guest.login') }}
     </a-button>
-    <select-lang :class="prefixCls" />
-    <a-tooltip :title="$t('app.setting.tooltip')">
+    <select-lang v-if="!isMobile" :class="prefixCls" />
+    <a-tooltip v-if="!isMobile" :title="$t('app.setting.tooltip')">
       <span :class="prefixCls" @click="handleSettingClick">
         <a-icon type="setting" style="font-size: 16px;" />
       </span>
