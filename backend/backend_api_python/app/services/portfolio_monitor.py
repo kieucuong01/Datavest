@@ -18,6 +18,7 @@ from app.utils.logger import get_logger
 from app.services.fast_analysis import get_fast_analysis_service
 from app.services.signal_notifier import SignalNotifier
 from app.services.kline import KlineService
+from app.services.portfolio.positions import enrich_positions_with_prices, summarize_position_rows, quote_currency
 from app.services.portfolio_monitor_i18n import get_alert_message, get_alert_title
 from app.services.portfolio_monitor_notifications import resolve_notification_delivery
 from app.utils.json_helpers import safe_json_loads
@@ -429,13 +430,16 @@ def _get_positions_for_monitor(position_ids: List[int] = None, user_id: int = No
             except Exception:
                 pass
             
-            # Calculate PnL
-            if side == 'long':
+            # Missing quotes have no valuation, not a complete loss.
+            if current_price <= 0:
+                current_price = None
+                pnl = None
+            elif side == 'long':
                 pnl = (current_price - entry_price) * quantity
             else:
                 pnl = (entry_price - current_price) * quantity
             
-            pnl_percent = round(pnl / (entry_price * quantity) * 100, 2) if entry_price * quantity > 0 else 0
+            pnl_percent = round(pnl / (entry_price * quantity) * 100, 2) if pnl is not None and entry_price * quantity > 0 else None
             
             positions.append({
                 'id': row.get('id'),
@@ -446,7 +450,7 @@ def _get_positions_for_monitor(position_ids: List[int] = None, user_id: int = No
                 'quantity': quantity,
                 'entry_price': entry_price,
                 'current_price': current_price,
-                'pnl': round(pnl, 2),
+                'pnl': round(pnl, 2) if pnl is not None else None,
                 'pnl_percent': pnl_percent,
                 'group_name': group_name
             })
@@ -634,6 +638,22 @@ def _build_comprehensive_report(
     return _build_html_report(positions, position_analyses, language, custom_prompt)
 
 
+def _report_valuation(positions):
+    prices = {f"{p.get('market')}:{p.get('symbol')}": {"price": p.get('current_price'), "stale": p.get('valuation_status') == 'STALE'} for p in positions}
+    return summarize_position_rows(positions, prices)
+
+
+def _native_total(summary, field):
+    from html import escape
+    return " / ".join(f"{group[field]:,.2f} {escape(group['currency'])}" if group.get(field) is not None else f"— {escape(group['currency'])}" for group in summary['currency_summaries']) or '—'
+
+
+def _position_amount(position, field):
+    from html import escape
+    value = position.get(field)
+    return f"{float(value):,.4f} {escape(quote_currency(position))}" if value is not None else '—'
+
+
 def _build_html_report(
     positions: List[Dict[str, Any]],
     position_analyses: List[Dict[str, Any]],
@@ -651,13 +671,17 @@ def _build_html_report(
     watched_analyses = [p for p in valid_analyses if not has_holding(p)]
     is_watch_only = len(held_analyses) == 0 and len(watched_analyses) > 0
 
-    # Calculate portfolio summary. Watch-only monitors do not have cost basis.
-    total_cost = sum(float(p.get('entry_price', 0)) * float(p.get('quantity', 0)) for p in held_positions)
-    total_pnl = sum(float(p.get('pnl', 0)) for p in held_positions)
-    total_pnl_percent = round(total_pnl / total_cost * 100, 2) if total_cost > 0 else 0
-    total_market_value = sum(float(p.get('current_price', 0)) * float(p.get('quantity', 0)) for p in held_positions)
+    valuation = _report_valuation(held_positions)
+    total_pnl = valuation.get('total_pnl') or 0
+    total_pnl_percent = valuation.get('total_pnl_percent') or 0
+    total_market_value = valuation.get('total_market_value') or 0
+    total_cost = valuation.get('total_cost') or 0
+    value_text = _native_total(valuation, 'total_market_value')
+    cost_text = _native_total(valuation, 'total_cost')
+    pnl_text = _native_total(valuation, 'total_pnl')
+    percent_text = f"{total_pnl_percent:+.1f}%" if valuation.get('total_pnl_percent') is not None else '—'
     primary_watch = watched_analyses[0] if watched_analyses else {}
-    primary_price = float(primary_watch.get('current_price') or 0)
+    primary_price_text = _position_amount(primary_watch, 'current_price')
     primary_decision = str(primary_watch.get('final_decision') or 'HOLD').upper()
     primary_confidence = primary_watch.get('confidence', 0)
     
@@ -767,14 +791,14 @@ def _build_html_report(
     pnl_sign = '+' if total_pnl >= 0 else ''
     if is_watch_only:
         header_label = texts['latest_price']
-        header_value = f"${primary_price:,.4f}"
+        header_value = primary_price_text
         header_class = ''
         header_sub = f"{texts['ai_decision']}: {texts.get(primary_decision.lower(), primary_decision)}"
     else:
         header_label = texts['total_pnl']
-        header_value = f"{pnl_sign}${total_pnl:,.2f}"
+        header_value = pnl_text
         header_class = pnl_class
-        header_sub = f"({pnl_sign}{total_pnl_percent:.1f}%)"
+        header_sub = percent_text
     
     html = f'''
     {css}
@@ -806,7 +830,7 @@ def _build_html_report(
                     </div>
                     <div class="qd-stat-card">
                         <div class="label">{texts['latest_price']}</div>
-                        <div class="value">${primary_price:,.4f}</div>
+                        <div class="value">{primary_price_text}</div>
                     </div>
                     <div class="qd-stat-card">
                         <div class="label">{texts['ai_decision']}</div>
@@ -825,15 +849,15 @@ def _build_html_report(
                     </div>
                     <div class="qd-stat-card">
                         <div class="label">{texts['total_value']}</div>
-                        <div class="value">${total_market_value:,.2f}</div>
+                        <div class="value">{value_text}</div>
                     </div>
                     <div class="qd-stat-card">
                         <div class="label">{texts['total_cost']}</div>
-                        <div class="value">${total_cost:,.2f}</div>
+                        <div class="value">{cost_text}</div>
                     </div>
                     <div class="qd-stat-card">
                         <div class="label">{texts['total_pnl']}</div>
-                        <div class="value {pnl_class}">{pnl_sign}${total_pnl:,.2f}<span class="percent">({pnl_sign}{total_pnl_percent:.1f}%)</span></div>
+                        <div class="value {pnl_class}">{pnl_text}<span class="percent">{percent_text}</span></div>
                     </div>
         '''
 
@@ -896,10 +920,16 @@ def _build_html_report(
         decision_text = texts.get(decision_lower, decision)
         confidence = pa.get('confidence', 50)
         
-        current_price = pa.get('current_price', 0)
+        pa = dict(pa)
+        if float(pa.get('quantity') or 0) > 0 and float(pa.get('entry_price') or 0) > 0:
+            enrich_positions_with_prices([pa], {f"{pa['market']}:{pa['symbol']}": {'price': pa.get('current_price')}})
+        price_text = _position_amount(pa, 'current_price')
+        entry_text = _position_amount(pa, 'entry_price')
+        position_pnl_text = _position_amount(pa, 'pnl')
+        current_price = pa.get('current_price') or 0
         entry_price = pa.get('entry_price', 0)
-        pnl = pa.get('pnl', 0)
-        pnl_pct = pa.get('pnl_percent', 0)
+        pnl = pa.get('pnl') or 0
+        pnl_pct = pa.get('pnl_percent') or 0
         quantity = pa.get('quantity', 0)
         side = pa.get('side', 'long')
         side_text = texts['long'] if side == 'long' else texts['short']
@@ -935,15 +965,15 @@ def _build_html_report(
             html += f'''
                         <div class="stat">
                             <div class="label">{texts['current_price']}</div>
-                            <div class="value">${current_price:.4f}</div>
+                            <div class="value">{price_text}</div>
                         </div>
                         <div class="stat">
                             <div class="label">{texts['entry_price']}</div>
-                            <div class="value">${entry_price:.4f}</div>
+                            <div class="value">{entry_text}</div>
                         </div>
                         <div class="stat">
                             <div class="label">{texts['pnl']}</div>
-                            <div class="value {pnl_class}">{pnl_sign}${pnl:.2f} ({pnl_sign}{pnl_pct:.1f}%)</div>
+                            <div class="value {pnl_class}">{position_pnl_text}</div>
                         </div>
                         <div class="stat">
                             <div class="label">{texts['quantity']} / {texts['side']}</div>
@@ -954,7 +984,7 @@ def _build_html_report(
             html += f'''
                         <div class="stat">
                             <div class="label">{texts['latest_price']}</div>
-                            <div class="value">${current_price:.4f}</div>
+                            <div class="value">{price_text}</div>
                         </div>
                         <div class="stat">
                             <div class="label">{texts['ai_decision']}</div>
@@ -1075,10 +1105,9 @@ def _build_telegram_report(
     watched = [p for p in position_analyses if not has_holding(p) and not p.get('error')]
     errored = [p for p in position_analyses if p.get('error')]
 
-    total_cost = sum(float(p.get('entry_price', 0)) * float(p.get('quantity', 0)) for p in held)
-    total_pnl = sum(float(p.get('pnl', 0)) for p in held)
-    total_pnl_pct = round(total_pnl / total_cost * 100, 2) if total_cost > 0 else 0
-    pnl_sign = '+' if total_pnl >= 0 else ''
+    valuation = _report_valuation(held)
+    cost_text = _native_total(valuation, 'total_cost')
+    pnl_text = _native_total(valuation, 'total_pnl')
 
     buy_count = len([p for p in position_analyses if p.get('final_decision') == 'BUY'])
     sell_count = len([p for p in position_analyses if p.get('final_decision') == 'SELL'])
@@ -1088,8 +1117,8 @@ def _build_telegram_report(
     overview = ["<b>Overview</b>"]
     if held:
         overview.append(f"Holdings: {len(held)}")
-        overview.append(f"Total Cost: ${total_cost:,.2f}")
-        overview.append(f"Total P&L: {pnl_sign}${total_pnl:,.2f} ({pnl_sign}{total_pnl_pct:.1f}%)")
+        overview.append(f"Total Cost: {cost_text}")
+        overview.append(f"Total P&L: {pnl_text}")
     if watched:
         overview.append(f"Watchlist: {len(watched)}")
     lines.extend(overview)
@@ -1103,9 +1132,11 @@ def _build_telegram_report(
             pnl = float(pa.get('pnl') or 0)
             pnl_pct = float(pa.get('pnl_percent') or 0)
             sign = '+' if pnl >= 0 else ''
-            lines.append(f"Current: ${float(pa.get('current_price') or 0):,.2f} | P&L: {sign}${pnl:,.2f} ({sign}{pnl_pct:.1f}%)")
+            row = dict(pa)
+            enrich_positions_with_prices([row], {f"{row['market']}:{row['symbol']}": {'price': row.get('current_price')}})
+            lines.append(f"Current: {_position_amount(row, 'current_price')} | P&L: {_position_amount(row, 'pnl')}")
         else:
-            lines.append(f"Price: ${float(pa.get('current_price') or 0):,.2f}")
+            lines.append(f"Price: {_position_amount(pa, 'current_price')}")
         lines.append(f"{outlook_title}: <b>{labels.get(decision, decision)}</b> (Conf: {pa.get('confidence', 50)}%)")
         reasoning = str(pa.get('reasoning') or '').strip()
         if reasoning:

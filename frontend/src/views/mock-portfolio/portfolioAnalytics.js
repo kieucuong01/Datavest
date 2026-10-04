@@ -13,7 +13,13 @@ const toPercent = (value, total) => total > 0 ? Number((value / total * 100).toF
 
 export const marketMetaFor = (market) => MARKET_META[market] || { key: String(market || 'other').toLowerCase(), color: '#64748b' }
 
+export const positionCurrency = (position) => position.quote_currency || (position.market === 'VNStock' ? 'VND' : position.market === 'Forex' ? 'USD' : String(position.symbol || '').includes('/') ? String(position.symbol).split('/')[1].split(':')[0] : 'USDT')
+
 export function buildPortfolioAnalytics (positions = []) {
+  const currencies = new Set(positions.map(positionCurrency))
+  if (currencies.size > 1 || positions.some(position => position.valuation_status === 'UNAVAILABLE' || position.market_value === null)) {
+    return { totalMarketValue: null, bySymbol: [], byCategory: [], concentration: null, performance: { available: false, points: [] }, transactions: [] }
+  }
   const bySymbolMap = new Map()
   const byCategoryMap = new Map()
 

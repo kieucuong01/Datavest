@@ -23,6 +23,13 @@
       @close="errorMessage = ''" />
     <a-alert class="paper-boundary" type="info" show-icon :message="$t('mockPortfolio.paperBoundary')" />
 
+    <a-alert
+      v-if="valuationSummary.valuation_status && valuationSummary.valuation_status !== 'AVAILABLE'"
+      class="page-alert"
+      type="warning"
+      show-icon
+      :message="valuationLabel(valuationSummary.valuation_status)"
+      :description="`${valuationSummary.valued_position_count || 0}/${valuationSummary.position_count || 0} ${isVietnamese ? 'vị thế có giá; giá thiếu không được tính bằng 0.' : 'positions priced; missing prices are not valued at zero.'}`" />
     <section class="portfolio-hero" aria-label="Portfolio overview">
       <div class="portfolio-left-column">
         <a-card class="surface-card balance-card" :bordered="false">
@@ -30,13 +37,15 @@
             <span>{{ $t('mockPortfolio.totalBalance') }} <a-icon type="info-circle" /></span>
             <a-button type="primary" size="small" icon="plus" @click="openCreateModal">{{ $t('mockPortfolio.addPosition') }}</a-button>
           </div>
-          <strong class="balance-number">{{ formatNumber(summary.total_market_value) }}</strong>
-          <div class="pnl-pill" :class="summary.total_pnl >= 0 ? 'is-positive' : 'is-negative'">{{ signedPercent(summary.total_pnl_percent) }}</div>
-          <span class="pnl-caption">{{ $t('mockPortfolio.metrics.pnl') }}: <b :class="summary.total_pnl >= 0 ? 'value-positive' : 'value-negative'">{{ signedNumber(summary.total_pnl) }}</b></span>
+          <a-select v-if="currencyGroups.length" :value="activeCurrency" @change="selectedCurrency = $event" style="min-width: 120px; margin-top: 10px" :aria-label="isVietnamese ? 'Tiền tệ định giá' : 'Valuation currency'"><a-select-option v-for="group in currencyGroups" :key="group.currency" :value="group.currency">{{ group.currency }}</a-select-option></a-select>
+          <p v-if="summary.mixed_currencies" class="source-note">{{ isVietnamese ? 'Tổng và tỷ trọng tách theo tiền tệ, chưa quy đổi FX.' : 'Totals and allocations are grouped by currency; no FX conversion applied.' }}</p>
+          <strong class="balance-number">{{ formatNumber(valuationSummary.total_market_value) }}</strong>
+          <div class="pnl-pill" :class="valuationSummary.total_pnl >= 0 ? 'is-positive' : 'is-negative'">{{ signedPercent(valuationSummary.total_pnl_percent) }}</div>
+          <span class="pnl-caption">{{ $t('mockPortfolio.metrics.pnl') }}: <b :class="valuationSummary.total_pnl >= 0 ? 'value-positive' : 'value-negative'">{{ signedNumber(valuationSummary.total_pnl) }}</b></span>
           <div class="balance-divider" />
           <div class="balance-details">
-            <div><span>{{ $t('mockPortfolio.openCost') }}</span><strong>{{ formatNumber(summary.total_cost) }}</strong></div>
-            <div><span>{{ $t('mockPortfolio.metrics.pnl') }}</span><strong :class="summary.total_pnl >= 0 ? 'value-positive' : 'value-negative'">{{ signedNumber(summary.total_pnl) }}</strong></div>
+            <div><span>{{ $t('mockPortfolio.openCost') }}</span><strong>{{ formatNumber(valuationSummary.total_cost) }}</strong></div>
+            <div><span>{{ $t('mockPortfolio.metrics.pnl') }}</span><strong :class="valuationSummary.total_pnl >= 0 ? 'value-positive' : 'value-negative'">{{ signedNumber(valuationSummary.total_pnl) }}</strong></div>
             <div><span>{{ $t('mockPortfolio.realizedPnl') }}</span><strong>—</strong></div>
           </div>
           <p class="source-note">{{ $t('mockPortfolio.metrics.sourceNote') }}</p>
@@ -56,7 +65,7 @@
       <a-card class="surface-card performance-card" :bordered="false">
         <div class="section-heading performance-heading"><div><h2>{{ $t('mockPortfolio.performanceTitle') }}</h2><p>{{ $t('mockPortfolio.performanceSubtitle') }}</p></div><a-radio-group value="all" size="small" class="timeframe-controls"><a-radio-button value="1w">1W</a-radio-button><a-radio-button value="1m">1M</a-radio-button><a-radio-button value="ytd">YTD</a-radio-button><a-radio-button value="all">{{ $t('mockPortfolio.allTime') }}</a-radio-button></a-radio-group></div>
         <div class="performance-summary">
-          <div class="comparison-tile"><span>{{ $t('mockPortfolio.currentPortfolio') }}</span><strong>{{ formatNumber(summary.total_market_value) }}</strong><small>{{ signedPercent(summary.total_pnl_percent) }}</small></div>
+          <div class="comparison-tile"><span>{{ $t('mockPortfolio.currentPortfolio') }}</span><strong>{{ formatNumber(valuationSummary.total_market_value) }}</strong><small>{{ signedPercent(valuationSummary.total_pnl_percent) }}</small></div>
           <div class="comparison-tile muted"><span>{{ $t('mockPortfolio.benchmark') }}</span><strong>—</strong><small>{{ $t('mockPortfolio.historyUnavailable') }}</small></div>
           <div class="comparison-tile muted"><span>{{ $t('mockPortfolio.excessReturn') }}</span><strong>—</strong><small>{{ $t('mockPortfolio.historyUnavailable') }}</small></div>
         </div>
@@ -77,10 +86,10 @@
         :data-source="positions"
         :scroll="{ x: 1120 }">
         <template slot="symbol" slot-scope="value, record"><div class="symbol-cell"><CryptoAssetIcon v-if="isIdentityMarket(record.market)" :market="record.market" :symbol="value" :size="26" /><span v-else class="asset-avatar">{{ assetInitial(value) }}</span><div><strong>{{ value }}</strong><small>{{ record.name || marketLabel(record.market) }}</small></div></div></template>
-        <template slot="quantity" slot-scope="value">{{ formatNumber(value, 6) }}</template><template slot="entry_price" slot-scope="value">{{ formatNumber(value, 6) }}</template><template slot="current_price" slot-scope="value">{{ formatNumber(value, 6) }}</template><template slot="market_value" slot-scope="value">{{ formatNumber(value) }}</template>
-        <template slot="allocation" slot-scope="_, record"><div class="allocation-bar"><span :style="{ width: `${allocationFor(record)}%` }" /></div><small>{{ allocationFor(record) }}%</small></template>
-        <template slot="pnl" slot-scope="value, record"><span :class="value >= 0 ? 'value-positive' : 'value-negative'">{{ signedNumber(value) }}<small> {{ signedPercent(record.pnl_percent) }}</small></span></template>
-        <template slot="signal" slot-scope="_, record"><a-tag :color="record.pnl >= 0 ? 'green' : 'red'">{{ record.pnl >= 0 ? $t('mockPortfolio.inProfit') : $t('mockPortfolio.inLoss') }}</a-tag></template>
+        <template slot="quantity" slot-scope="value">{{ formatNumber(value, 6) }}</template><template slot="entry_price" slot-scope="value, record">{{ formatNumber(value, 6) }} {{ currencyFor(record) }}</template><template slot="current_price" slot-scope="value, record">{{ formatNumber(value, 6) }} {{ currencyFor(record) }}<small>{{ valuationLabel(record.valuation_status) }}</small></template><template slot="market_value" slot-scope="value, record">{{ formatNumber(value) }} {{ currencyFor(record) }}</template>
+        <template slot="allocation" slot-scope="_, record"><div class="allocation-bar"><span :style="{ width: `${allocationFor(record)}%` }" /></div><small>{{ allocationFor(record) === null ? '—' : allocationFor(record) + '%' }}</small></template>
+        <template slot="pnl" slot-scope="value, record"><span :class="value >= 0 ? 'value-positive' : 'value-negative'">{{ signedNumber(value) }} {{ currencyFor(record) }}<small> {{ signedPercent(record.pnl_percent) }}</small></span></template>
+        <template slot="signal" slot-scope="_, record"><a-tag :color="record.pnl === null ? 'default' : record.pnl >= 0 ? 'green' : 'red'">{{ record.pnl === null ? valuationLabel('UNAVAILABLE') : record.pnl >= 0 ? $t('mockPortfolio.inProfit') : $t('mockPortfolio.inLoss') }}</a-tag></template>
         <template slot="actions" slot-scope="_, record"><a-button type="link" size="small" icon="edit" @click="openEditModal(record)" /><a-button type="link" size="small" icon="delete" class="delete-action" @click="confirmDelete(record)" /></template>
       </a-table>
       <a-empty v-else :description="$t('mockPortfolio.empty')"><a-button type="primary" icon="plus" @click="openCreateModal">{{ $t('mockPortfolio.addFirstPosition') }}</a-button></a-empty>
@@ -102,7 +111,13 @@
       :wrap-class-name="isDarkTheme ? 'mock-portfolio-modal theme-dark' : 'mock-portfolio-modal'"
       @ok="savePosition"
       @cancel="modalVisible = false">
-      <a-form layout="vertical"><div class="form-grid"><a-form-item :label="$t('mockPortfolio.market')"><a-select v-model="form.market" :disabled="Boolean(editingId)" @change="onMarketChange"><a-select-option value="Crypto">{{ $t('mockPortfolio.markets.crypto') }}</a-select-option><a-select-option value="VNStock">{{ $t('mockPortfolio.markets.vn') }}</a-select-option><a-select-option value="Forex">{{ $t('mockPortfolio.markets.gold') }}</a-select-option></a-select></a-form-item><a-form-item :label="$t('mockPortfolio.symbol')"><a-auto-complete v-if="form.market === 'VNStock'" v-model="form.symbol" :disabled="Boolean(editingId)" :data-source="hoseMatches" :placeholder="symbolPlaceholder" @search="searchHoseSymbols" /><a-input v-else v-model="form.symbol" :disabled="Boolean(editingId)" :placeholder="symbolPlaceholder" /></a-form-item></div><div class="form-grid"><a-form-item :label="$t('mockPortfolio.side')"><a-select v-model="form.side" :disabled="Boolean(editingId)"><a-select-option value="long">{{ $t('mockPortfolio.long') }}</a-select-option><a-select-option value="short">{{ $t('mockPortfolio.short') }}</a-select-option></a-select></a-form-item><a-form-item :label="$t('mockPortfolio.quantity')"><a-input-number v-model="form.quantity" :min="0" :step="0.000001" class="full-width" /></a-form-item></div><div class="form-grid"><a-form-item :label="$t('mockPortfolio.entryPrice')"><a-input-number v-model="form.entry_price" :min="0" :step="0.01" class="full-width" /></a-form-item><a-form-item :label="$t('mockPortfolio.group')"><a-input v-model="form.group_name" :placeholder="$t('mockPortfolio.groupPlaceholder')" /></a-form-item></div><a-form-item :label="$t('mockPortfolio.notes')"><a-textarea v-model="form.notes" :rows="3" :placeholder="$t('mockPortfolio.notesPlaceholder')" /></a-form-item></a-form>
+      <a-form layout="vertical"><div class="form-grid"><a-form-item :label="$t('mockPortfolio.market')"><a-select v-model="form.market" :disabled="Boolean(editingId)" @change="onMarketChange"><a-select-option value="Crypto">{{ $t('mockPortfolio.markets.crypto') }}</a-select-option><a-select-option value="VNStock">{{ $t('mockPortfolio.markets.vn') }}</a-select-option><a-select-option value="Forex">{{ $t('mockPortfolio.markets.gold') }}</a-select-option></a-select></a-form-item><a-form-item :label="$t('mockPortfolio.symbol')"><a-auto-complete
+        v-if="form.market === 'VNStock'"
+        v-model="form.symbol"
+        :disabled="Boolean(editingId)"
+        :data-source="hoseMatches"
+        :placeholder="symbolPlaceholder"
+        @search="searchHoseSymbols" /><a-input v-else v-model="form.symbol" :disabled="Boolean(editingId)" :placeholder="symbolPlaceholder" /></a-form-item></div><div class="form-grid"><a-form-item :label="$t('mockPortfolio.side')"><a-select v-model="form.side" :disabled="Boolean(editingId)"><a-select-option value="long">{{ $t('mockPortfolio.long') }}</a-select-option><a-select-option value="short">{{ $t('mockPortfolio.short') }}</a-select-option></a-select></a-form-item><a-form-item :label="$t('mockPortfolio.quantity')"><a-input-number v-model="form.quantity" :min="0" :step="0.000001" class="full-width" /></a-form-item></div><div class="form-grid"><a-form-item :label="$t('mockPortfolio.entryPrice')"><a-input-number v-model="form.entry_price" :min="0" :step="0.01" class="full-width" /></a-form-item><a-form-item :label="$t('mockPortfolio.group')"><a-input v-model="form.group_name" :placeholder="$t('mockPortfolio.groupPlaceholder')" /></a-form-item></div><a-form-item :label="$t('mockPortfolio.notes')"><a-textarea v-model="form.notes" :rows="3" :placeholder="$t('mockPortfolio.notesPlaceholder')" /></a-form-item></a-form>
     </a-modal>
   </div>
 </template>
@@ -112,7 +127,7 @@ import { mapState } from 'vuex'
 import * as echarts from 'echarts'
 import { Empty } from 'ant-design-vue'
 import { addPosition, deletePosition, getPositions, getPortfolioSummary, updatePosition } from '@/api/portfolio'
-import { buildPortfolioAnalytics } from './portfolioAnalytics'
+import { buildPortfolioAnalytics, positionCurrency } from './portfolioAnalytics'
 import CryptoAssetIcon from '@/components/CryptoAssetIcon'
 import { searchSymbols } from '@/api/market'
 
@@ -122,11 +137,15 @@ const emptyForm = () => ({ market: 'Crypto', symbol: 'BTC/USDT', name: '', side:
 export default {
   name: 'MockPortfolio',
   components: { CryptoAssetIcon },
-  data () { return { loading: false, saving: false, modalVisible: false, editingId: null, positions: [], summary: emptySummary(), form: emptyForm(), hoseMatches: [], errorMessage: '', allocationChartInstance: null } },
+  data () { return { loading: false, saving: false, modalVisible: false, editingId: null, positions: [], summary: emptySummary(), selectedCurrency: '', form: emptyForm(), hoseMatches: [], errorMessage: '', allocationChartInstance: null } },
   computed: {
     ...mapState({ navTheme: state => state.app.theme }),
     isDarkTheme () { return this.navTheme === 'dark' || this.navTheme === 'realdark' },
-    analytics () { return buildPortfolioAnalytics(this.positions) },
+    currencyGroups () { return this.summary.currency_summaries || [] },
+    activeCurrency () { return this.selectedCurrency && this.currencyGroups.some(group => group.currency === this.selectedCurrency) ? this.selectedCurrency : this.currencyGroups.some(group => group.currency === 'VND') ? 'VND' : this.currencyGroups[0]?.currency || '' },
+    valuationSummary () { return this.currencyGroups.find(group => group.currency === this.activeCurrency) || this.summary },
+    analytics () { return buildPortfolioAnalytics(this.positions.filter(position => positionCurrency(position) === this.activeCurrency)) },
+    isVietnamese () { return String(this.$i18n.locale || '').startsWith('vi') },
     simpleEmptyImage () { return Empty.PRESENTED_IMAGE_SIMPLE },
     unavailableRiskMetrics () { return [{ key: 'beta', label: this.$t('mockPortfolio.beta') }, { key: 'volatility', label: this.$t('mockPortfolio.volatility') }, { key: 'drawdown', label: this.$t('mockPortfolio.maxDrawdown') }, { key: 'var', label: this.$t('mockPortfolio.var95') }, { key: 'diversification', label: this.$t('mockPortfolio.diversification') }] },
     columns () {
@@ -146,12 +165,15 @@ export default {
   },
   watch: {
     positions: { deep: true, handler () { this.$nextTick(this.renderAllocationChart) } },
-    isDarkTheme () { this.$nextTick(this.renderAllocationChart) }
+    isDarkTheme () { this.$nextTick(this.renderAllocationChart) },
+    activeCurrency () { this.$nextTick(this.renderAllocationChart) }
   },
   created () { this.loadData() },
   mounted () { window.addEventListener('resize', this.resizeCharts) },
   beforeDestroy () { window.removeEventListener('resize', this.resizeCharts); if (this.allocationChartInstance) this.allocationChartInstance.dispose() },
   methods: {
+    currencyFor (position) { return positionCurrency(position) },
+    valuationLabel (status) { return ({ AVAILABLE: this.isVietnamese ? 'Có giá' : 'Priced', STALE: this.isVietnamese ? 'Giá cũ' : 'Stale price', PARTIAL: this.isVietnamese ? 'Chưa đủ giá định giá' : 'Incomplete valuation', UNAVAILABLE: this.isVietnamese ? 'Chưa có giá' : 'Price unavailable' })[status] || '' },
     isIdentityMarket (market) { return ['crypto', 'vn', 'vnstock', 'vietnamstock', 'vietnam-stock', 'forex', 'gold', 'xau'].includes(String(market || '').toLowerCase()) },
     async loadData (refresh = false) {
       this.loading = true
@@ -166,7 +188,7 @@ export default {
       } catch (error) { this.errorMessage = error?.response?.data?.msg || error?.message || this.$t('mockPortfolio.loadFailed') } finally { this.loading = false }
     },
     renderAllocationChart () {
-      if (!this.$refs.allocationChart || !this.analytics.byCategory.length) return
+      if (!this.$refs.allocationChart || !this.analytics.byCategory.length) { if (this.allocationChartInstance) this.allocationChartInstance.dispose(); this.allocationChartInstance = null; return }
       if (!this.allocationChartInstance) this.allocationChartInstance = echarts.init(this.$refs.allocationChart)
       this.allocationChartInstance.setOption({ animationDuration: 350, tooltip: { trigger: 'item', valueFormatter: (value) => this.formatNumber(value) }, series: [{ type: 'pie', radius: ['58%', '80%'], center: ['50%', '50%'], avoidLabelOverlap: true, label: { show: false }, labelLine: { show: false }, itemStyle: { borderColor: this.isDarkTheme ? '#10161c' : '#fff', borderWidth: 5, borderRadius: 5 }, data: this.analytics.byCategory.map((item) => ({ value: item.marketValue, name: this.marketLabel(item.market), itemStyle: { color: item.color } })) }] }, true)
       this.allocationChartInstance.resize()
@@ -202,11 +224,11 @@ export default {
     confirmDelete (position) { this.$confirm({ title: this.$t('mockPortfolio.deleteTitle'), content: `${this.$t('mockPortfolio.deleteBody')} ${position.symbol}?`, okText: this.$t('mockPortfolio.delete'), okType: 'danger', cancelText: this.$t('common.cancel'), onOk: () => this.removePosition(position) }) },
     async removePosition (position) { try { const response = await deletePosition(position.id); if (!response || response.code !== 1) throw new Error(response?.msg || this.$t('mockPortfolio.deleteFailed')); this.$message.success(this.$t('mockPortfolio.deleted')); await this.loadData(true) } catch (error) { this.errorMessage = error?.response?.data?.msg || error?.message || this.$t('mockPortfolio.deleteFailed') } },
     marketLabel (market) { return { Crypto: this.$t('mockPortfolio.markets.crypto'), VNStock: this.$t('mockPortfolio.markets.vn'), Forex: this.$t('mockPortfolio.markets.gold') }[market] || market },
-    allocationFor (record) { const match = this.analytics.bySymbol.find((item) => item.symbol === String(record.symbol || '').toUpperCase() && item.market === record.market); return match ? match.allocation : 0 },
+    allocationFor (record) { if (positionCurrency(record) !== this.activeCurrency) return null; const match = this.analytics.bySymbol.find((item) => item.symbol === String(record.symbol || '').toUpperCase() && item.market === record.market); return match ? match.allocation : null },
     assetInitial (symbol) { return String(symbol || '?').replace(/[^A-Za-z0-9]/g, '').slice(0, 2).toUpperCase() || '?' },
-    formatNumber (value, digits = 2) { const number = Number(value); return Number.isFinite(number) ? number.toLocaleString(undefined, { maximumFractionDigits: digits }) : '—' },
-    signedNumber (value, digits = 2) { const number = Number(value); return Number.isFinite(number) ? `${number >= 0 ? '+' : ''}${this.formatNumber(number, digits)}` : '—' },
-    signedPercent (value) { const number = Number(value); return Number.isFinite(number) ? `${number >= 0 ? '+' : ''}${number.toFixed(2)}%` : '—' }
+    formatNumber (value, digits = 2) { const number = value === null || value === undefined ? NaN : Number(value); return Number.isFinite(number) ? number.toLocaleString(undefined, { maximumFractionDigits: digits }) : '—' },
+    signedNumber (value, digits = 2) { const number = value === null || value === undefined ? NaN : Number(value); return Number.isFinite(number) ? `${number >= 0 ? '+' : ''}${this.formatNumber(number, digits)}` : '—' },
+    signedPercent (value) { const number = value === null || value === undefined ? NaN : Number(value); return Number.isFinite(number) ? `${number >= 0 ? '+' : ''}${number.toFixed(2)}%` : '—' }
   }
 }
 </script>

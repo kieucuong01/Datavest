@@ -75,6 +75,11 @@ def get_single_price(market: str, symbol: str, force_refresh: bool = False) -> d
             "change": price_data.get("change", 0),
             "changePercent": price_data.get("changePercent", 0),
             "source": price_data.get("source", "unknown"),
+            "status": price_data.get("status"),
+            "stale": price_data.get("stale", False),
+            "observedAt": price_data.get("observedAt"),
+            "tradeDate": price_data.get("tradeDate"),
+            "retrievedAt": price_data.get("retrievedAt"),
         }
     except Exception as exc:
         logger.error("Failed to fetch price %s:%s - %s", market, symbol, exc)
