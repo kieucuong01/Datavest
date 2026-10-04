@@ -164,7 +164,7 @@ class SmartInsightsService:
                 cache_key(
                     "smart-insights",
                     "crypto-pulse",
-                    "compact-v2",
+                    "compact-v3-freshness",
                     int(user_id),
                     normalized_mode,
                     normalized_as_of or "latest",
@@ -268,7 +268,9 @@ class SmartInsightsService:
         total_tabs = len(tabs)
         resolved_as_of = str(payload.get("asOf") or requested_as_of or "").strip() or None
         historical = bool(resolved_as_of and resolved_as_of != vietnam_calendar_date())
-        freshness = freshness_for_status(payload.get("status"), historical=historical)
+        freshness = payload.get('freshness') or freshness_for_status(payload.get("status"), historical=historical)
+        if historical and freshness == 'FRESH':
+            freshness = 'HISTORICAL'
         result = attach_data_contract(
             payload,
             requested_as_of=requested_as_of,

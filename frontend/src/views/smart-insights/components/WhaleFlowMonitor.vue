@@ -7,6 +7,7 @@
       </div>
       <a-tag :color="statusColor">{{ statusLabel }}</a-tag>
     </header>
+    <a-alert v-if="quality.comparisonReady === false" type="warning" show-icon :message="$t('smartInsights.whalePeriodsNotComparable')" :description="`${$t('smartInsights.whaleCohortChart')}: ${formatDate(quality.cohortEffectiveAt)} · ${$t('smartInsights.whaleExchangeChart')}: ${formatDate(quality.exchangeEffectiveAt)}`" />
 
     <div class="whale-summary-grid">
       <article class="whale-signal" :class="toneClass">
@@ -114,6 +115,7 @@
 </template>
 
 <script>
+import { finiteValue } from '../pulseNumbers'
 import PulseTrendChart from './PulseTrendChart'
 import { formatVietnamDate } from '@/utils/vietnamTime'
 
@@ -159,8 +161,8 @@ export default {
     },
     statusColor () { return this.whaleFlow.status === 'AVAILABLE' ? 'green' : this.whaleFlow.status === 'PARTIAL' ? 'orange' : 'default' },
     qualityDetail () {
-      const tracked = Number(this.quality.trackedAddressCount)
-      const excluded = Number(this.quality.excludedAddressCount)
+      const tracked = finiteValue(this.quality.trackedAddressCount)
+      const excluded = finiteValue(this.quality.excludedAddressCount)
       if (!Number.isFinite(tracked)) return this.$t('smartInsights.whaleQualityHeuristic')
       return this.$t('smartInsights.whaleQualityDetail', { tracked: Math.round(tracked), excluded: Number.isFinite(excluded) ? Math.round(excluded) : 0 })
     }
@@ -174,16 +176,16 @@ export default {
       return points.length ? points[points.length - 1] : null
     },
     valueClass (value) {
-      const number = Number(value)
+      const number = finiteValue(value)
       return Number.isFinite(number) ? (number > 0 ? 'positive' : number < 0 ? 'negative' : 'neutral') : 'neutral'
     },
     formatBtc (value, signed = true) {
-      const number = Number(value)
+      const number = finiteValue(value)
       if (!Number.isFinite(number)) return '—'
       return `${new Intl.NumberFormat('en-US', { maximumFractionDigits: 0, signDisplay: signed ? 'always' : 'auto' }).format(number)} BTC`
     },
     formatAddressCount (point) {
-      const number = Number(point && point.value)
+      const number = finiteValue(point && point.value)
       return Number.isFinite(number) ? this.$t('smartInsights.whaleAddressCount', { count: Math.round(number) }) : this.$t('smartInsights.noHistory')
     },
     shortAddress (value) {
@@ -191,7 +193,7 @@ export default {
       return address.length > 13 ? `${address.slice(0, 6)}…${address.slice(-5)}` : address || '—'
     },
     formatPercent (value) {
-      const number = Number(value)
+      const number = finiteValue(value)
       return Number.isFinite(number) ? `${new Intl.NumberFormat(this.locale, { style: 'percent', maximumFractionDigits: 0 }).format(number)}` : '—'
     },
     formatDate (value) {

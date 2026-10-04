@@ -7,6 +7,7 @@
       </div>
       <a-radio-group v-model="selectedAsset" size="small" button-style="solid"><a-radio-button value="BTC">BTC</a-radio-button><a-radio-button value="ETH">ETH</a-radio-button></a-radio-group>
     </header>
+    <data-freshness-notice :data="onchain" />
 
     <article v-for="definition in definitions" :key="definition.key" class="onchain-group" :class="`group-${definition.key}`">
       <header class="group-header">
@@ -38,6 +39,7 @@
 </template>
 
 <script>
+import DataFreshnessNotice from './DataFreshnessNotice'
 import * as echarts from 'echarts'
 import { formatVietnamDate } from '@/utils/vietnamTime'
 import { latestMetric, chartEntries as buildChartEntries } from '../onchainData'
@@ -99,6 +101,7 @@ description: 'Địa chỉ hoạt động, giao dịch, phí, hash rate, issuanc
 
 export default {
   name: 'OnchainTerminal',
+  components: { DataFreshnessNotice },
   props: { onchain: { type: Object, default: () => ({}) } },
   data () { return { definitions: DEFINITIONS, selectedAsset: 'BTC', chartInstances: {}, resizeObserver: null, onWindowResize: null } },
   computed: {
@@ -113,7 +116,7 @@ export default {
     groupFor (key) { return this.groups.find(group => group && group.key === key) || { status: 'UNAVAILABLE', metrics: [], series: [] } },
     latestFor (metric) { return latestMetric(this.groupFor(this.definitionFor(metric).key).metrics || [], metric, this.selectedAsset) },
     availableCount (definition) { return definition.metrics.filter(spec => this.latestFor(spec.metric)).length },
-    stale (row) { return Date.now() - Date.parse(row.effectiveAt) > 48 * 3600 * 1000 },
+    stale (row) { return row.freshness ? row.freshness !== 'FRESH' : !Number.isFinite(Date.parse(row.effectiveAt)) || Date.now() - Date.parse(row.effectiveAt) > 48 * 3600 * 1000 },
     resetCharts () { Object.values(this.chartInstances).forEach(chart => chart && chart.dispose()); this.chartInstances = {}; if (this.resizeObserver) this.resizeObserver.disconnect() },
     definitionFor (metric) { return this.definitions.find(definition => definition.metrics.some(spec => spec.metric === metric)) || { key: '' } },
     chartEntries (groupKey) {

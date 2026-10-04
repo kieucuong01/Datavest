@@ -65,12 +65,15 @@ function tabModel (key, tab, options = {}) {
     seriesGroups: groupSeries(series),
     groups: Array.isArray(tab.groups) ? tab.groups : [],
     fearGreed: options.fearGreed || tab.fearGreed || null,
+    freshness: tab.freshness || null,
+    effectiveAt: tab.effectiveAt || null,
     etfFlows: options.etfFlows || tab.etfFlows || null,
     whaleFlows: options.whaleFlows || tab.whaleFlows || null,
     fundFlows: options.fundFlows || tab.fundFlows || null,
     halving: options.halving || tab.halving || null,
     priceHistory: options.priceHistory || tab.priceHistory || null,
     derivatives: options.derivatives || tab.derivatives || null,
+    cycle: options.cycle || null,
     latest: series.length ? series[series.length - 1] : null
   }
 }
@@ -90,6 +93,8 @@ export function buildPulsePanel (pulse = {}, key = 'overview') {
     ]
     const tab = {
       status: metrics.length ? 'AVAILABLE' : 'UNAVAILABLE',
+      freshness: pulse.freshness || null,
+      effectiveAt: onchain.effectiveAt || null,
       sources: uniqueSources(flows.sources, shared.sources, cycle.sources, onchain.sources),
       groups: Array.isArray(onchain.groups) ? onchain.groups : []
     }
@@ -101,7 +106,8 @@ export function buildPulsePanel (pulse = {}, key = 'overview') {
       fearGreed,
       etfFlows: etf,
       whaleFlows,
-      derivatives: shared.derivatives || null,
+      derivatives: shared.derivatives || shared,
+      cycle,
       series: combinedSeries(
         etf.series,
         whaleFlows && whaleFlows.series,

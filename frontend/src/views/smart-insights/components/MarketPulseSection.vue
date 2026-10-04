@@ -58,8 +58,8 @@
         <fear-greed-panel v-if="fearGreed" :fear="fearGreed" />
         <div class="pulse-detail-grid">
           <flow-terminal v-if="panel.etfFlows" :flow="panel.etfFlows" :is-current="pulseIsCurrent" />
-          <derivatives-terminal :derivatives="panel" />
-          <cycle-terminal :cycle="panel" :is-current="pulseIsCurrent" />
+          <derivatives-terminal :derivatives="panel.derivatives || panel" />
+          <cycle-terminal :cycle="panel.cycle || panel" :is-current="(panel.cycle || panel).freshness === 'FRESH'" />
           <div v-if="onchainLoading" class="onchain-terminal-deferred" aria-live="polite"><a-skeleton active :paragraph="{ rows: 4 }" /></div>
           <template v-else>
             <whale-flow-monitor v-if="onchainPanel.whaleFlows" :whale-flow="onchainPanel.whaleFlows" />

@@ -7,6 +7,7 @@
       </div>
       <a-tag v-if="isCurrent" color="green"><i class="live-dot" />{{ $t('smartInsights.currentData') }}</a-tag>
     </header>
+    <data-freshness-notice :data="cycle" />
 
     <div v-if="altSeries.length" class="cycle-grid">
 
@@ -38,6 +39,8 @@
 </template>
 
 <script>
+import { finiteValue } from '../pulseNumbers'
+import DataFreshnessNotice from './DataFreshnessNotice'
 import * as echarts from 'echarts'
 import { formatVietnamDate } from '@/utils/vietnamTime'
 
@@ -52,12 +55,13 @@ const STAT_ROWS = [
 
 export default {
   name: 'CycleTerminal',
+  components: { DataFreshnessNotice },
   props: { cycle: { type: Object, default: () => ({}) }, isCurrent: { type: Boolean, default: false } },
   data () { return { altRange: '1Y', altChartInstance: null, scaleChartInstance: null, resizeObserver: null, onWindowResize: null } },
   computed: {
     locale () { return this.$i18n && this.$i18n.locale === 'vi-VN' ? 'vi-VN' : 'en-US' },
     rangeOptions () { return ['90D', '1Y', 'ALL'] },
-    rawPoints () { return (Array.isArray(this.cycle.series) ? this.cycle.series : []).map(point => ({ metric: String(point && point.metric || ''), date: String(point && point.effectiveAt || '').slice(0, 10), value: Number(point && point.value) })).filter(point => point.date && Number.isFinite(point.value)).sort((left, right) => left.date.localeCompare(right.date)) },
+    rawPoints () { return (Array.isArray(this.cycle.series) ? this.cycle.series : []).map(point => ({ metric: String(point && point.metric || ''), date: String(point && point.effectiveAt || '').slice(0, 10), value: finiteValue(point && point.value) })).filter(point => point.date && Number.isFinite(point.value)).sort((left, right) => left.date.localeCompare(right.date)) },
     altSeries () { return this.rawPoints.filter(point => point.metric === 'crypto.cycle.altcoin_season.index') },
     altLatest () { return this.altSeries[this.altSeries.length - 1] || null },
     statRows () { return STAT_ROWS.map(([alt, btc, label]) => ({ label: this.$t(`smartInsights.${label}`), alt: this.formatDays(this.stat(alt)), btc: this.formatDays(this.stat(btc)) })) },
@@ -73,8 +77,8 @@ export default {
     stat (field) { const point = this.rawPoints.filter(item => item.metric === `crypto.cycle.altcoin_season.stat.${field}`).pop(); return point ? point.value : null },
     rangePoints (points, range) { const days = range === '90D' ? 90 : range === '1Y' ? 365 : null; return days ? points.slice(-days) : points },
     rangeLabel (option) { return option === 'ALL' ? this.$t('smartInsights.flowRangeAll') : option },
-    formatIndex (value) { return Number.isFinite(Number(value)) ? new Intl.NumberFormat(this.locale, { maximumFractionDigits: 0 }).format(Number(value)) : '—' },
-    formatDays (value) { return Number.isFinite(Number(value)) ? new Intl.NumberFormat(this.locale, { maximumFractionDigits: 1 }).format(Number(value)) : '—' },
+    formatIndex (value) { return Number.isFinite(finiteValue(value)) ? new Intl.NumberFormat(this.locale, { maximumFractionDigits: 0 }).format(finiteValue(value)) : '—' },
+    formatDays (value) { return Number.isFinite(finiteValue(value)) ? new Intl.NumberFormat(this.locale, { maximumFractionDigits: 1 }).format(finiteValue(value)) : '—' },
     formatDate (value) { return value ? formatVietnamDate(`${value}T00:00:00Z`, { locale: this.locale, fallback: value }) : '—' },
     formatShortDate (value) { return formatVietnamDate(`${value}T00:00:00Z`, { locale: this.locale, fallback: value, short: true }) },
     scheduleRender () { this.$nextTick(() => { this.renderSeasonScale(); this.renderAltChart() }) },

@@ -24,6 +24,14 @@ Reports expire at the next Vietnamese Monday 00:00, based on evidence period rat
 
 Validate source age and effective period per widget. Mismatched/expired whale and exchange observations must not produce a conflicting directional interpretation. Preserve unavailable values as null, including UI formatting. Keep auxiliary sources out of the default refresh scope when they cannot contribute reliable current evidence.
 
+Widget freshness now checks the effective evidence date against the registry SLA, independently of API retrieval time and availability. CoinShares retains its weekly SLA; daily ETF data gets five calendar days for weekends/holidays. Unknown/future timestamps fail freshness checks. Historical series remain readable; current/partial/stale states and latest periods travel with each widget. Legacy account imports remain explicitly unverified/partial rather than inheriting a fresh runtime label.
+
+Whale comparison requires current observations with the same UTC effective day and flow window. Different periods or expired evidence return `INSUFFICIENT`/`PARTIAL`, with both dates visible. Missing numeric values are omitted from charts and rendered as unavailable in whale/derivative/cycle summaries; genuine zero remains valid. Guest scope copy matches BTC/SOL/LINK/XAUUSD and does not promise VNINDEX reports.
+
+Fear/Greed history compares exact calendar days relative to the latest observation and displays those dates. Missing days remain unavailable instead of borrowing an older point for yesterday/last week/last month. Daily derivatives use a latest-snapshot label rather than implying real-time quotes.
+
+Default bulk refresh is limited to enabled members of eight core sources: market bars, Binance USD-M, Bybit, Deribit public, Coin Metrics, DefiLlama stablecoins/chains and Mempool. Explicit source configuration remains supported. Browser-source callbacks and dedicated daily Bitview collection continue independently. No provider is removed from the registry.
+
 ## Release boundary
 
 These are local code commits. Existing production snapshots and failed jobs are not repaired merely by committing; after deployment, verify current output and any approved reconciliation separately.

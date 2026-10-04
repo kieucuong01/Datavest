@@ -37,6 +37,7 @@
 </template>
 
 <script>
+import { finiteValue } from '../pulseNumbers'
 import * as echarts from 'echarts'
 import { formatVietnamDate } from '@/utils/vietnamTime'
 
@@ -58,7 +59,7 @@ export default {
     primaryColor () { return (this.$store && this.$store.state.app.color) || '#2b6de0' },
     points () {
       return this.series
-        .map(item => ({ value: Number(item && item.value), effectiveAt: item && item.effectiveAt }))
+        .map(item => ({ value: finiteValue(item && item.value), effectiveAt: item && item.effectiveAt }))
         .filter(item => Number.isFinite(item.value) && item.effectiveAt)
         .sort((left, right) => new Date(left.effectiveAt).getTime() - new Date(right.effectiveAt).getTime())
     },
@@ -161,7 +162,7 @@ itemStyle: { color: this.primaryColor },
     },
     formatCompact (value) { return new Intl.NumberFormat('en-US', { notation: 'compact', maximumFractionDigits: 1 }).format(Number(value)) },
     formatValue (value) {
-      if (!Number.isFinite(Number(value))) return '—'
+      if (!Number.isFinite(finiteValue(value))) return '—'
       const number = Number(value)
       if (this.unit === 'USD') return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', notation: 'compact', maximumFractionDigits: 2 }).format(number)
       return `${new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 }).format(number)}${this.unit ? ` ${this.unit}` : ''}`

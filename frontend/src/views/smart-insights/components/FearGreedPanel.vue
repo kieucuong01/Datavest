@@ -1,20 +1,21 @@
 <template>
   <section v-if="points.length" class="fear-greed-panel" :aria-label="$t('smartInsights.fearGreedTitle')">
+    <data-freshness-notice :data="fear" />
     <div class="fear-greed-top">
       <article class="fear-greed-card gauge-card">
         <div class="fear-heading">
           <span class="bitcoin-mark"><a-icon type="bitcoin" /></span>
           <div><h3>{{ $t('smartInsights.fearGreedTitle') }}</h3><p>{{ $t('smartInsights.fearGreedDesc') }}</p></div>
         </div>
-        <div class="current-reading"><span>{{ $t('smartInsights.fearGreedNow') }}:</span> <strong :class="toneClass(latest.value)">{{ sentiment(latest.value) }}</strong></div>
+        <div class="current-reading"><span>{{ $t('smartInsights.fearGreedLatest') }}:</span> <strong :class="toneClass(latest.value)">{{ sentiment(latest.value) }}</strong></div>
         <div ref="gauge" class="fear-gauge" role="img" :aria-label="`${$t('smartInsights.fearGreedTitle')}: ${latest.value}`" />
         <footer><span>{{ sourceName }}</span><span>{{ $t('smartInsights.lastUpdated') }}: {{ formatDate(latest.effectiveAt) }}</span></footer>
       </article>
       <article class="fear-greed-card historical-card" aria-label="Historical Values">
         <h3>{{ $t('smartInsights.fearGreedHistory') }}</h3>
         <div v-for="row in historyRows" :key="row.label" class="historical-row">
-          <div><span>{{ row.label }}</span><strong :class="toneClass(row.point.value)">{{ sentiment(row.point.value) }}</strong></div>
-          <b :class="toneClass(row.point.value)">{{ Math.round(row.point.value) }}</b>
+          <div><span>{{ row.label }}</span><strong v-if="row.point" :class="toneClass(row.point.value)">{{ sentiment(row.point.value) }}</strong><strong v-else>—</strong></div>
+          <b v-if="row.point" :class="toneClass(row.point.value)">{{ Math.round(row.point.value) }}</b><b v-else>—</b>
         </div>
       </article>
     </div>
@@ -35,19 +36,22 @@
 </template>
 
 <script>
+import { finiteValue } from '../pulseNumbers'
+import DataFreshnessNotice from './DataFreshnessNotice'
 import * as echarts from 'echarts'
 import { formatVietnamDate } from '@/utils/vietnamTime'
 
 export default {
   name: 'FearGreedPanel',
+  components: { DataFreshnessNotice },
   props: { fear: { type: Object, default: () => ({}) } },
   data () { return { range: '30D', gaugeChart: null, trendChart: null, resizeObserver: null, onWindowResize: null } },
   computed: {
     locale () { return this.$i18n && this.$i18n.locale === 'vi-VN' ? 'vi-VN' : 'en-US' },
     points () {
       return (Array.isArray(this.fear.series) ? this.fear.series : [])
-        .map(point => ({ effectiveAt: point && point.effectiveAt, value: Number(point && point.value) }))
-        .filter(point => point.effectiveAt && Number.isFinite(point.value) && point.value >= 0 && point.value <= 100)
+        .map(point => ({ effectiveAt: point && point.effectiveAt, value: finiteValue(point && point.value) }))
+        .filter(point => Number.isFinite(Date.parse(point.effectiveAt)) && Number.isFinite(point.value) && point.value >= 0 && point.value <= 100)
         .sort((left, right) => new Date(left.effectiveAt).getTime() - new Date(right.effectiveAt).getTime())
     },
     latest () { return this.points[this.points.length - 1] },
@@ -58,9 +62,10 @@ export default {
       return limits[this.range] ? this.points.slice(-limits[this.range]) : this.points
     },
     historyRows () {
-      return [{ label: this.$t('smartInsights.fearGreedNow'), days: 0 }, { label: this.$t('smartInsights.fearGreedYesterday'), days: 1 }, { label: this.$t('smartInsights.fearGreedLastWeek'), days: 7 }, { label: this.$t('smartInsights.fearGreedLastMonth'), days: 30 }]
-        .map(item => ({ ...item, point: this.pointDaysAgo(item.days) }))
-        .filter(item => item.point)
+      return [0, 1, 7, 30].map(days => ({
+        label: days === 0 ? this.$t('smartInsights.fearGreedLatest') : this.formatDate(new Date(Date.parse(this.latest.effectiveAt) - days * 86400000).toISOString()),
+        point: this.pointDaysAgo(days)
+      }))
     }
   },
   watch: {
@@ -120,8 +125,8 @@ title: { show: false },
       }, true)
     },
     pointDaysAgo (days) {
-      const target = new Date(this.latest.effectiveAt).getTime() - days * 86400000
-      return [...this.points].reverse().find(point => new Date(point.effectiveAt).getTime() <= target) || this.points[0]
+      const target = new Date(Date.parse(this.latest.effectiveAt) - days * 86400000).toISOString().slice(0, 10)
+      return this.points.find(point => String(point.effectiveAt).slice(0, 10) === target) || null
     },
     sentiment (value) {
       if (value < 25) return this.$t('smartInsights.fearGreedExtremeFear')

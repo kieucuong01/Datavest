@@ -1,6 +1,13 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
+import pytest
+
+
+@pytest.fixture(autouse=True)
+def freeze_pulse_clock(monkeypatch):
+    from app.services.smart_insights import crypto_pulse
+    monkeypatch.setattr(crypto_pulse, '_now_utc', lambda: datetime(2026, 8, 25, 1, tzinfo=timezone.utc))
 
 
 def _observation(
@@ -90,7 +97,7 @@ def test_crypto_pulse_exposes_requested_date_and_readiness_contract():
     assert result["requestedAsOf"] == "2026-08-24"
     assert result["resolvedAsOf"] == "2026-08-24"
     assert result["fetchedAt"].endswith("+07:00")
-    assert result["freshness"] in {"FRESH", "PARTIAL"}
+    assert result["freshness"] == "HISTORICAL"
     assert result["coverage"]["totalTabs"] == 5
 
 
@@ -148,7 +155,7 @@ def test_crypto_pulse_merges_confirmed_whale_accumulation_into_flows_not_a_separ
     assert flows["whaleFlows"]["exchangePressure"]["latestNetflow"]["value"] == -800.0
 
 
-def test_crypto_pulse_marks_whale_signal_mixed_when_cohort_and_exchange_evidence_are_different_days():
+def test_crypto_pulse_marks_whale_signal_insufficient_when_evidence_is_from_different_days():
     """A stale cohort cannot confirm a newer exchange-flow observation."""
     from app.services.smart_insights.service import SmartInsightsService
 
@@ -166,7 +173,7 @@ def test_crypto_pulse_marks_whale_signal_mixed_when_cohort_and_exchange_evidence
     )
 
     assert result["tabs"]["flows"]["whaleFlows"]["insight"] == {
-        "tone": "MIXED",
+        "tone": "INSUFFICIENT",
         "confidence": "LOW",
         "reasonMetrics": [
             "crypto.large_address.balance_change_btc",
@@ -423,6 +430,7 @@ def test_crypto_pulse_separates_onchain_groups_and_excludes_market_prices():
             "effectiveAt": "2026-08-24T00:00:00+00:00",
             "source": "mempool-space",
             "evidenceId": "mempool-space-crypto.chain.block_height-BTC-2026-08-24T00:00:00+00:00",
+            "freshness": "STALE",
         }
     ]
     assert result["tabs"]["cycle"]["priceHistory"]["series"] == [

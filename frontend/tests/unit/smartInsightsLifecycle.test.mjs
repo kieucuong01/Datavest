@@ -330,7 +330,7 @@ test('ETF terminal preserves missing values and an empty feed has no zero-valued
   const source = readFileSync(new URL('../../src/views/smart-insights/components/FlowTerminal.vue', import.meta.url), 'utf8')
   const script = source.split('<script>')[1].split('</script>')[0]
     .replace(/import[^\n]+\n/g, '').replace('export default', 'globalThis.component =')
-  const context = { normalizePulseSeries }
+  const context = { normalizePulseSeries, DataFreshnessNotice: {} }
   vm.runInNewContext(script, context)
   const { methods, computed } = context.component
   assert.equal(methods.formatFlow(null), '—')

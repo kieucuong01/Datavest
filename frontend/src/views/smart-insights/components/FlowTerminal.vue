@@ -5,8 +5,9 @@
         <h3 id="flow-terminal-title">{{ $t('smartInsights.flowTerminalTitle') }}</h3>
         <p>{{ $t('smartInsights.flowTerminalDesc') }}</p>
       </div>
-      <a-tag v-if="isCurrent" color="green"><i class="live-dot" />{{ $t('smartInsights.currentData') }}</a-tag>
+      <a-tag v-if="flow.freshness === 'FRESH'" color="green"><i class="live-dot" />{{ $t('smartInsights.currentData') }}</a-tag>
     </header>
+    <data-freshness-notice :data="flow.etfFlows || flow" />
 
     <div v-if="rawPoints.length" class="flow-terminal-layout">
       <aside class="asset-rail" :aria-label="$t('smartInsights.flowAssets')">
@@ -75,6 +76,7 @@
 </template>
 
 <script>
+import DataFreshnessNotice from './DataFreshnessNotice'
 import * as echarts from 'echarts'
 import { formatVietnamDate } from '@/utils/vietnamTime'
 import { normalizePulseSeries } from '../marketPulse'
@@ -86,6 +88,7 @@ const ASSET_ORDER = Object.keys(ASSET_META)
 
 export default {
   name: 'FlowTerminal',
+  components: { DataFreshnessNotice },
   props: { flow: { type: Object, default: () => ({}) }, isCurrent: { type: Boolean, default: false } },
   data () { return { selectedAsset: 'TOTAL', mode: 'flow', range: '30D', chart: null, resizeObserver: null, onWindowResize: null } },
   computed: {

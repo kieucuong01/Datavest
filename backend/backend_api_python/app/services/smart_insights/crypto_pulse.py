@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from typing import Any, Iterable, Mapping
+from .sources import source_for_code
 
 
 _TAB_KEYS = (
@@ -136,6 +137,58 @@ def _effective_day(row: Mapping[str, Any]) -> str:
         return datetime.fromisoformat(value.replace("Z", "+00:00")).date().isoformat()
     except ValueError:
         return value[:10]
+
+
+def _now_utc():
+    return datetime.now(timezone.utc)
+
+
+def _point_freshness(point, now):
+    if not point:
+        return 'UNAVAILABLE'
+    try:
+        effective = datetime.fromisoformat(str(point.get('effectiveAt') or '').replace('Z', '+00:00'))
+        if effective.tzinfo is None:
+            effective = effective.replace(tzinfo=timezone.utc)
+        source = str(point.get('source') or '')
+        sla = source_for_code(source).freshness_sla_minutes
+        # Daily ETF reports stop on weekends/market holidays. Their effective
+        # trading day has a five-calendar-day grace, unlike 24/7 crypto data.
+        if source in _ETF_SOURCES:
+            sla = max(sla, 5 * 1440)
+        age = (now-effective).total_seconds()
+        return 'UNAVAILABLE' if age < 0 else 'FRESH' if age <= sla * 60 else 'STALE'
+    except (ValueError, KeyError, TypeError):
+        return 'UNAVAILABLE'
+
+
+def _comparison_period(point, rows):
+    if not point:
+        return None
+    try:
+        effective = datetime.fromisoformat(str(point['effectiveAt']).replace('Z', '+00:00'))
+        day = effective.replace(tzinfo=effective.tzinfo or timezone.utc).astimezone(timezone.utc).date().isoformat()
+    except (ValueError, KeyError):
+        return None
+    row = next((row for row in rows if _metric(row) == point['metric'] and _effective(row) == point['effectiveAt'] and row.get('source') == point.get('source')), {})
+    dimensions = _dimensions(row)
+    interval = str(dimensions.get('interval') or dimensions.get('window') or '1d').lower()
+    if interval in {'daily', '24h', 'day'}:
+        interval = '1d'
+    return day, interval
+
+
+def _annotate_freshness(block, rows, now):
+    latest = _latest(rows)
+    states = [_point_freshness(row, now) for row in latest if _number(row) is not None]
+    fresh = states.count('FRESH')
+    block['freshness'] = 'UNAVAILABLE' if not states or all(state == 'UNAVAILABLE' for state in states) else 'FRESH' if fresh == len(states) else 'PARTIAL' if fresh else 'STALE'
+    block['freshMetricCount'] = fresh
+    block['metricCount'] = len(states)
+    block['effectiveAt'] = max((_effective(row) for row in latest), default=None)
+    for point in block.get('metrics') or []:
+        point['freshness'] = _point_freshness(point, now)
+    return block
 
 
 def _observed(row: Mapping[str, Any]) -> str:
@@ -394,6 +447,7 @@ def _whale_movers(
 def _whale_flow_tab(
     whale_rows: list[Mapping[str, Any]],
     exchange_rows: list[Mapping[str, Any]],
+    *, now,
 ) -> dict[str, Any]:
     """Build an explicitly heuristic whale-flow view from persisted evidence.
 
@@ -436,12 +490,13 @@ def _whale_flow_tab(
 
     # Negative exchange netflow means coins leave exchanges.  Only the two
     # independent, same-direction signals qualify for a directional label.
-    aligned_signals = bool(change and netflow and _effective_day(change) == _effective_day(netflow))
+    time_aligned = bool(change and netflow and _comparison_period(change, whale_rows) == _comparison_period(netflow, exchange_rows))
+    aligned_signals = time_aligned and all(_point_freshness(point, now) == 'FRESH' for point in (change, netflow))
     if aligned_signals and change["value"] > 0 and netflow["value"] < 0:
         tone = "ACCUMULATION"
     elif aligned_signals and change["value"] < 0 and netflow["value"] > 0:
         tone = "DISTRIBUTION"
-    elif change or netflow:
+    elif aligned_signals:
         tone = "MIXED"
     else:
         tone = "INSUFFICIENT"
@@ -460,7 +515,8 @@ def _whale_flow_tab(
     ]
 
     return {
-        "status": "AVAILABLE" if change and netflow else "PARTIAL",
+        "status": "AVAILABLE" if aligned_signals else "PARTIAL",
+        'freshness': 'FRESH' if aligned_signals else 'PARTIAL' if any(_point_freshness(point, now) == 'FRESH' for point in (change, netflow)) else 'STALE',
         "sources": _sources(combined),
         "metrics": _metric_cards(combined),
         "series": _series(combined, limit=730),
@@ -489,13 +545,18 @@ def _whale_flow_tab(
                 _latest_point(whale_rows, metric="crypto.large_address.matched_address_count") or {}
             ).get("value"),
             "qualityTier": "heuristic",
+            'timeAligned': time_aligned,
+            'comparisonReady': aligned_signals,
+            'cohortEffectiveAt': change.get('effectiveAt') if change else None,
+            'exchangeEffectiveAt': netflow.get('effectiveAt') if netflow else None,
         },
         "insight": {"tone": tone, "confidence": confidence, "reasonMetrics": reason_metrics},
     }
 
 
-def build_crypto_market_pulse(rows: Iterable[Mapping[str, Any]], *, mode: str) -> dict[str, Any]:
+def build_crypto_market_pulse(rows: Iterable[Mapping[str, Any]], *, mode: str, now=None) -> dict[str, Any]:
     """Build the old page's tab model from immutable LIVE/DEMO observations."""
+    now = now or _now_utc()
     normalized = [row for row in rows if isinstance(row, Mapping) and row.get("dataClass") == mode.upper()]
     crypto = [row for row in normalized if row.get("market") == "crypto" and not _is_retired_row(row)]
     calendar_rows = [row for row in normalized if row.get("source") == "cryptocraft"]
@@ -567,11 +628,11 @@ def build_crypto_market_pulse(rows: Iterable[Mapping[str, Any]], *, mode: str) -
             "crypto.onchain.exchange_reserve_native",
         }
     ]
-    whale_flow = _whale_flow_tab(whale_rows, exchange_rows)
+    whale_flow = _whale_flow_tab(whale_rows, exchange_rows, now=now)
     def tab(rows_for_tab: list[Mapping[str, Any]], *, series_limit: int = 90) -> dict[str, Any]:
         if not rows_for_tab:
             return _unavailable()
-        return {"status": "AVAILABLE", "sources": _sources(rows_for_tab), "metrics": _metric_cards(rows_for_tab), "series": _series(rows_for_tab, limit=series_limit)}
+        return _annotate_freshness({"status": "AVAILABLE", "sources": _sources(rows_for_tab), "metrics": _metric_cards(rows_for_tab), "series": _series(rows_for_tab, limit=series_limit)}, rows_for_tab, now)
 
     events = []
     for row in sorted(calendar_rows, key=_effective)[:100]:
@@ -581,6 +642,9 @@ def build_crypto_market_pulse(rows: Iterable[Mapping[str, Any]], *, mode: str) -
             continue
         events.append({"effectiveAt": _effective(row), "event": event, "impact": str(dimensions.get("impact") or "unknown"), "source": "cryptocraft"})
 
+    _annotate_freshness(fear, fear_rows, now)
+    _annotate_freshness(etf, etf_rows, now)
+    _annotate_freshness(fund, fund_rows, now)
     tabs = {
         "overview": {"status": "AVAILABLE" if crypto else "UNAVAILABLE", "sources": _sources(crypto), "metrics": _metric_cards(crypto), "fearGreed": fear, "etfFlows": etf, "fundFlows": fund},
         "flows": {
@@ -591,7 +655,7 @@ def build_crypto_market_pulse(rows: Iterable[Mapping[str, Any]], *, mode: str) -
             "fundFlows": fund,
             "whaleFlows": whale_flow,
         },
-        "sentimentDerivatives": {**tab(derivative_rows + fear_rows, series_limit=10_000), "fearGreed": fear},
+        "sentimentDerivatives": {**tab(derivative_rows + fear_rows, series_limit=10_000), "fearGreed": fear, 'derivatives': tab(derivative_rows, series_limit=10_000)},
         "cycle": {
             **tab(cycle_rows, series_limit=100_000),
             "halving": tab(halving_rows, series_limit=100_000),
@@ -599,9 +663,16 @@ def build_crypto_market_pulse(rows: Iterable[Mapping[str, Any]], *, mode: str) -
         },
         "onchain": _onchain_tab(onchain_rows),
     }
+    for key, evidence in [('overview', crypto), ('flows', [*etf_rows, *fund_rows, *whale_rows, *exchange_rows]), ('onchain', onchain_rows)]:
+        _annotate_freshness(tabs[key], evidence, now)
+    for group in tabs['onchain']['groups']:
+        _annotate_freshness(group, [row for row in onchain_rows if _onchain_group(_metric(row)) == group['key']], now)
+    freshness_states = [value.get('freshness', 'UNAVAILABLE') for value in tabs.values() if value['status'] != 'UNAVAILABLE']
+    freshness = 'UNAVAILABLE' if not freshness_states else 'FRESH' if all(state == 'FRESH' for state in freshness_states) else 'PARTIAL' if any(state in {'FRESH', 'PARTIAL'} for state in freshness_states) else 'STALE'
     available_tabs = sum(1 for value in tabs.values() if value["status"] == "AVAILABLE")
     return {
-        "generatedAt": datetime.now(timezone.utc).isoformat(),
+        "generatedAt": now.isoformat(),
+        'freshness': freshness,
         "mode": mode.lower(),
         "status": "AVAILABLE" if available_tabs == len(_TAB_KEYS) else "PARTIAL" if available_tabs else "UNAVAILABLE",
         "tabs": tabs,

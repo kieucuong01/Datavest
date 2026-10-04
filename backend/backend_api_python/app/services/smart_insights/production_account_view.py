@@ -478,8 +478,10 @@ def merge_imported_crypto_market_pulse(
             continue
         if not runtime_tab or runtime_tab.get("status") == "UNAVAILABLE":
             merged_tabs[key] = dict(imported_tab)
+            merged_tabs[key]['freshness'] = 'UNVERIFIED'
             continue
         merged = _merge_missing(imported_tab, runtime_tab)
+        merged['freshness'] = 'PARTIAL' if runtime_tab.get('freshness') == 'FRESH' else runtime_tab.get('freshness') or 'UNVERIFIED'
         merged["sources"] = _merge_sources(imported_tab.get("sources"), runtime_tab.get("sources"))
         for component in ("fearGreed", "etfFlows", "fundFlows"):
             if _items(_mapping(runtime_tab.get(component)).get("series")):
@@ -518,6 +520,7 @@ def merge_imported_crypto_market_pulse(
         1 for value in merged_tabs.values() if _mapping(value).get("status") == "AVAILABLE"
     )
     result["status"] = "AVAILABLE" if available_tabs == 7 else "PARTIAL" if available_tabs else "UNAVAILABLE"
+    result['freshness'] = 'PARTIAL' if runtime_used else 'STALE'
     result["dataLineage"] = {
         "legacyImportChecksum": imported.get("evidenceChecksum"),
         "runtimeObservationMerge": bool(runtime_used),

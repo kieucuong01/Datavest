@@ -7,6 +7,12 @@ from datetime import date, datetime
 
 from app.celery_app import celery_app
 
+_CORE_REFRESH_SOURCE_CODES = frozenset({
+    'datavest-market-bars', 'binance-usdm-derivatives', 'bybit-derivatives',
+    'deribit-public-derivatives', 'defillama-stablecoins', 'defillama-chains',
+    'coinmetrics-community', 'mempool-space',
+})
+
 
 _BROWSER_SNAPSHOT_SOURCE_CODES = frozenset({
     "alternative-fng",
@@ -76,7 +82,7 @@ def enqueue_smart_insights_refresh() -> dict:
             )
         )
         if configured
-        else repository.list_enabled_source_codes()
+        else tuple(code for code in repository.list_enabled_source_codes() if code in _CORE_REFRESH_SOURCE_CODES)
     )
     # Bitview has its own daily collection/import, not the broad six-hour job.
     source_codes = tuple(code for code in source_codes if code != "bitview-onchain")
