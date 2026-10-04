@@ -8,6 +8,7 @@ const rightContentSource = fs.readFileSync(new URL('../../src/components/GlobalH
 const smartInsightsSource = fs.readFileSync(new URL('../../src/views/smart-insights/index.vue', import.meta.url), 'utf8')
 const opinionsSource = fs.readFileSync(new URL('../../src/views/smart-insights/components/AssetOpinionsSection.vue', import.meta.url), 'utf8')
 const flowTerminalSource = fs.readFileSync(new URL('../../src/views/smart-insights/components/FlowTerminal.vue', import.meta.url), 'utf8')
+const mobileStyles = fs.readFileSync(new URL('../../src/mobile-responsive.less', import.meta.url), 'utf8')
 
 test('compact header keeps one accessible menu trigger, brand, and account action', () => {
   assert.match(layoutSource, /'basic-layout-wrapper--compact': isMobile/u)
@@ -19,6 +20,11 @@ test('compact header keeps one accessible menu trigger, brand, and account actio
   assert.match(rightContentSource, /<select-lang v-if="!isMobile"/u)
   assert.match(rightContentSource, /<a-tooltip v-if="!isMobile" :title="\$t\('app\.setting\.tooltip'\)"/u)
   assert.match(rightContentSource, /@media \(max-width: 480px\)[\s\S]*?\.guest-login-button[\s\S]*?width:\s*44px[\s\S]*?font-size:\s*0/u)
+})
+
+test('authenticated mobile header hides the account name without hiding its avatar wrapper', () => {
+  assert.doesNotMatch(mobileStyles, />\s*span:not\(\.ant-avatar\)/u)
+  assert.match(mobileStyles, /\.account-name,\s*\.name\s*\{\s*display:\s*none;/u)
 })
 
 test('route drawer controls remain reachable above the app bar', () => {
