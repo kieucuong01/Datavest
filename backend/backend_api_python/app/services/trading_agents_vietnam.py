@@ -161,7 +161,7 @@ def build_trading_agents_vietnam_evidence(symbol: str, analysis_date: str) -> di
         "open": float(latest.get("open") or latest["close"]),
         "high": float(latest.get("high") or latest["close"]),
         "low": float(latest.get("low") or latest["close"]),
-        "volume": float(latest.get("volume") or 0.0),
+        "volume": float(latest['volume']) if latest.get('volume') is not None else None,
         "time": latest.get("time", latest.get("timestamp")),
         "timeframe": "1D",
         "source": str(latest.get("source") or "unknown"),
@@ -175,9 +175,38 @@ def build_trading_agents_vietnam_evidence(symbol: str, analysis_date: str) -> di
             technical=technical,
             as_of=cutoff,
         )
+        context, gaps = build_hose_benchmark_context(cutoff)
+        evidence['marketContext'] = context
+        evidence['dataGaps'] = [gap for gap in evidence.get('dataGaps', []) if gap.get('field') != 'marketContext'] + gaps
+        unsigned = {key: value for key, value in evidence.items() if key != 'checksum'}
+        evidence['checksum'] = hashlib.sha256(_canonical_json(unsigned).encode('utf-8')).hexdigest()
         return _compact_agent_evidence(evidence)
     except Exception as exc:
         raise TradingAgentsVietnamEvidenceUnavailable("Vietnam evidence unavailable") from exc
+
+
+def build_hose_benchmark_context(cutoff: datetime) -> tuple[dict[str, Any], list[dict[str, str]]]:
+    """Optional dated index context; indices are never research positions."""
+    context, gaps = {}, []
+    for symbol in ('VNINDEX', 'VN30'):
+        try:
+            rows = DataSourceFactory.get_kline(market='VNStock', symbol=symbol, timeframe='1D', limit=20,
+                                              after_time=int((cutoff - timedelta(days=30)).timestamp()),
+                                              before_time=int(cutoff.timestamp()), price_mode='raw')
+            dated = sorted(((instant, row) for row in (rows or []) if isinstance(row, dict)
+                            and (instant := _bar_instant(row)) and instant <= cutoff
+                            and float(row.get('close') or 0) > 0), key=lambda item: item[0])
+            if not dated:
+                raise ValueError('no dated benchmark')
+            instant, latest = dated[-1]
+            previous = float(dated[-2][1]['close']) if len(dated) > 1 else None
+            context[symbol] = {'price': float(latest['close']),
+                               'changePct': (float(latest['close']) / previous - 1) * 100 if previous else None,
+                               'tradeDate': instant.astimezone(ZoneInfo('Asia/Ho_Chi_Minh')).date().isoformat(),
+                               'source': str(latest.get('source') or 'unknown'), 'investable': False}
+        except Exception:
+            gaps.append({'field': f'benchmark:{symbol}', 'reason': 'NO_POINT_IN_TIME_PRICE'})
+    return context, gaps
 
 
 __all__ = [

@@ -17,6 +17,8 @@
         @open-deep-analysis="openDeepAnalysis"
       />
 
+      <hose-watchlist-section :guest="isGuest" @sign-in="openAiAssistant" @open-research="openHoseResearch" @watchlist-changed="retrySection('opinions')" />
+
       <economic-calendar-table
         class="crypto-calendar"
         :events="calendarEvents"
@@ -49,7 +51,7 @@
     </footer>
 
     <a-modal
-      v-if="isGuest"
+      v-if="useSharedReportReader"
       :visible="analysisModalVisible"
       :title="analysisModalTitle"
       :width="1152"
@@ -83,6 +85,7 @@
               <a-alert v-if="!isCurrentResearchReport(publicDeepReport)" type="warning" show-icon :message="$t('smartInsights.reportExpiredTitle')" :description="$t('smartInsights.reportExpiredDesc')" />
               <div class="analysis-drawer-section-title"><a-icon type="file-text" /><h3>{{ publicDeepReport.title || $t('smartInsights.deepAnalysis') }}</h3></div>
               <small>{{ publicDeepReport.effectiveDate ? formatDate(publicDeepReport.effectiveDate) : $t('smartInsights.notAvailable') }}</small>
+              <hose-research-evidence :evidence="publicDeepReport.researchEvidence" />
               <div class="public-report-view-switcher">
                 <a-radio-group v-model="publicDeepReportView" button-style="solid" size="small" :aria-label="$t('tradingAgents.reportViewLabel')">
                   <a-radio-button value="summary">{{ $t('tradingAgents.summaryView') }}</a-radio-button>
@@ -143,6 +146,8 @@ import EconomicCalendarTable from './components/EconomicCalendarTable'
 import MarketPulseSection from './components/MarketPulseSection'
 import DeepAnalysisPanel from '@/components/TradingAgents/DeepAnalysisPanel'
 import ReportPdfReader from '@/components/TradingAgents/ReportPdfReader'
+import HoseWatchlistSection from './components/HoseWatchlistSection.vue'
+import HoseResearchEvidence from '@/components/TradingAgents/HoseResearchEvidence.vue'
 
 function isCurrentRequestToken (requestId, activeRequestId) {
   return requestId === activeRequestId
@@ -150,7 +155,7 @@ function isCurrentRequestToken (requestId, activeRequestId) {
 
 export default {
   name: 'SmartInsights',
-  components: { AssetOpinionsSection, EconomicCalendarTable, MarketPulseSection, DeepAnalysisPanel, ReportPdfReader },
+  components: { AssetOpinionsSection, EconomicCalendarTable, MarketPulseSection, DeepAnalysisPanel, ReportPdfReader, HoseWatchlistSection, HoseResearchEvidence },
   data () {
     return {
       asOf: undefined,
@@ -218,6 +223,10 @@ export default {
     ...mapState({ navTheme: state => state.app.theme, authToken: state => state.user && state.user.token }),
     isGuest () { return !hasAccessToken(this.authToken || storage.get(ACCESS_TOKEN)) },
     isDarkTheme () { return this.navTheme === 'dark' || this.navTheme === 'realdark' },
+    useSharedReportReader () {
+      const state = this.selectedOpinionRow && this.selectedOpinionRow.deepState
+      return this.isGuest || Boolean(state && state.scope !== 'account_private' && state.report && state.report.body)
+    },
     pulseCoreReady () { return Boolean(this.cryptoPulse && this.cryptoPulse.loadStage && this.cryptoPulse.loadStage !== 'summary') },
     hasOverview () { return Boolean(this.overview && this.overview.status !== 'UNAVAILABLE') },
     dailyBrief () { return (this.overview && this.overview.dailyBrief) || { status: 'UNAVAILABLE', content: '', assetCount: 0 } },
@@ -675,7 +684,7 @@ export default {
     },
     openAiAssistant (row) {
       if (this.isGuest) {
-        const redirect = `/ai-asset-analysis?market=${encodeURIComponent(row.market)}&symbol=${encodeURIComponent(row.displaySymbol)}&action=analyze`
+        const redirect = `/ai-asset-analysis?market=${encodeURIComponent(row.market)}&symbol=${encodeURIComponent(row.displaySymbol || row.symbol)}&action=analyze`
         openAuthModal({ redirect })
         return
       }
@@ -683,6 +692,10 @@ export default {
     },
     openDeepAnalysis (row) {
       this.openAssetAnalysis(row)
+    },
+    openHoseResearch (asset) {
+      const row = this.opinionRows.find(row => row.market === asset.market && row.symbol === asset.symbol)
+      this.openDeepAnalysis(row || { ...asset, displaySymbol: asset.symbol })
     },
     closeDeepAnalysis () {
       this.closeAssetAnalysis()

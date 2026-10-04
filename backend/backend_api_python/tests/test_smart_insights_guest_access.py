@@ -5,6 +5,20 @@ from __future__ import annotations
 from copy import deepcopy
 
 
+def test_hose_pilot_discovery_is_public_and_contains_only_registry_data():
+    from flask import Flask
+    from app.routes.smart_insights import smart_insights_blp
+    app = Flask(__name__)
+    app.register_blueprint(smart_insights_blp, url_prefix='/api/smart-insights')
+    client = app.test_client()
+    response = client.get('/api/smart-insights/public/hose-pilot')
+    assert response.status_code == 200
+    data = response.get_json()['data']
+    assert [row['symbol'] for row in data['assets']] == ['FPT', 'HPG', 'VCB']
+    assert data['benchmarks'] == ['VNINDEX', 'VN30']
+    assert 'userId' not in str(data) and 'report' not in data
+
+
 class PublicRepositoryDouble:
     def __init__(self):
         self.overview_calls = []

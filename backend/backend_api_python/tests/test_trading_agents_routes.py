@@ -83,6 +83,23 @@ def test_user_cannot_read_another_users_run(monkeypatch):
     assert response.get_json()["data"] is None
 
 
+def test_owned_run_exposes_only_safe_hose_projection(monkeypatch):
+    client, route_module = _client(monkeypatch)
+    class Repository:
+        def get_owned_run(self, **kwargs):
+            assert kwargs == {'user_id': 7, 'run_id': 'hose-research'}
+            return {'request_json': {'market': 'VNStock', 'symbol': 'FPT'},
+                    'evidence_json': {'instrument': {'market': 'VNStock', 'symbol': 'FPT'}, 'asOf': '2026-10-02',
+                                      'checksum': 'frozen', 'userId': 100, 'notes': 'private'}}
+    monkeypatch.setattr(route_module, 'get_repository', lambda: Repository())
+    response = client.get('/api/trading-agents/runs/hose-research')
+    assert response.status_code == 200
+    result = response.get_json()['data']
+    assert result['researchEvidence']['symbol'] == 'FPT'
+    assert result['researchEvidence']['checksum'] == 'frozen'
+    assert 'userId' not in str(result['researchEvidence'])
+
+
 def test_run_history_is_filtered_to_the_current_owner_asset_and_day(monkeypatch):
     client, route_module = _client(monkeypatch)
     calls = []

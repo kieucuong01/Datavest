@@ -219,6 +219,7 @@
               </span>
             </div>
           </section>
+          <hose-research-evidence v-if="isVietnamRun" :evidence="run.researchEvidence" />
           <report-pdf-reader :run-id="run.run_id" :variant="reportView" :active="visible" />
         </section>
         <div v-else-if="run.status === 'succeeded'" class="deep-analysis-report-loading">
@@ -259,6 +260,7 @@ import {
 import { formatVietnamDateTime } from '@/utils/vietnamTime'
 import { parseUtcAwareInstant } from '@/utils/utcInstant'
 import ReportPdfReader from './ReportPdfReader.vue'
+import HoseResearchEvidence from './HoseResearchEvidence.vue'
 import { mergeTradingAgentsHistory, publicResearchAssetKeyForTarget } from './tradingAgentsHistory'
 
 const FULL_ANALYSTS = ['market', 'social', 'news', 'fundamentals']
@@ -279,7 +281,7 @@ function vietnamDay () {
 
 export default {
   name: 'DeepAnalysisPanel',
-  components: { ReportPdfReader },
+  components: { ReportPdfReader, HoseResearchEvidence },
   props: {
     visible: { type: Boolean, default: false },
     target: { type: Object, default: null },

@@ -82,10 +82,15 @@ class SharedResearchPublisher:
                 status = str(run.get("status") or "")
                 if status == "succeeded":
                     content, _ = fetch(user_id=principal_id, run_id=run_id, artifact_name="complete_report.md")
+                    from app.services.hose_research import project_hose_research
+                    payload = self.deep_payload(report_markdown=content.decode('utf-8', errors='replace'))
+                    research = project_hose_research(run.get('evidence_json'))
+                    if research:
+                        payload['researchEvidence'] = research
                     self.reports.mark_complete(
                         asset_key=report["asset_key"], report_kind="deep", locale=PUBLIC_RESEARCH_LOCALE,
                         period_key=str(report["period_key"]), source_run_id=run_id,
-                        payload=self.deep_payload(report_markdown=content.decode("utf-8", errors="replace")),
+                        payload=payload,
                     )
                     published += 1
                 elif status in {"failed", "cancelled"}:

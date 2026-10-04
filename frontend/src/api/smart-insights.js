@@ -87,6 +87,10 @@ export function getSharedResearchReports () {
   return request({ url: '/api/smart-insights/research/reports', method: 'get' })
 }
 
+export function getHoseResearchPilot () {
+  return request({ url: '/api/smart-insights/public/hose-pilot', method: 'get' })
+}
+
 export function requestSharedResearchReport (assetKey, reportKind) {
   return request({
     url: `/api/smart-insights/research/reports/${encodeURIComponent(String(assetKey || ''))}/${encodeURIComponent(String(reportKind || ''))}`,

@@ -32,7 +32,8 @@ def test_builder_uses_adjusted_bars_and_excludes_rows_after_analysis_date(monkey
     captured: dict = {}
 
     def get_kline(**kwargs):
-        captured["kline"] = kwargs
+        if kwargs['symbol'] == 'FPT':
+            captured["kline"] = kwargs
         return _daily_bars()
 
     class EvidenceService:
@@ -57,6 +58,9 @@ def test_builder_uses_adjusted_bars_and_excludes_rows_after_analysis_date(monkey
     monkeypatch.setattr(module, "get_vietnam_evidence_service", lambda: EvidenceService())
 
     evidence = module.build_trading_agents_vietnam_evidence("fpt.vn", "2026-09-16")
+    assert set(evidence['marketContext']) == {'VNINDEX', 'VN30'}
+    unsigned = {key: value for key, value in evidence.items() if key != 'checksum'}
+    assert evidence['checksum'] == hashlib.sha256(module._canonical_json(unsigned).encode('utf-8')).hexdigest()
 
     assert captured["kline"]["market"] == "VNStock"
     assert captured["kline"]["symbol"] == "FPT"

@@ -69,6 +69,12 @@ def _shared_research() -> SharedResearchAccessService:
     return SharedResearchAccessService()
 
 
+@smart_insights_blp.route('/public/hose-pilot', methods=['GET'])
+def hose_research_pilot():
+    from app.services.hose_research import HOSE_RESEARCH_PILOT
+    return _ok({'assets': list(HOSE_RESEARCH_PILOT), 'benchmarks': ['VNINDEX', 'VN30']})
+
+
 @smart_insights_blp.route("/admin/operations", methods=["GET"])
 @login_required
 @admin_required

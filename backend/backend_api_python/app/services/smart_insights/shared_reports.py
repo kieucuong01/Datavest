@@ -20,7 +20,7 @@ from .report_lifecycle import RETRY_SQL, can_retry, report_validity
 
 
 _PAYLOAD_FIELDS = frozenset(
-    {"title", "summary", "body", "sections", "decision", "confidence", "provenance"}
+    {"title", "summary", "body", "sections", "decision", "confidence", "provenance", "researchEvidence"}
 )
 
 

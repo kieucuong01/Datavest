@@ -155,6 +155,7 @@ def _validate_history_query(args: Mapping[str, Any]) -> dict[str, Any]:
 
 
 def _public_run(record: Mapping[str, Any]) -> dict[str, Any]:
+    from app.services.hose_research import project_hose_research
     request_json = record.get("request_json") or {}
     if isinstance(request_json, str):
         try:
@@ -176,6 +177,7 @@ def _public_run(record: Mapping[str, Any]) -> dict[str, Any]:
         "language": _normalize_language(request_json.get("language")) if request_json.get("language") else "en-US",
         "source_pin": record.get("source_pin"),
         "evidence": evidence,
+        "researchEvidence": project_hose_research(record.get('evidence_json')) if request_json.get('market') == 'VNStock' else None,
         "created_at": record.get("created_at"),
         "started_at": record.get("started_at"),
         "finished_at": record.get("finished_at"),
