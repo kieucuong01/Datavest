@@ -61,6 +61,23 @@ class _Reports:
         self.pending = []
         self.completed = []
         self.failed = []
+        self.claimed = set()
+        self.started = set()
+
+    def claim_pending(self, **kwargs):
+        key = (kwargs['asset_key'], str(kwargs['effective_date']))
+        if key in self.claimed:
+            return False
+        self.claimed.add(key)
+        return True
+
+    def set_source_run(self, **kwargs):
+        key = (kwargs['asset_key'], str(kwargs['effective_date']))
+        if key in self.started:
+            return False
+        self.started.add(key)
+        self.pending.append(kwargs)
+        return True
 
     def mark_pending(self, **kwargs):
         self.pending.append(kwargs)

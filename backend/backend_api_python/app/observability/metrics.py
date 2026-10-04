@@ -82,6 +82,40 @@ SMART_INSIGHTS_SOURCE_LAST_RUN = Gauge(
     ("source", "market", "status"),
 )
 BUILD_INFO.labels(version=APP_VERSION, role=current_process_role().value).set(1)
+RESEARCH_OUTPUT_AGE = Gauge('datavest_research_output_age_seconds',
+    'Age of latest LIVE snapshot or complete weekly report; missing output is 1e12.', ('kind', 'key'))
+RESEARCH_OUTPUT_PROBE = Gauge('datavest_research_output_probe_ok', 'Whether research output freshness was read successfully.')
+
+
+def _refresh_research_output_metrics():
+    from datetime import date, datetime, timezone
+    from app.services.smart_insights.public_reports import PUBLIC_RESEARCH_ASSET_KEYS
+    from app.utils.timeutil import vietnam_calendar_date
+    try:
+        with get_db_connection() as db:
+            cur = db.cursor()
+            try:
+                cur.execute("SELECT market AS key, MAX(as_of) AS as_of FROM insight_snapshots WHERE data_class = 'LIVE' GROUP BY market")
+                snapshots = {row['key']: row['as_of'] for row in cur.fetchall() or []}
+                cur.execute("SELECT asset_key AS key, MAX(effective_date) AS as_of FROM public_research_reports WHERE status = 'complete' AND report_kind = 'deep' GROUP BY asset_key")
+                reports = {row['key']: row['as_of'] for row in cur.fetchall() or []}
+            finally:
+                cur.close()
+        now = datetime.now(timezone.utc)
+        for key in ('crypto', 'vnstock', 'forex'):
+            value = snapshots.get(key)
+            if value is not None and value.tzinfo is None:
+                value = value.replace(tzinfo=timezone.utc)
+            RESEARCH_OUTPUT_AGE.labels(kind='snapshot', key=key).set(max(0, (now-value).total_seconds()) if value else 1e12)
+        today = date.fromisoformat(vietnam_calendar_date())
+        for key in PUBLIC_RESEARCH_ASSET_KEYS:
+            value = reports.get(key)
+            if isinstance(value, datetime):
+                value = value.date()
+            RESEARCH_OUTPUT_AGE.labels(kind='weekly_report', key=key).set(max(0, (today-value).days)*86400 if value else 1e12)
+        RESEARCH_OUTPUT_PROBE.set(1)
+    except Exception:
+        RESEARCH_OUTPUT_PROBE.set(0)
 
 
 def _refresh_runtime_metrics() -> None:
@@ -149,6 +183,7 @@ def _refresh_smart_insights_metrics() -> None:
 def render_metrics() -> tuple[bytes, str]:
     _refresh_runtime_metrics()
     _refresh_smart_insights_metrics()
+    _refresh_research_output_metrics()
     multiprocess_dir = os.getenv("PROMETHEUS_MULTIPROC_DIR", "").strip()
     if multiprocess_dir:
         registry = CollectorRegistry()

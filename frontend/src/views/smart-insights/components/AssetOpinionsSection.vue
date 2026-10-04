@@ -64,7 +64,8 @@
           </div>
           <p v-if="row.researchInDevelopment" class="muted-line">{{ $t('smartInsights.researchInDevelopmentDesc') }}</p>
           <template v-else-if="researchReport(row)">
-            <div class="decision-brief-grid">
+            <a-alert v-if="!reportIsCurrent(row)" type="warning" show-icon :message="$t('smartInsights.reportExpiredTitle')" :description="$t('smartInsights.reportExpiredDesc')" />
+            <div v-if="reportIsCurrent(row)" class="decision-brief-grid">
               <div class="decision-brief-highlights">
                 <div class="decision-highlight decision-highlight--recommendation">
                   <span class="decision-brief-label">{{ $t('smartInsights.recommendation') }}</span>
@@ -80,7 +81,7 @@
                 <p class="decision-brief-action-copy">{{ decisionActionPlan(row) }}</p>
               </div>
             </div>
-            <p v-if="!decisionActionPlan(row)" class="muted-line">{{ reportPreview(row) }}</p>
+            <p v-if="reportIsCurrent(row) && !decisionActionPlan(row)" class="muted-line">{{ reportPreview(row) }}</p>
             <small v-if="reportCreatedAt(row)" class="decision-brief-created">{{ $t('smartInsights.reportCreatedAt') }}: {{ formatDateTime(reportCreatedAt(row)) }}</small>
           </template>
           <p v-else class="muted-line">{{ $t('smartInsights.deepAnalysisDesc') }}</p>
@@ -111,6 +112,7 @@
 import { formatVietnamDateTime } from '@/utils/vietnamTime'
 import { extractPortfolioManagerDecisionSummary } from '@/utils/tradingAgentsReport'
 import CryptoAssetIcon from '@/components/CryptoAssetIcon'
+import { reportValidity } from '../reportValidity'
 
 export default {
   name: 'AssetOpinionsSection',
@@ -144,6 +146,7 @@ export default {
       return this.$t('smartInsights.notAvailable')
     },
     researchReport (row) { return row && row.deepState && row.deepState.report ? row.deepState.report : null },
+    reportIsCurrent (row) { return reportValidity(this.researchReport(row)).actionable },
     decisionSummary (row) {
       const report = this.researchReport(row)
       if (!report) return { rating: '', timeHorizon: '', actions: [] }

@@ -226,6 +226,9 @@ def _apply_init_sql(logger, *, strict: bool = False):
         shared_watchlist_research_reports_sql = _resolve_shared_watchlist_research_reports_sql_path()
         if shared_watchlist_research_reports_sql.exists():
             sql_parts.append(shared_watchlist_research_reports_sql.read_text(encoding='utf-8'))
+        report_recovery_sql = init_sql.parent / '20261005_research_report_recovery.sql'
+        if report_recovery_sql.exists():
+            sql_parts.append(report_recovery_sql.read_text(encoding='utf-8'))
         vietnam_market_health_sql = _resolve_vietnam_market_health_sql_path()
         if vietnam_market_health_sql.exists():
             sql_parts.append(vietnam_market_health_sql.read_text(encoding='utf-8'))

@@ -15,6 +15,7 @@ from app.services.smart_insights.public_reports import (
 )
 from app.utils.db import get_db_connection
 from app.utils.logger import get_logger
+from .shared_reports import reporting_period_key
 
 
 logger = get_logger(__name__)
@@ -26,7 +27,7 @@ _INTERNAL_RUN_LINE = re.compile(r"(?im)^.*\b(?:run[ _-]?id|internal-run)\b.*(?:\
 
 
 def _effective_date(value: date | None = None) -> date:
-    return value or date.today()
+    return date.fromisoformat(reporting_period_key('deep', today=value))
 
 
 def _system_user_id() -> int:
@@ -88,6 +89,10 @@ class PublicResearchPublisher:
         asset = self._asset_for_key(asset_key)
         run_date = _effective_date(effective_date)
         run_id = uuid.uuid4().hex
+        if not self.reports.set_source_run(asset_key=asset_key, report_kind='deep', locale=PUBLIC_RESEARCH_LOCALE,
+                                          effective_date=run_date, source_run_id=run_id):
+            return {'queued': False, 'assetKey': asset_key}
+        dispatch_attempted = False
         try:
             request = {
                 "market": _DEEP_MARKET_BY_PUBLIC_MARKET[asset["market"]],
@@ -99,17 +104,14 @@ class PublicResearchPublisher:
                 user_id=self._system_user_id(), request=request, config=config,
                 source_pin=_UPSTREAM_SOURCE_PIN, run_id=run_id,
             )
-            self.reports.mark_pending(
-                asset_key=asset_key, report_kind="deep", locale=PUBLIC_RESEARCH_LOCALE,
-                effective_date=run_date, source_run_id=run_id,
-            )
+            dispatch_attempted = True
             self._trading_enqueue()(run_id)
             return {"queued": True, "assetKey": asset_key}
         except Exception:
             logger.exception("Public deep report enqueue failed for %s", asset_key)
             self.reports.mark_failed(
                 asset_key=asset_key, report_kind="deep", locale=PUBLIC_RESEARCH_LOCALE,
-                effective_date=run_date, failure_code="enqueue_failed", source_run_id=run_id,
+                effective_date=run_date, failure_code="enqueue_failed" if dispatch_attempted else "creation_failed", source_run_id=run_id,
             )
             return {"queued": False, "assetKey": asset_key}
 
@@ -120,41 +122,15 @@ class PublicResearchPublisher:
         effective_date: date | None = None,
     ) -> dict[str, int]:
         run_date = _effective_date(effective_date)
-        principal_id = self._system_user_id()
-        repository = self._trading_agents_repository()
-        enqueue = self._trading_enqueue()
         queued = failed = 0
         for asset in assets:
             key = public_asset_key(asset)
-            run_id = uuid.uuid4().hex
+            if not self.reports.claim_pending(asset_key=key, report_kind='deep', locale=PUBLIC_RESEARCH_LOCALE, effective_date=run_date):
+                continue
             try:
-                request = {
-                    "market": _DEEP_MARKET_BY_PUBLIC_MARKET[asset["market"]],
-                    "symbol": asset["symbol"],
-                    "analysis_date": run_date.isoformat(),
-                    "language": PUBLIC_RESEARCH_LOCALE,
-                    "evidence_ref": "public-guest-research",
-                }
-                config = {
-                    "native_config": {"checkpoint_enabled": True},
-                    "selected_analysts": ["market", "social", "news", "fundamentals"],
-                }
-                repository.create_run(
-                    user_id=principal_id,
-                    request=request,
-                    config=config,
-                    source_pin=_UPSTREAM_SOURCE_PIN,
-                    run_id=run_id,
-                )
-                self.reports.mark_pending(
-                    asset_key=key,
-                    report_kind="deep",
-                    locale=PUBLIC_RESEARCH_LOCALE,
-                    effective_date=run_date,
-                    source_run_id=run_id,
-                )
-                enqueue(run_id)
-                queued += 1
+                result = self.enqueue_claimed_deep_report(asset_key=key, effective_date=run_date)
+                queued += int(result['queued'])
+                failed += int(not result['queued'])
             except Exception:
                 logger.exception("Public deep report enqueue failed for %s", key)
                 self.reports.mark_failed(
@@ -163,7 +139,6 @@ class PublicResearchPublisher:
                     locale=PUBLIC_RESEARCH_LOCALE,
                     effective_date=run_date,
                     failure_code="enqueue_failed",
-                    source_run_id=run_id,
                 )
                 failed += 1
         return {"queued": queued, "failed": failed}
@@ -213,15 +188,8 @@ class PublicResearchPublisher:
                     pending += 1
             except Exception:
                 logger.exception("Public deep report sync failed for %s", report.get("asset_key"))
-                self.reports.mark_failed(
-                    asset_key=report["asset_key"],
-                    report_kind="deep",
-                    locale=PUBLIC_RESEARCH_LOCALE,
-                    effective_date=report["effective_date"],
-                    source_run_id=run_id,
-                    failure_code="sync_failed",
-                )
-                failed += 1
+                # Artifact/network failures do not authorize a new AI run.
+                pending += 1
         return {"published": published, "failed": failed, "pending": pending}
 
     @staticmethod

@@ -80,6 +80,7 @@
           </div>
           <a-spin :spinning="publicDeepLoading">
             <section v-if="publicDeepReport && publicDeepReport.body" class="analysis-drawer-section public-deep-report">
+              <a-alert v-if="!isCurrentResearchReport(publicDeepReport)" type="warning" show-icon :message="$t('smartInsights.reportExpiredTitle')" :description="$t('smartInsights.reportExpiredDesc')" />
               <div class="analysis-drawer-section-title"><a-icon type="file-text" /><h3>{{ publicDeepReport.title || $t('smartInsights.deepAnalysis') }}</h3></div>
               <small>{{ publicDeepReport.effectiveDate ? formatDate(publicDeepReport.effectiveDate) : $t('smartInsights.notAvailable') }}</small>
               <div class="public-report-view-switcher">
@@ -124,6 +125,7 @@
 </template>
 
 <script>
+import { reportValidity } from './reportValidity'
 import { mapState } from 'vuex'
 import storage from 'store'
 import { ACCESS_TOKEN } from '@/store/mutation-types'
@@ -284,6 +286,7 @@ export default {
     this.stopHeroSpeech()
   },
   methods: {
+    isCurrentResearchReport (report) { return reportValidity(report).actionable },
     isCurrentRequest (requestId) {
       if (requestId && typeof requestId === 'object') {
         return requestId.page === this.requestSequence && this.sectionRequests[requestId.section] === requestId

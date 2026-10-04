@@ -253,14 +253,14 @@ def default_collector_registry(*, repository: SmartInsightsRepository | None = N
 
 
 def execute_refresh(run_id: str) -> dict:
+    from .snapshot_pipeline import SnapshotMaterializer
     repository = SmartInsightsRepository()
     return RefreshCoordinator(
         repository=repository,
         collector_registry=default_collector_registry(repository=repository),
-        # Market Pulse still needs source observations, but Smart Insights no
-        # longer turns them into a second opinion/snapshot engine.  Asset
-        # opinions and the daily brief now come solely from AI Assistant.
-        snapshot_publisher=None,
+        # Publish auditable evidence counts/links, without reviving a second
+        # directional opinion engine or issuing additional LLM calls.
+        snapshot_publisher=SnapshotMaterializer(repository=repository, include_opinions=False).publish_observations,
     ).execute(run_id)
 
 

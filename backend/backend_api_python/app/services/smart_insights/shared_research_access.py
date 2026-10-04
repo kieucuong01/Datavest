@@ -106,7 +106,13 @@ class SharedResearchAccessService:
             claimed_state = self.shared_reports.claim(asset_key, report_kind, today=today)
             claimed = bool(claimed_state["claimed"])
         if claimed:
-            self._dispatch(scope, report_kind, asset, period)
+            try:
+                self._dispatch(scope, report_kind, asset, period)
+            except Exception:
+                repository = self.public_repository if scope == 'public_common' else self.shared_reports.repository
+                period_args = {'effective_date': period} if scope == 'public_common' else {'period_key': period}
+                repository.mark_failed(asset_key=asset_key, report_kind=report_kind, locale=PUBLIC_RESEARCH_LOCALE,
+                                       failure_code='dispatch_failed', **period_args)
         state = self.state(user_id=user_id, asset_key=asset_key, report_kind=report_kind, today=today)
         return {**state, "claimed": claimed}
 

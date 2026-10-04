@@ -7,6 +7,7 @@ from datetime import date, datetime
 from typing import Any, Mapping
 
 from app.utils.db import get_db_connection
+from .report_lifecycle import RETRY_SQL, can_retry, report_validity
 
 
 PUBLIC_GUEST_ASSET_SCOPE: tuple[dict[str, str], ...] = (
@@ -70,7 +71,7 @@ class PublicResearchReportsRepository:
             try:
                 cur.execute(
                     """
-                    SELECT asset_key, report_kind, locale, effective_date, status,
+                    SELECT asset_key, report_kind, locale, effective_date, status, attempt_count, updated_at, source_run_id, failure_code,
                            payload_json, generated_at
                     FROM public_research_reports
                     WHERE asset_key = ? AND report_kind = ? AND locale = ? AND effective_date = ?
@@ -111,15 +112,32 @@ class PublicResearchReportsRepository:
             cur = db.cursor()
             try:
                 cur.execute(
-                    """
+                    f"""
                     INSERT INTO public_research_reports
                     (asset_key, report_kind, locale, effective_date, status, payload_json)
-                    VALUES (?, ?, ?, ?, 'pending', '{}'::jsonb)
-                    ON CONFLICT (asset_key, report_kind, locale, effective_date) DO NOTHING
+                    VALUES (?, ?, ?, ?, 'pending', '{{}}'::jsonb)
+                    ON CONFLICT (asset_key, report_kind, locale, effective_date) DO UPDATE
+                    SET status = 'pending', source_run_id = NULL, failure_code = NULL,
+                        updated_at = NOW(), attempt_count = public_research_reports.attempt_count + 1
+                    WHERE {RETRY_SQL.format(table='public_research_reports')}
                     RETURNING id
                     """,
                     (asset_key, report_kind, locale, _iso_date(effective_date)),
                 )
+                claimed = cur.fetchone() is not None
+                db.commit()
+                return claimed
+            finally:
+                cur.close()
+
+    def set_source_run(self, *, asset_key, report_kind, locale, effective_date, source_run_id) -> bool:
+        with get_db_connection() as db:
+            cur = db.cursor()
+            try:
+                cur.execute("""UPDATE public_research_reports SET source_run_id = ?, updated_at = NOW()
+                    WHERE asset_key = ? AND report_kind = ? AND locale = ? AND effective_date = ?
+                    AND status = 'pending' AND source_run_id IS NULL RETURNING id""",
+                    (source_run_id, asset_key, report_kind, locale, _iso_date(effective_date)))
                 claimed = cur.fetchone() is not None
                 db.commit()
                 return claimed
@@ -232,6 +250,8 @@ class PublicResearchReportsRepository:
                         source_run_id = COALESCE(EXCLUDED.source_run_id, public_research_reports.source_run_id),
                         generated_at = EXCLUDED.generated_at,
                         updated_at = NOW()
+                    WHERE public_research_reports.source_run_id IS NULL
+                       OR public_research_reports.source_run_id = EXCLUDED.source_run_id
                     """,
                     (
                         asset_key,
@@ -309,6 +329,7 @@ class PublicResearchReportsService:
             "effectiveDate": _iso_date(row.get("effective_date")),
             "generatedAt": str(row.get("generated_at") or ""),
             "isFallback": bool(is_fallback),
+            **report_validity(_iso_date(row.get('effective_date'))),
         }
         for key in _PAYLOAD_FIELDS:
             if key in payload and (safe_value := _safe_value(payload[key])) is not None:
@@ -402,7 +423,7 @@ class PublicResearchReportsService:
                 "reportKind": clean_kind,
                 "periodKey": _iso_date(effective_date),
                 "status": status,
-                "canCreate": False,
+                "canCreate": can_retry(current),
                 "report": report,
             }
         return {

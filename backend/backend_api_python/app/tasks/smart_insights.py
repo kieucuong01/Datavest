@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import os
-from datetime import date
+from datetime import date, datetime
 
 from app.celery_app import celery_app
 
@@ -105,7 +105,7 @@ def enqueue_smart_insights_refresh_for_sources(source_codes: tuple[str, ...]) ->
 
     repository = SmartInsightsRepository()
     run_id = repository.create_refresh_request(
-        requested_by_user_id=None, market="crypto", source_codes=normalized
+        requested_by_user_id=None, market=None, source_codes=normalized
     )
     run_smart_insights_refresh.delay(run_id)
     return {"queued": True, "runId": run_id, "sourceCount": len(normalized)}
@@ -140,8 +140,16 @@ def enqueue_public_deep_reports() -> dict:
 @celery_app.task(name="datavest.tasks.sync_public_deep_reports", acks_late=True)
 def sync_public_deep_reports() -> dict:
     from app.services.smart_insights.public_research_publisher import PublicResearchPublisher
+    from app.utils.timeutil import vietnam_timezone
 
-    return PublicResearchPublisher().sync_pending_deep_reports()
+    publisher = PublicResearchPublisher()
+    result = publisher.sync_pending_deep_reports()
+    now = datetime.now(vietnam_timezone())
+    # Recover the current public week only, after its scheduled Monday 08:00
+    # release. Atomic claims enforce cooldown and the three-attempt ceiling.
+    if now.weekday() != 0 or now.hour >= 8:
+        result['recovery'] = publisher.enqueue_weekly_deep_reports()
+    return result
 
 
 @celery_app.task(name="datavest.tasks.sync_shared_deep_reports", acks_late=True)

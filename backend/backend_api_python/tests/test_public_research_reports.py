@@ -120,6 +120,10 @@ def test_public_projection_drops_internal_payload_fields():
         "summary": "An toàn",
         "body": "Nội dung công khai",
         "isFallback": False,
+        "validUntil": "2026-09-14T00:00:00+07:00",
+        "freshness": "STALE",
+        "isExpired": True,
+        "actionable": False,
     }
 
 

@@ -86,6 +86,7 @@ def build_snapshot_draft(
     market: str,
     mode: str,
     as_of: datetime,
+    include_opinions: bool = True,
 ) -> SnapshotDraft:
     if not evidence:
         raise EvidencePolicyError("MISSING_EVIDENCE")
@@ -124,7 +125,7 @@ def build_snapshot_draft(
             groups[str(item["symbol"])].append(item)
 
     opinions: list[OpinionDraft] = []
-    for symbol in sorted(groups):
+    for symbol in sorted(groups) if include_opinions else []:
         rows = groups[symbol]
         symbol_metrics = sorted(
             {
@@ -163,12 +164,12 @@ def build_snapshot_draft(
         "metrics": metrics,
         "directionalModelStatus": "UNAVAILABLE",
     }
-    status = "COMPLETE" if opinions else "PARTIAL"
+    status = "COMPLETE" if opinions or not include_opinions else "PARTIAL"
     return SnapshotDraft(
         as_of=as_of.astimezone(timezone.utc),
         market=market.lower(),
         status=status,
-        methodology_version=METHODOLOGY_VERSION,
+        methodology_version=METHODOLOGY_VERSION if include_opinions else 'datavest-evidence-snapshot-v2',
         summary=summary,
         evidence_checksum=evidence_checksum,
         data_class=data_class,
@@ -178,9 +179,10 @@ def build_snapshot_draft(
 
 
 class SnapshotMaterializer:
-    def __init__(self, *, repository: SnapshotRepository, clock=None) -> None:
+    def __init__(self, *, repository: SnapshotRepository, clock=None, include_opinions=True) -> None:
         self.repository = repository
         self.clock = clock or (lambda: datetime.now(timezone.utc))
+        self.include_opinions = include_opinions
 
     def publish_for_run(self, run_id: str) -> list[dict[str, object]]:
         return self.publish_evidence(self.repository.load_snapshot_evidence(run_id))
@@ -197,7 +199,7 @@ class SnapshotMaterializer:
         result: list[dict[str, object]] = []
         for (market, mode), rows in sorted(grouped.items()):
             as_of = max((_parse_time(row["observedAt"]) for row in rows), default=self.clock())
-            draft = build_snapshot_draft(rows, market=market, mode=mode, as_of=as_of)
+            draft = build_snapshot_draft(rows, market=market, mode=mode, as_of=as_of, include_opinions=self.include_opinions)
             snapshot_id, created = self.repository.publish_snapshot(draft)
             result.append({"snapshotId": snapshot_id, "market": market, "created": created})
         return result

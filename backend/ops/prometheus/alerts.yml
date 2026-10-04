@@ -36,6 +36,31 @@ groups:
           summary: Smart Insights crawler failed
           description: "Latest run for {{ $labels.source }} ({{ $labels.market }}) is {{ $labels.status }}."
 
+      - alert: DataVestResearchSnapshotStale
+        expr: datavest_research_output_age_seconds{kind="snapshot",key="crypto"} > 172800
+        for: 30m
+        labels:
+          severity: warning
+        annotations:
+          summary: Crypto research evidence snapshot is missing or older than two days
+
+      - alert: DataVestWeeklyResearchExpired
+        expr: datavest_research_output_age_seconds{kind="weekly_report"} > 691200
+        for: 30m
+        labels:
+          severity: warning
+        annotations:
+          summary: Public weekly research has not been renewed
+          description: "{{ $labels.key }} has no completed report within eight days."
+
+      - alert: DataVestResearchOutputProbeFailed
+        expr: datavest_research_output_probe_ok == 0
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: Research output freshness cannot be read
+
       - alert: QuantDingerHighApiErrorRate
         expr: |
           sum(rate(quantdinger_http_requests_total{status=~"5.."}[5m]))

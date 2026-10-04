@@ -42,6 +42,10 @@ class SharedResearchPublisher:
     def enqueue_claimed_deep(self, *, asset: Mapping[str, str], period_key: str) -> dict[str, Any]:
         key = public_asset_key(asset)
         run_id = uuid.uuid4().hex
+        if not self.reports.set_source_run(asset_key=key, report_kind='deep', locale=PUBLIC_RESEARCH_LOCALE,
+                                          period_key=period_key, source_run_id=run_id):
+            return {'queued': False, 'assetKey': key}
+        dispatch_attempted = False
         try:
             request = {
                 "market": _DEEP_MARKET_BY_PUBLIC_MARKET[str(asset["market"])],
@@ -53,17 +57,14 @@ class SharedResearchPublisher:
                 user_id=self._system_user_id(), request=request, config=config,
                 source_pin=_UPSTREAM_SOURCE_PIN, run_id=run_id,
             )
-            self.reports.set_source_run(
-                asset_key=key, report_kind="deep", locale=PUBLIC_RESEARCH_LOCALE,
-                period_key=period_key, source_run_id=run_id,
-            )
+            dispatch_attempted = True
             self._trading_enqueue()(run_id)
             return {"queued": True, "assetKey": key}
         except Exception:
             logger.exception("Shared deep report enqueue failed for %s", key)
             self.reports.mark_failed(
                 asset_key=key, report_kind="deep", locale=PUBLIC_RESEARCH_LOCALE,
-                period_key=period_key, failure_code="enqueue_failed", source_run_id=run_id,
+                period_key=period_key, failure_code="enqueue_failed" if dispatch_attempted else "creation_failed", source_run_id=run_id,
             )
             return {"queued": False, "assetKey": key}
 
@@ -98,11 +99,7 @@ class SharedResearchPublisher:
                     pending += 1
             except Exception:
                 logger.exception("Shared deep report sync failed for %s", report.get("asset_key"))
-                self.reports.mark_failed(
-                    asset_key=report["asset_key"], report_kind="deep", locale=PUBLIC_RESEARCH_LOCALE,
-                    period_key=str(report["period_key"]), source_run_id=run_id, failure_code="sync_failed",
-                )
-                failed += 1
+                pending += 1
         return {"published": published, "failed": failed, "pending": pending}
 
     @staticmethod

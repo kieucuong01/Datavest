@@ -343,6 +343,9 @@ function publicDeepReport (item) {
     analysisDate: source.effectiveDate || source.effective_date || null,
     effectiveDate: source.effectiveDate || source.effective_date || null,
     generatedAt: source.generatedAt || source.generated_at || null,
+    validUntil: source.validUntil || null,
+    isExpired: source.isExpired === true,
+    actionable: source.actionable,
     createdAt: source.generatedAt || source.generated_at || null,
     updatedAt: source.generatedAt || source.generated_at || null,
     inputData: { capturedAt: source.generatedAt || source.generated_at || null, components: [] }

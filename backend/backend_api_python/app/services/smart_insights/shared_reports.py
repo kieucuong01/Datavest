@@ -15,6 +15,8 @@ from app.services.smart_insights.public_reports import (
     PUBLIC_RESEARCH_REPORT_KINDS,
 )
 from app.utils.db import get_db_connection
+from app.utils.timeutil import vietnam_calendar_date
+from .report_lifecycle import RETRY_SQL, can_retry, report_validity
 
 
 _PAYLOAD_FIELDS = frozenset(
@@ -42,7 +44,7 @@ def _safe_value(value: Any) -> Any:
 
 def reporting_period_key(report_kind: str, *, today: date | None = None) -> str:
     """Return the Monday of the Vietnamese calendar week for deep research."""
-    current = today or date.today()
+    current = today or date.fromisoformat(vietnam_calendar_date())
     kind = str(report_kind or "").strip().lower()
     if kind not in PUBLIC_RESEARCH_REPORT_KINDS:
         raise ValueError("unsupported_shared_report_kind")
@@ -58,7 +60,7 @@ class SharedResearchReportsRepository:
             try:
                 cur.execute(
                     """
-                    SELECT asset_key, report_kind, locale, period_key, status,
+                    SELECT asset_key, report_kind, locale, period_key, status, attempt_count, updated_at, source_run_id, failure_code,
                            payload_json, generated_at
                     FROM shared_watchlist_research_reports
                     WHERE asset_key = ? AND report_kind = ? AND locale = ? AND period_key = ?
@@ -96,11 +98,14 @@ class SharedResearchReportsRepository:
             cur = db.cursor()
             try:
                 cur.execute(
-                    """
+                    f"""
                     INSERT INTO shared_watchlist_research_reports
                     (asset_key, report_kind, locale, period_key, status, payload_json)
-                    VALUES (?, ?, ?, ?, 'pending', '{}'::jsonb)
-                    ON CONFLICT (asset_key, report_kind, locale, period_key) DO NOTHING
+                    VALUES (?, ?, ?, ?, 'pending', '{{}}'::jsonb)
+                    ON CONFLICT (asset_key, report_kind, locale, period_key) DO UPDATE
+                    SET status = 'pending', source_run_id = NULL, failure_code = NULL,
+                        updated_at = NOW(), attempt_count = shared_watchlist_research_reports.attempt_count + 1
+                    WHERE {RETRY_SQL.format(table='shared_watchlist_research_reports')}
                     RETURNING id
                     """,
                     (asset_key, report_kind, locale, period_key),
@@ -131,7 +136,7 @@ class SharedResearchReportsRepository:
 
     def set_source_run(
         self, *, asset_key: str, report_kind: str, locale: str, period_key: str, source_run_id: str,
-    ) -> None:
+    ) -> bool:
         with get_db_connection() as db:
             cur = db.cursor()
             try:
@@ -140,11 +145,14 @@ class SharedResearchReportsRepository:
                     UPDATE shared_watchlist_research_reports
                     SET source_run_id = ?, updated_at = NOW()
                     WHERE asset_key = ? AND report_kind = ? AND locale = ? AND period_key = ?
-                      AND status = 'pending'
+                      AND status = 'pending' AND source_run_id IS NULL
+                    RETURNING id
                     """,
                     (str(source_run_id)[:128], asset_key, report_kind, locale, period_key),
                 )
+                claimed = cur.fetchone() is not None
                 db.commit()
+                return claimed
             finally:
                 cur.close()
 
@@ -183,11 +191,12 @@ class SharedResearchReportsRepository:
                         generated_at = CASE WHEN ? = 'complete' THEN NOW() ELSE generated_at END,
                         updated_at = NOW()
                     WHERE asset_key = ? AND report_kind = ? AND locale = ? AND period_key = ?
+                      AND (source_run_id IS NULL OR source_run_id = ?)
                     """,
                     (
                         status, clean_payload, str(failure_code or "")[:80] or None,
                         str(source_run_id or "")[:128] or None, status,
-                        asset_key, report_kind, locale, period_key,
+                        asset_key, report_kind, locale, period_key, str(source_run_id or '')[:128] or None,
                     ),
                 )
                 db.commit()
@@ -224,6 +233,7 @@ class SharedResearchReportsService:
             "locale": str(row.get("locale") or PUBLIC_RESEARCH_LOCALE),
             "effectiveDate": _iso_date(row.get("period_key")),
             "generatedAt": str(row.get("generated_at") or ""),
+            **report_validity(_iso_date(row.get('period_key'))),
         }
         for key in _PAYLOAD_FIELDS:
             if key in payload and (safe_value := _safe_value(payload[key])) is not None:
@@ -244,7 +254,7 @@ class SharedResearchReportsService:
             report = self.project(current) if status == "complete" else (self.project(latest) if latest else None)
             return {
                 "assetKey": key, "reportKind": kind, "periodKey": period,
-                "status": status, "canCreate": False, "report": report,
+                "status": status, "canCreate": can_retry(current), "report": report,
             }
         return {
             "assetKey": key, "reportKind": kind, "periodKey": period,
