@@ -475,6 +475,9 @@ export default {
     },
     '$route.path' (path) {
       this.syncLiveAssetPolling(path)
+    },
+    '$route.fullPath' () {
+      if (this.isMobile) this.closeMobileMenu()
     }
   },
   mounted () {

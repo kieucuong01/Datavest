@@ -1770,6 +1770,13 @@ export default {
       justify-content: space-between;
       line-height: 20px;
     }
+    @media (max-width: 480px) {
+      .legal-header {
+        align-items: flex-start;
+        flex-direction: column;
+        gap: 4px;
+      }
+    }
     .legal-title {
       font-size: 13px;
       font-weight: 600;

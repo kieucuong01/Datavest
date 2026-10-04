@@ -24,6 +24,7 @@
         </a-tooltip>
       </div>
       <div class="chart-content-area">
+        <div class="indicator-scroll-hint">{{ $t('common.swipeForMore') }}</div>
         <div class="indicator-toolbar">
           <div
             v-for="indicator in indicatorButtons"
@@ -5333,6 +5334,10 @@ registerOverlay({
   height: 20px;
 }
 
+.indicator-scroll-hint {
+  display: none;
+}
+
 .indicator-toolbar {
   flex-shrink: 0;
   display: flex;
@@ -5557,6 +5562,11 @@ registerOverlay({
 .chart-left.theme-dark .indicator-toolbar {
   background: #141414;
   border-bottom-color: #2a2a2a;
+}
+
+.chart-left.theme-dark .indicator-scroll-hint {
+  color: #a9b1bc;
+  background: #141414;
 }
 
 .indicator-btn {
@@ -5789,6 +5799,14 @@ registerOverlay({
 }
 
 @media (max-width: 768px) {
+  .indicator-scroll-hint {
+    display: block;
+    padding: 6px 12px 0;
+    color: #6b7280;
+    background: #fff;
+    font-size: 11px;
+  }
+
   .drawing-toolbar {
     display: none;
   }

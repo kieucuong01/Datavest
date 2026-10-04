@@ -78,6 +78,7 @@
       </div>
     </div>
 
+    <p class="calendar-scroll-hint">{{ $t('common.swipeForMore') }}</p>
     <div class="economic-calendar-scroll">
       <table class="economic-calendar-table">
         <colgroup>
@@ -351,6 +352,7 @@ export default {
 .calendar-custom-range input { min-height: 30px; padding: 4px 8px; border: 1px solid var(--line); border-radius: 5px; color: var(--ink); background: var(--card); font: inherit; }
 .calendar-range-separator { padding-bottom: 6px; color: var(--muted); font-size: 16px; }
 .economic-calendar-scroll { width: 100%; overflow-x: auto; }
+.calendar-scroll-hint { display: none; }
 .economic-calendar-table { width: 100%; min-width: 760px; border-collapse: collapse; table-layout: fixed; font-size: 14px; }
 .economic-calendar-table th, .economic-calendar-table td { border-bottom: 1px solid var(--line); }
 .economic-calendar-table thead th { height: 40px; padding: 0 8px; color: var(--ink); font-size: 13px; font-weight: 600; text-align: left; white-space: nowrap; }
@@ -364,5 +366,6 @@ export default {
 .calendar-state-row td { height: 100px; color: var(--muted); text-align: center; }.calendar-state-row .ant-spin { margin-right: 7px; }
 .calendar-more { display: flex; justify-content: center; padding: 12px; border-top: 1px solid var(--line); }
 .theme-dark .economic-calendar { border-color: var(--line); }.theme-dark .calendar-filter-panel { background: var(--page-bg); }.theme-dark .calendar-custom-range input { color: var(--ink); background: var(--card); }.theme-dark .calendar-event-row:hover td { background: var(--soft-blue); }
+@media (max-width: 833px) { .calendar-scroll-hint { display: block; margin: 8px 17px; color: var(--muted); font-size: 12px; } }
 @media (max-width: 680px) { .economic-calendar-toolbar { align-items: flex-start; flex-direction: column; }.calendar-select-filters { grid-template-columns: 1fr; }.calendar-select-field { grid-template-columns: 100px minmax(0, 1fr); }.economic-calendar-table { min-width: 720px; } }
 </style>

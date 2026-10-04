@@ -1,5 +1,6 @@
 export default {
   'en-US': {
+    'common.swipeForMore': 'Swipe sideways for more →',
     'menu.group.smartInsights': 'Smart Insights',
     'menu.group.aiAssistant': 'AI Assistant',
     'menu.group.chartIndicator': 'Chart & Indicator',
@@ -177,6 +178,7 @@ export default {
     'common.iconApplication': 'Brand and application icons'
   },
   'vi-VN': {
+    'common.swipeForMore': 'Vuốt ngang để xem thêm →',
     'menu.group.smartInsights': 'Thông tin chuyên sâu',
     'menu.group.aiAssistant': 'Trợ lý AI',
     'menu.group.chartIndicator': 'Biểu đồ & Chỉ báo',

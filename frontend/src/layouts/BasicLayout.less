@@ -1211,7 +1211,7 @@ body.realdark .basic-layout-wrapper .ant-layout-header .ant-menu-horizontal > .a
   background-color: var(--header-nav-active) !important;
 }
 
-/* Phone header: keep navigation and account actions inside a 375px viewport. */
+/* Phone header: keep navigation and account actions inside narrow viewports. */
 @media (max-width: 480px) {
   .basic-layout-wrapper .ant-layout-header,
   .basic-layout-wrapper .ant-pro-global-header,
@@ -1276,5 +1276,11 @@ body.realdark .basic-layout-wrapper .ant-layout-header .ant-menu-horizontal > .a
     left: min(202px, calc(100vw - 50px));
     width: 44px;
     height: 44px;
+  }
+}
+
+@media (max-width: 340px) {
+  .basic-layout-wrapper .ant-pro-global-header-trigger {
+    left: calc(50% - 24px) !important;
   }
 }

@@ -334,6 +334,10 @@ export default {
 </script>
 
 <style lang="less" scoped>
+  :deep(.ant-drawer) {
+    z-index: 1300;
+  }
+
   :deep(.ant-drawer-handle),
   :deep(.setting-drawer-index-handle) {
     display: none !important;
