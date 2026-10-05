@@ -226,6 +226,12 @@ class PortfolioDecision(BaseModel):
         default=None,
         description="Optional recommended holding period, e.g. '3-6 months'.",
     )
+    supporting_evidence: list[str] = Field(default_factory=list, max_length=3, description="Up to three concise supporting facts from the supplied evidence; include source, data period/date and original URL when supplied. Do not invent citations or values; leave empty if unavailable.")
+    counter_evidence: list[str] = Field(default_factory=list, max_length=3, description="Up to three material counterarguments grounded in the same supplied evidence, with source/date where available. Leave empty when unavailable.")
+    key_risks: list[str] = Field(default_factory=list, max_length=3, description="Up to three material risks and data gaps relevant to the final thesis. Do not present missing data as absence of risk.")
+    invalidation_conditions: list[str] = Field(default_factory=list, max_length=3, description="Up to three observable conditions that invalidate the thesis and require reassessment. Use conditional statements, not claims the condition already occurred. Never invent numeric thresholds; leave empty if unsupported.")
+    next_watch: list[str] = Field(default_factory=list, max_length=3, description="Up to three specific disclosures or conditions to monitor next, with dates only when supplied.")
+    scenarios: list[str] = Field(default_factory=list, max_length=3, description="Optional conditional base/upside/downside scenarios tied to supplied evidence and horizon. No invented probabilities or prices.")
 
     @field_validator("price_target", mode="before")
     @classmethod
@@ -252,6 +258,13 @@ def render_pm_decision(decision: PortfolioDecision) -> str:
         parts.extend(["", f"**Price Target**: {decision.price_target}"])
     if decision.time_horizon:
         parts.extend(["", f"**Time Horizon**: {decision.time_horizon}"])
+    for heading, items in (
+        ('Supporting Evidence', decision.supporting_evidence), ('Counter Evidence', decision.counter_evidence),
+        ('Key Risks', decision.key_risks), ('Invalidation Conditions', decision.invalidation_conditions),
+        ('Next Watch', decision.next_watch), ('Scenarios', decision.scenarios),
+    ):
+        if items:
+            parts.extend(['', f'### {heading}', *(f'- {item}' for item in items)])
     return "\n".join(parts)
 
 

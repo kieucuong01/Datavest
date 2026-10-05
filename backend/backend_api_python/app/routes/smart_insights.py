@@ -14,6 +14,7 @@ from app.services.smart_insights.public_access import get_public_smart_insights_
 from app.services.smart_insights.public_reports import (
     PUBLIC_RESEARCH_ASSET_SCOPE,
     PUBLIC_RESEARCH_LOCALE,
+    PublicResearchReportsService,
     public_asset_key,
 )
 from app.services.smart_insights.operations import get_smart_insights_operations_service
@@ -293,8 +294,9 @@ def shared_deep_report_pdf(asset_key: str):
     try:
         service = _shared_research()
         _scope, asset = service.resolve_asset(_user_id(), asset_key)
-        state = service.state(user_id=_user_id(), asset_key=asset_key, report_kind="deep")
-        report = state.get("report") or {}
+        effective_date = _public_effective_date()
+        report = (service.report_for_date(user_id=_user_id(), asset_key=asset_key, effective_date=effective_date) if effective_date
+                  else service.state(user_id=_user_id(), asset_key=asset_key, report_kind='deep').get('report')) or {}
         body = str(report.get("body") or "").strip()
         if not body:
             return _fail("shared_report_not_found", 404)
@@ -324,8 +326,9 @@ def shared_deep_summary_pdf(asset_key: str):
     try:
         service = _shared_research()
         _scope, asset = service.resolve_asset(_user_id(), asset_key)
-        state = service.state(user_id=_user_id(), asset_key=asset_key, report_kind="deep")
-        report = state.get("report") or {}
+        effective_date = _public_effective_date()
+        report = (service.report_for_date(user_id=_user_id(), asset_key=asset_key, effective_date=effective_date) if effective_date
+                  else service.state(user_id=_user_id(), asset_key=asset_key, report_kind='deep').get('report')) or {}
         body = str(report.get("body") or "").strip()
         if not body:
             return _fail("shared_report_not_found", 404)
@@ -361,6 +364,38 @@ def shared_research_report(asset_key: str, report_kind: str):
     except Exception:
         logger.exception("shared smart insights report read failed")
         return _fail("smart_insights_unavailable", 503)
+
+
+@smart_insights_blp.route('/research/reports/<path:asset_key>/deep/previous', methods=['GET'])
+@login_required
+def previous_shared_research_report(asset_key: str):
+    try:
+        before = _public_effective_date()
+        if not before:
+            return _fail('invalid_public_report_date', 400)
+        return _ok(_shared_research().previous_report(user_id=_user_id(), asset_key=asset_key, before_date=before))
+    except ValueError:
+        return _fail('shared_report_not_found', 404)
+    except Exception:
+        logger.exception('Previous shared research unavailable')
+        return _fail('smart_insights_unavailable', 503)
+
+
+@smart_insights_blp.route('/public/reports/<path:asset_key>/deep/previous', methods=['GET'])
+def previous_public_research_report(asset_key: str):
+    try:
+        service = PublicResearchReportsService()
+        key, kind, locale = service._validate(asset_key, 'deep', PUBLIC_RESEARCH_LOCALE)
+        before = _public_effective_date()
+        if not before:
+            return _fail('invalid_public_report_date', 400)
+        row = service.repository.previous_completed(asset_key=key, report_kind=kind, locale=locale, before_date=before.isoformat())
+        return _ok(service.public_projection(row) if row else None)
+    except ValueError:
+        return _fail('public_report_not_found', 404)
+    except Exception:
+        logger.exception('Previous public research unavailable')
+        return _fail('smart_insights_unavailable', 503)
 
 
 @smart_insights_blp.route("/research/reports/<path:asset_key>/<string:report_kind>", methods=["POST"])

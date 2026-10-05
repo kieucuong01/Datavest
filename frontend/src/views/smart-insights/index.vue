@@ -73,7 +73,7 @@
         </div>
 
         <template>
-          <div class="analysis-deep-intro">
+          <div v-if="publicDeepReportView === 'full'" class="analysis-deep-intro">
             <div>
               <strong>{{ $t('smartInsights.deepAnalysis') }}</strong>
               <span>{{ $t('smartInsights.deepEngine') }}</span>
@@ -85,7 +85,6 @@
               <a-alert v-if="!isCurrentResearchReport(publicDeepReport)" type="warning" show-icon :message="$t('smartInsights.reportExpiredTitle')" :description="$t('smartInsights.reportExpiredDesc')" />
               <div class="analysis-drawer-section-title"><a-icon type="file-text" /><h3>{{ publicDeepReport.title || $t('smartInsights.deepAnalysis') }}</h3></div>
               <small>{{ publicDeepReport.effectiveDate ? formatDate(publicDeepReport.effectiveDate) : $t('smartInsights.notAvailable') }}</small>
-              <hose-research-evidence :evidence="publicDeepReport.researchEvidence" />
               <div class="public-report-view-switcher">
                 <a-radio-group v-model="publicDeepReportView" button-style="solid" size="small" :aria-label="$t('tradingAgents.reportViewLabel')">
                   <a-radio-button value="summary">{{ $t('tradingAgents.summaryView') }}</a-radio-button>
@@ -93,9 +92,21 @@
                 </a-radio-group>
                 <span>{{ $t(publicDeepReportView === 'summary' ? 'tradingAgents.summaryViewHint' : 'tradingAgents.fullViewHint') }}</span>
               </div>
+              <research-decision-brief
+                v-if="publicDeepReportView === 'summary'"
+                :report="readerBriefReport"
+                :previous-report="publicDeepPreviousReport"
+                :comparison-loading="previousReportLoading"
+                :comparison-error="previousReportError"
+                @retry-comparison="loadPreviousDeepReport(selectedOpinionRow, publicDeepReport, publicDeepRequestId)"
+                @open-full="publicDeepReportView = 'full'" />
+              <hose-research-evidence v-if="publicDeepReportView === 'full'" :evidence="publicDeepReport.researchEvidence" />
               <report-pdf-reader
+                v-if="publicDeepReportView === 'full'"
+                :run-id="!isGuest && selectedOpinionRow.deepState && selectedOpinionRow.deepState.scope === 'account_private' ? publicDeepReport.accountRunId : ''"
                 :public-asset-key="isGuest ? selectedOpinionRow.publicAssetKey : ''"
-                :shared-asset-key="!isGuest ? selectedOpinionRow.sharedResearchAssetKey : ''"
+                :shared-asset-key="!isGuest && selectedOpinionRow.deepState && selectedOpinionRow.deepState.scope !== 'account_private' ? selectedOpinionRow.sharedResearchAssetKey : ''"
+                :effective-date="publicDeepReport.effectiveDate || ''"
                 :variant="publicDeepReportView"
                 :pdf-revision="publicDeepPdfRevision"
                 :active="analysisModalVisible && analysisMode === 'deep'"
@@ -136,7 +147,7 @@ import { hasAccessToken } from '@/utils/guestAccess'
 import { openAuthModal } from '@/utils/authModal'
 import { getEconomicCalendar } from '@/api/global-market'
 import { calendarCacheFresh } from './calendarRefresh'
-import { getPublicResearchReport, getSharedResearchReports, getSmartInsightsCryptoPulse, getSmartInsightsDates, getSmartInsightsEvidence, getSmartInsightsOverview } from '@/api/smart-insights'
+import { getPreviousResearchReport, getPublicResearchReport, getSharedResearchReports, getSmartInsightsCryptoPulse, getSmartInsightsDates, getSmartInsightsEvidence, getSmartInsightsOverview } from '@/api/smart-insights'
 import { getTradingAgentsArtifact, getTradingAgentsRuns } from '@/api/trading-agents'
 import { runSectionLoaders } from './loadingCoordinator'
 import { formatVietnamDate, formatVietnamDateTime } from '@/utils/vietnamTime'
@@ -148,6 +159,7 @@ import DeepAnalysisPanel from '@/components/TradingAgents/DeepAnalysisPanel'
 import ReportPdfReader from '@/components/TradingAgents/ReportPdfReader'
 import HoseWatchlistSection from './components/HoseWatchlistSection.vue'
 import HoseResearchEvidence from '@/components/TradingAgents/HoseResearchEvidence.vue'
+import ResearchDecisionBrief from '@/components/TradingAgents/ResearchDecisionBrief.vue'
 
 function isCurrentRequestToken (requestId, activeRequestId) {
   return requestId === activeRequestId
@@ -155,7 +167,7 @@ function isCurrentRequestToken (requestId, activeRequestId) {
 
 export default {
   name: 'SmartInsights',
-  components: { AssetOpinionsSection, EconomicCalendarTable, MarketPulseSection, DeepAnalysisPanel, ReportPdfReader, HoseWatchlistSection, HoseResearchEvidence },
+  components: { AssetOpinionsSection, EconomicCalendarTable, MarketPulseSection, DeepAnalysisPanel, ReportPdfReader, HoseWatchlistSection, HoseResearchEvidence, ResearchDecisionBrief },
   data () {
     return {
       asOf: undefined,
@@ -181,7 +193,10 @@ export default {
       sharedResearchStates: [],
       accountDeepReports: [],
       publicDeepReport: null,
-      publicDeepReportView: 'full',
+      publicDeepReportView: 'summary',
+      publicDeepPreviousReport: null,
+      previousReportLoading: false,
+      previousReportError: false,
       publicDeepPdfRevision: 0,
       publicDeepLoading: false,
       publicDeepError: '',
@@ -225,7 +240,19 @@ export default {
     isDarkTheme () { return this.navTheme === 'dark' || this.navTheme === 'realdark' },
     useSharedReportReader () {
       const state = this.selectedOpinionRow && this.selectedOpinionRow.deepState
-      return this.isGuest || Boolean(state && state.scope !== 'account_private' && state.report && state.report.body)
+      return this.isGuest || Boolean(state && state.report && state.report.body)
+    },
+    readerBriefReport () {
+      const row = this.selectedOpinionRow || {}
+      return {
+        ...this.publicDeepReport,
+        assetKey: row.sharedResearchAssetKey || row.publicAssetKey || opinionAssetKey(row),
+        symbol: row.symbol,
+        displaySymbol: row.displaySymbol,
+        market: row.market,
+        locale: this.publicDeepReport && this.publicDeepReport.locale || 'vi-VN',
+        reportKind: 'deep'
+      }
     },
     pulseCoreReady () { return Boolean(this.cryptoPulse && this.cryptoPulse.loadStage && this.cryptoPulse.loadStage !== 'summary') },
     hasOverview () { return Boolean(this.overview && this.overview.status !== 'UNAVAILABLE') },
@@ -452,6 +479,8 @@ export default {
           : String((artifactResponse && artifactResponse.data) || '')
         if (!body.trim()) return null
         const generatedAt = completed.finished_at || completed.created_at || completed.analysis_date
+        const previousRun = runs.filter(run => run.status === 'succeeded' && run.analysis_date < completed.analysis_date && run.language === completed.language)
+          .sort((a, b) => String(b.analysis_date).localeCompare(String(a.analysis_date)))[0] || null
         return {
           assetKey,
           report: {
@@ -460,6 +489,13 @@ export default {
             scope: 'account_private',
             status: 'completed',
             body: body.trim(),
+            assetKey,
+            market: asset.market,
+            symbol: asset.symbol,
+            reportKind: 'deep',
+            locale: completed.language || 'en-US',
+            researchEvidence: completed.researchEvidence || null,
+            accountPreviousRun: previousRun,
             summary: '',
             decision: null,
             analysisDate: completed.analysis_date || null,
@@ -642,7 +678,13 @@ export default {
       const refreshed = this.opinionRows.find(row => row.id === this.selectedOpinionRow.id)
       if (!refreshed) return
       this.selectedOpinionRow = refreshed
-      this.publicDeepReport = (refreshed.deepState && refreshed.deepState.report) || null
+      const nextReport = (refreshed.deepState && refreshed.deepState.report) || null
+      const old = this.publicDeepReport
+      if (!old || !nextReport || old.body !== nextReport.body || old.effectiveDate !== nextReport.effectiveDate || old.generatedAt !== nextReport.generatedAt) {
+        this.publicDeepReport = nextReport
+        this.publicDeepPreviousReport = null
+        if (nextReport && this.analysisModalVisible) this.loadPreviousDeepReport(refreshed, nextReport, this.publicDeepRequestId)
+      }
       if (this.publicDeepReport) this.publicDeepPdfRevision++
     },
     async openAssetAnalysis (row) {
@@ -650,7 +692,10 @@ export default {
       if (this.isGuest && row.researchInDevelopment) return
       this.selectedOpinionRow = row
       this.publicDeepReport = null
-      this.publicDeepReportView = 'full'
+      this.publicDeepReportView = 'summary'
+      this.publicDeepPreviousReport = null
+      this.previousReportLoading = false
+      this.previousReportError = false
       this.publicDeepPdfRevision++
       this.publicDeepError = ''
       this.deepAnalysisTarget = {
@@ -672,10 +717,37 @@ export default {
         const response = this.isGuest ? await getPublicResearchReport(row.publicAssetKey, 'deep') : null
         if (requestId !== this.publicDeepRequestId || !this.analysisModalVisible || this.selectedOpinionRow !== row) return
         this.publicDeepReport = this.isGuest ? (response && response.code === 1 ? response.data : null) : ((row.deepState && row.deepState.report) || null)
+        if (this.publicDeepReport) this.loadPreviousDeepReport(row, this.publicDeepReport, requestId)
       } catch (error) {
         if (requestId === this.publicDeepRequestId && this.analysisModalVisible && this.selectedOpinionRow === row) this.publicDeepError = this.$t('smartInsights.aiReportUnavailable')
       } finally {
         if (requestId === this.publicDeepRequestId) this.publicDeepLoading = false
+      }
+    },
+    async loadPreviousDeepReport (row, report, requestId) {
+      this.publicDeepPreviousReport = null
+      this.previousReportError = false
+      this.previousReportLoading = true
+      try {
+        let previous = null
+        if (!this.isGuest && row.deepState && row.deepState.scope === 'account_private') {
+          const run = report.accountPreviousRun
+          if (run) {
+            const response = await getTradingAgentsArtifact(run.run_id, 'complete_report.md')
+            const body = typeof response === 'string' ? response : String(response && response.data || '')
+            if (!body.trim()) throw new Error('prior report empty')
+            previous = { assetKey: report.assetKey, reportKind: 'deep', locale: report.locale, effectiveDate: run.analysis_date, body }
+          }
+        } else {
+          const response = await getPreviousResearchReport(row.sharedResearchAssetKey || row.publicAssetKey, report.effectiveDate, !this.isGuest)
+          if (!response || response.code !== 1) throw new Error('prior report unavailable')
+          previous = response.data
+        }
+        if (requestId === this.publicDeepRequestId && this.analysisModalVisible && this.publicDeepReport === report) this.publicDeepPreviousReport = previous
+      } catch (_) {
+        if (requestId === this.publicDeepRequestId && this.publicDeepReport === report) this.previousReportError = true
+      } finally {
+        if (requestId === this.publicDeepRequestId && this.publicDeepReport === report) this.previousReportLoading = false
       }
     },
     openBriefHighlight (highlight) {

@@ -98,13 +98,18 @@ export function requestSharedResearchReport (assetKey, reportKind) {
   })
 }
 
-export function getSharedResearchReportPdf (assetKey, revision, variant = 'full') {
+export function getSharedResearchReportPdf (assetKey, revision, variant = 'full', effectiveDate) {
   const suffix = variant === 'summary' ? 'deep-summary.pdf' : 'deep.pdf'
   return request({
     url: `/api/smart-insights/research/reports/${encodeURIComponent(String(assetKey || ''))}/${suffix}`,
     method: 'get',
-    params: { lang: 'vi-VN', r: revision },
+    params: { lang: 'vi-VN', r: revision, date: effectiveDate },
     responseType: 'blob',
     timeout: 120000
   })
+}
+
+export function getPreviousResearchReport (assetKey, beforeDate, shared = false) {
+  const scope = shared ? 'research' : 'public'
+  return request({ url: `/api/smart-insights/${scope}/reports/${encodeURIComponent(String(assetKey || ''))}/deep/previous`, method: 'get', params: { date: beforeDate, lang: 'vi-VN' } })
 }

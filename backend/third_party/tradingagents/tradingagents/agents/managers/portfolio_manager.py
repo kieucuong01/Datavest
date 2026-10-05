@@ -64,6 +64,8 @@ def create_portfolio_manager(llm):
 
 Ground every conclusion in specific evidence from the analysts. Commit to a directional call only when the evidence clearly supports one; choose Hold when the case is balanced, materially conflicting, ambiguous, or insufficient to justify changing exposure, rather than forcing a direction to appear decisive. Weigh the analysts on their merits, independent of speaking order.
 
+Include a compact decision brief in this same decision: Supporting Evidence, Counter Evidence, Key Risks, Invalidation Conditions, Next Watch and optional Scenarios. Keep each section to at most three concise items. Reuse only the supplied evidence and retain its source, data date/period and original link when available. Leave unavailable sections empty. Conditions and scenarios are conditional, not observations of events that have occurred. Never invent numeric thresholds, source links, dates, probability/confidence scores, or changes from a prior report that is not supplied. These headings must remain recognizable even in a free-text response.
+
 {NO_EXTERNAL_TOOLS}{get_language_instruction()}"""
 
         final_trade_decision = invoke_structured_or_freetext(

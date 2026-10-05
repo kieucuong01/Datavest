@@ -94,6 +94,23 @@ class SharedResearchAccessService:
             states.append({**self.state(user_id=user_id, asset_key=key, report_kind="deep", today=today), "asset": asset})
         return states
 
+    def report_for_date(self, *, user_id: int, asset_key: str, effective_date: date) -> dict[str, Any] | None:
+        scope, _asset = self.resolve_asset(user_id, asset_key)
+        if scope == 'public_common':
+            return self.public_reports.get_for_date(asset_key, 'deep', effective_date)
+        row = self.shared_reports.repository.current(asset_key=asset_key, report_kind='deep',
+                                                    locale=PUBLIC_RESEARCH_LOCALE, period_key=effective_date.isoformat())
+        return self.shared_reports.project(row) if row and row.get('status') == 'complete' else None
+
+    def previous_report(self, *, user_id: int, asset_key: str, before_date: date) -> dict[str, Any] | None:
+        scope, _asset = self.resolve_asset(user_id, asset_key)
+        repository = self.public_repository if scope == 'public_common' else self.shared_reports.repository
+        row = repository.previous_completed(asset_key=asset_key, report_kind='deep', locale=PUBLIC_RESEARCH_LOCALE,
+                                            before_date=before_date.isoformat())
+        if not row:
+            return None
+        return self.public_reports.public_projection(row) if scope == 'public_common' else self.shared_reports.project(row)
+
     def request(self, *, user_id: int, asset_key: str, report_kind: str, today: date | None = None) -> dict[str, Any]:
         scope, asset = self.resolve_asset(user_id, asset_key)
         period = reporting_period_key(report_kind, today=today)

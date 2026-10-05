@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import vm from 'node:vm'
 import { readFileSync } from 'node:fs'
+import { comparablePreviousReport } from '../../src/utils/researchDecisionBrief.js'
 
 // Execute the real component methods with controlled network/timers. Rendered
 // accordion/mobile behavior is also covered by browser acceptance.
@@ -10,7 +11,7 @@ function panel (api = {}) {
   const script = source.split('<script>')[1].split('</script>')[0]
     .replace(/import[\s\S]*?from ['"][^'"]+['"]/g, '')
     .replace('export default', 'globalThis.component =')
-  const context = { ReportPdfReader: {}, HoseResearchEvidence: {}, ...api, window: { clearInterval () {}, setInterval () { return 1 } } }
+  const context = { ReportPdfReader: {}, HoseResearchEvidence: {}, ResearchDecisionBrief: {}, ...api, window: { clearInterval () {}, setInterval () { return 1 } } }
   vm.runInNewContext(script, context)
   const definition = context.component
   const instance = { ...definition.data(), visible: true, $t: key => key, $emit: () => {}, run: { run_id: 'run-1', status: 'running' } }
@@ -61,6 +62,40 @@ test('missing and failed report artifacts have a retryable state, not an infinit
   await instance.loadReport(instance.run)
   assert.equal(instance.reportError, false)
   assert.equal(instance.reportContent, '# Report')
+})
+
+test('decision brief always reads the complete report artifact even when logs come first', async () => {
+  const requested = []
+  const { instance } = panel({ getTradingAgentsArtifact: async (run, artifact) => { requested.push(artifact); return '## V. Portfolio Manager Decision\n**Rating**: HOLD' } })
+  instance.run = { run_id: 'run-1', status: 'succeeded', artifacts: [{ artifact_name: 'events.json' }, { artifact_name: 'complete_report.md' }] }
+  await instance.loadReport(instance.run)
+  assert.deepEqual(requested, ['complete_report.md'])
+})
+
+test('prior private comparison selects the matching earlier period and ignores responses after switching runs', async () => {
+  let resolve
+  const requested = []
+  const { instance } = panel({ comparablePreviousReport, getTradingAgentsArtifact: (run, artifact) => {
+    requested.push([run, artifact])
+    return new Promise(done => { resolve = done })
+  } })
+  instance.run = { run_id: 'current', status: 'succeeded' }
+  instance.briefReport = { market: 'VNStock', symbol: 'FPT', effectiveDate: '2026-10-05', locale: 'vi-VN', reportKind: 'deep' }
+  const prior = { source: 'ACCOUNT_PRIVATE_REPORT', market: 'VNStock', symbol: 'FPT', language: 'vi-VN', status: 'succeeded' }
+  instance.historyReports = [
+    { ...prior, run_id: 'future', analysis_date: '2026-10-12' },
+    { ...prior, run_id: 'other-locale', analysis_date: '2026-10-04', language: 'en-US' },
+    { ...prior, run_id: 'prior', analysis_date: '2026-09-28' },
+    { ...prior, run_id: 'old', analysis_date: '2026-09-21' }
+  ]
+  const pending = instance.loadPreviousReport(instance.run)
+  assert.deepEqual(requested, [['prior', 'complete_report.md']])
+  instance.historyRequestId++
+  instance.run = { run_id: 'another', status: 'succeeded' }
+  instance.previousReport = { body: 'new context' }
+  resolve('old response')
+  await pending
+  assert.equal(instance.previousReport.body, 'new context')
 })
 
 test('late cancel response cannot mark another asset run cancelled', async () => {

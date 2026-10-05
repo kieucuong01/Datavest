@@ -59,6 +59,21 @@ def _safe_value(value: Any) -> Any:
 class PublicResearchReportsRepository:
     """Persist public reports without touching account-owned history tables."""
 
+    def previous_completed(self, *, asset_key: str, report_kind: str, locale: str, before_date: str) -> dict[str, Any] | None:
+        with get_db_connection() as db:
+            cur = db.cursor()
+            try:
+                cur.execute('''SELECT asset_key, report_kind, locale, effective_date, status, payload_json, generated_at
+                               FROM public_research_reports
+                               WHERE asset_key = ? AND report_kind = ? AND locale = ? AND status = 'complete'
+                                 AND effective_date < ?
+                               ORDER BY effective_date DESC, id DESC LIMIT 1''',
+                            (asset_key, report_kind, locale, _iso_date(before_date)))
+                row = cur.fetchone()
+                return dict(row) if row else None
+            finally:
+                cur.close()
+
     def latest_completed(self, *, asset_key: str, report_kind: str, locale: str) -> dict[str, Any] | None:
         return self._latest(asset_key=asset_key, report_kind=report_kind, locale=locale, completed_only=True)
 

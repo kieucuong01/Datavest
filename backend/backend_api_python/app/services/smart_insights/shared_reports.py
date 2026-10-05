@@ -54,6 +54,21 @@ def reporting_period_key(report_kind: str, *, today: date | None = None) -> str:
 class SharedResearchReportsRepository:
     """PostgreSQL repository with an atomic pending-period claim."""
 
+    def previous_completed(self, *, asset_key: str, report_kind: str, locale: str, before_date: str) -> dict[str, Any] | None:
+        with get_db_connection() as db:
+            cur = db.cursor()
+            try:
+                cur.execute('''SELECT asset_key, report_kind, locale, period_key, status, payload_json, generated_at
+                               FROM shared_watchlist_research_reports
+                               WHERE asset_key = ? AND report_kind = ? AND locale = ? AND status = 'complete'
+                                 AND period_key < ?
+                               ORDER BY period_key DESC, id DESC LIMIT 1''',
+                            (asset_key, report_kind, locale, _iso_date(before_date)))
+                row = cur.fetchone()
+                return dict(row) if row else None
+            finally:
+                cur.close()
+
     def current(self, *, asset_key: str, report_kind: str, locale: str, period_key: str) -> dict[str, Any] | None:
         with get_db_connection() as db:
             cur = db.cursor()

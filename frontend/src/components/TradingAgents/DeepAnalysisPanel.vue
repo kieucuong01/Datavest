@@ -197,12 +197,20 @@
             </a-radio-group>
             <span>{{ $t(reportView === 'summary' ? 'tradingAgents.summaryViewHint' : 'tradingAgents.fullViewHint') }}</span>
           </div>
-          <div class="report-meta-grid">
+          <research-decision-brief
+            v-if="reportView === 'summary'"
+            :report="briefReport"
+            :previous-report="previousReport"
+            :comparison-loading="previousReportLoading"
+            :comparison-error="previousReportError"
+            @retry-comparison="loadPreviousReport(run)"
+            @open-full="reportView = 'full'" />
+          <div v-if="reportView === 'full'" class="report-meta-grid">
             <div><span>{{ $t('tradingAgents.reportDate') }}</span><strong>{{ reportDate }}</strong></div>
             <div><span>{{ $t('tradingAgents.reportSource') }}</span><strong>{{ $t('tradingAgents.nativeGraph') }}</strong></div>
             <div><span>{{ $t('tradingAgents.reportRunId') }}</span><strong>{{ run.run_id }}</strong></div>
           </div>
-          <section v-if="isVietnamRun && runEvidence" class="deep-analysis-evidence" aria-label="HOSE data provenance">
+          <section v-if="reportView === 'full' && isVietnamRun && runEvidence" class="deep-analysis-evidence" aria-label="HOSE data provenance">
             <div class="deep-analysis-evidence-heading">
               <span class="report-eyebrow"><a-icon type="database" /> HOSE data provenance</span>
               <span>VND · {{ runEvidence.exchange || 'HOSE' }}</span>
@@ -219,8 +227,8 @@
               </span>
             </div>
           </section>
-          <hose-research-evidence v-if="isVietnamRun" :evidence="run.researchEvidence" />
-          <report-pdf-reader :run-id="run.run_id" :variant="reportView" :active="visible" />
+          <hose-research-evidence v-if="reportView === 'full' && isVietnamRun" :evidence="run.researchEvidence" />
+          <report-pdf-reader :run-id="run.run_id" :variant="reportView" :active="visible" v-if="reportView === 'full'" />
         </section>
         <div v-else-if="run.status === 'succeeded'" class="deep-analysis-report-loading">
           <template v-if="reportError">
@@ -261,6 +269,8 @@ import { formatVietnamDateTime } from '@/utils/vietnamTime'
 import { parseUtcAwareInstant } from '@/utils/utcInstant'
 import ReportPdfReader from './ReportPdfReader.vue'
 import HoseResearchEvidence from './HoseResearchEvidence.vue'
+import ResearchDecisionBrief from './ResearchDecisionBrief.vue'
+import { comparablePreviousReport } from '@/utils/researchDecisionBrief'
 import { mergeTradingAgentsHistory, publicResearchAssetKeyForTarget } from './tradingAgentsHistory'
 
 const FULL_ANALYSTS = ['market', 'social', 'news', 'fundamentals']
@@ -281,7 +291,7 @@ function vietnamDay () {
 
 export default {
   name: 'DeepAnalysisPanel',
-  components: { ReportPdfReader, HoseResearchEvidence },
+  components: { ReportPdfReader, HoseResearchEvidence, ResearchDecisionBrief },
   props: {
     visible: { type: Boolean, default: false },
     target: { type: Object, default: null },
@@ -306,6 +316,9 @@ export default {
       reportRequest: null,
       exportingPdf: '',
       reportView: 'summary',
+      previousReport: null,
+      previousReportLoading: false,
+      previousReportError: false,
       progressTimer: null,
       progressClock: Date.now(),
       historyLoading: false,
@@ -327,6 +340,18 @@ export default {
   computed: {
     modalClass () {
       return ['trading-agents-modal', this.embedded ? 'trading-agents-modal--embedded' : '', this.dark ? 'trading-agents-modal--dark' : ''].filter(Boolean).join(' ')
+    },
+    briefReport () {
+      const run = this.run || {}
+      return {
+        market: run.market || this.normalizedTarget.market,
+        symbol: run.symbol || this.normalizedTarget.symbol,
+        effectiveDate: run.analysis_date || this.analysisDate,
+        locale: run.language || 'en-US',
+        reportKind: 'deep',
+        body: this.reportContent,
+        researchEvidence: run.researchEvidence || null
+      }
     },
     vietnamToday () { return vietnamDay() },
     contextKey () { return `${this.normalizedTarget.market}:${this.normalizedTarget.symbol}:${this.analysisDate || this.vietnamToday}:${this.$i18n.locale}` },
@@ -510,6 +535,9 @@ export default {
       this.reportRequest = null
       this.reportError = false
       this.reportView = 'summary'
+      this.previousReport = null
+      this.previousReportLoading = false
+      this.previousReportError = false
       this.errorMessage = ''
       this.historyReports = []
       this.todayRun = null
@@ -732,7 +760,7 @@ export default {
       const requestKey = `${requestId}:${run.run_id}`
       if (this.reportRequest === requestKey) return
       this.reportError = false
-      const artifact = Array.isArray(run.artifacts) ? run.artifacts.find(item => item && item.artifact_name) : null
+      const artifact = Array.isArray(run.artifacts) ? run.artifacts.find(item => item && item.artifact_name === 'complete_report.md') : null
       if (!artifact) { this.reportError = true; return }
       this.reportRequest = requestKey
       const runId = run.run_id
@@ -741,10 +769,32 @@ export default {
         if (requestId !== this.historyRequestId || !this.visible || !this.run || this.run.run_id !== runId) return
         this.reportContent = typeof response === 'string' ? response : String((response && response.data) || '')
         if (!this.reportContent.trim()) this.reportError = true
+        else this.loadPreviousReport(run)
       } catch (error) {
         if (requestId === this.historyRequestId && this.visible) this.reportError = true
       } finally {
         if (this.reportRequest === requestKey) this.reportRequest = null
+      }
+    },
+    async loadPreviousReport (run) {
+      const requestId = this.historyRequestId
+      const runId = run.run_id
+      this.previousReport = null
+      this.previousReportError = false
+      this.previousReportLoading = true
+      try {
+        const previous = this.historyReports.filter(item => item.source === 'ACCOUNT_PRIVATE_REPORT' && item.run_id !== runId &&
+          comparablePreviousReport(this.briefReport, { ...item, effectiveDate: item.analysis_date, locale: item.language || 'en-US' }))
+          .sort((a, b) => String(b.analysis_date).localeCompare(String(a.analysis_date)))[0]
+        if (!previous) return
+        const response = await getTradingAgentsArtifact(previous.run_id, 'complete_report.md')
+        const body = typeof response === 'string' ? response : String(response && response.data || '')
+        if (!body.trim()) throw new Error('prior report empty')
+        if (this.isCurrentRun(runId, requestId)) this.previousReport = { ...previous, effectiveDate: previous.analysis_date, locale: previous.language || 'en-US', reportKind: 'deep', body }
+      } catch (_) {
+        if (this.isCurrentRun(runId, requestId)) this.previousReportError = true
+      } finally {
+        if (this.isCurrentRun(runId, requestId)) this.previousReportLoading = false
       }
     },
     async exportReportPdf (variant = 'full') {
@@ -783,6 +833,24 @@ export default {
     },
     async openHistoryReport (report) {
       if (!report || !report.run_id || this.historyReportOpening) return
+      if (report.source === 'ACCOUNT_PRIVATE_REPORT') {
+        const requestId = ++this.historyRequestId
+        this.stopPolling()
+        this.historyReportOpening = report.run_id
+        this.reportContent = ''
+        this.previousReport = null
+        this.reportView = 'summary'
+        try {
+          const detail = this.unwrap(await getTradingAgentsRun(report.run_id, HISTORY_TIMEOUT_MS))
+          if (requestId !== this.historyRequestId || !this.visible) return
+          if (!detail || detail.status !== 'succeeded') throw new Error('report unavailable')
+          this.run = detail
+          await this.loadReport(detail)
+        } catch (_) {
+          if (requestId === this.historyRequestId && this.visible) this.errorMessage = this.$t('tradingAgents.historyOpenFailed')
+        } finally { if (requestId === this.historyRequestId) this.historyReportOpening = '' }
+        return
+      }
       const preview = window.open('', '_blank')
       this.writePdfLoadingPreview(preview)
       this.historyReportOpening = report.run_id

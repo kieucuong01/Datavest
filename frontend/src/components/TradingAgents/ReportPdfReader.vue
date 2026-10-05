@@ -29,6 +29,7 @@ export default {
     sharedAssetKey: { type: String, default: '' },
     variant: { type: String, default: 'full' },
     pdfRevision: { type: [Number, String], default: 0 },
+    effectiveDate: { type: String, default: '' },
     active: { type: Boolean, default: true }
   },
   data: () => ({ pdfUrl: '', pdfBlob: null, loading: false, error: false, generation: 0 }),
@@ -37,7 +38,7 @@ export default {
     active (value) { if (value) { this.reset(); this.loadPdf() } else this.reset() }
   },
   computed: {
-    pdfSource () { return `${this.sharedAssetKey || this.publicAssetKey || this.runId}:${this.variant}:${this.pdfRevision}` }
+    pdfSource () { return `${this.sharedAssetKey || this.publicAssetKey || this.runId}:${this.variant}:${this.pdfRevision}:${this.effectiveDate}` }
   },
   beforeDestroy () { this.reset() },
   methods: {
@@ -57,11 +58,11 @@ export default {
       this.error = false
       try {
         const response = this.sharedAssetKey
-          ? await getSharedResearchReportPdf(this.sharedAssetKey, revision, this.variant)
+          ? await getSharedResearchReportPdf(this.sharedAssetKey, revision, this.variant, this.effectiveDate)
           : this.publicAssetKey
           ? this.variant === 'summary'
-            ? await getPublicResearchReportSummaryPdf(this.publicAssetKey, revision)
-            : await getPublicResearchReportPdf(this.publicAssetKey, revision)
+            ? await getPublicResearchReportSummaryPdf(this.publicAssetKey, revision, this.effectiveDate)
+            : await getPublicResearchReportPdf(this.publicAssetKey, revision, this.effectiveDate)
           : this.variant === 'summary'
             ? await getTradingAgentsSummaryPdf(this.runId, revision)
             : await getTradingAgentsReportPdf(this.runId, revision)
