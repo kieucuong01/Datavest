@@ -1921,6 +1921,8 @@ def _tick_portfolio_books():
         try:
             from app.services.portfolio.history import refresh_due_books
             refresh_due_books(limit=20)
+            from app.services.portfolio.alert_sources import evaluate_due_alerts
+            evaluate_due_alerts(limit=20)
         except Exception:
             logger.warning('Portfolio books tick deferred', exc_info=True)
         finally:

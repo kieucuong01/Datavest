@@ -15,3 +15,6 @@ export const bookHistory = (id, params = {}) => request({ url: `${base}/${id}/hi
 export const refreshBookHistory = (id, data) => request({ url: `${base}/${id}/history/refresh`, method: 'post', data, timeout: 180000 })
 export const bookBenchmark = (id, params = {}) => request({ url: `${base}/${id}/benchmark`, method: 'get', params, timeout: 90000 })
 export const selectBookBenchmark = (id, data) => request({ url: `${base}/${id}/benchmark`, method: 'put', data })
+export const getAlertPreferences = id => request({ url: `${base}/${id}/alert-preferences`, method: 'get' })
+export const saveAlertPreferences = (id, data) => request({ url: `${base}/${id}/alert-preferences`, method: 'put', data })
+export const markBookNotificationRead = data => request({ url: '/api/strategies/notifications/read', method: 'post', data })

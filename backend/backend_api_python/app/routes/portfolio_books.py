@@ -78,3 +78,11 @@ def benchmark(book_id):
     svc = BenchmarkService()
     if request.method == 'PUT': return svc.select(g.user_id,book_id,body().get('key'))
     return svc.compare(g.user_id,book_id,request.args.get('key'),request.args.get('start'),request.args.get('end'))
+
+@portfolio_books_blp.route('/books/<book_id>/alert-preferences', methods=['GET','PUT'])
+@endpoint
+def alert_preferences(book_id):
+    from datetime import datetime, timezone
+    from app.services.portfolio.alert_repository import AlertRepository
+    svc = AlertRepository()
+    return svc.preferences(g.user_id,book_id) if request.method=='GET' else svc.save_preferences(g.user_id,book_id,body(),datetime.now(timezone.utc))

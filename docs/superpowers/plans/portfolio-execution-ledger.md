@@ -25,3 +25,13 @@ Task 2: complete — NAV/history/ledger/routes/VN gateway tests 33 passed; front
 Task 2 commit: 7bf6e47.
 
 Task 3: complete — focused backend 36 passed; frontend lifecycle/history 4 passed, including a late response from a previous benchmark key. Vue local fixture: explicitly selected VNINDEX, rendered 10% price return and null excess across a NAV gap, sources and common dates visible, no console errors. Changed-file lint passed. Screenshot output/portfolio-benchmark-qa.png.
+
+Task 3 commit: ceaa3ec.
+
+Task 4: Ruling: a rule change establishes a new baseline and cancels pending alerts only for rules the user disabled or an allocation threshold they replaced. Timing changes preserve the evidence queue and baseline. Cost if wrong: a current breach at the new threshold is shown in the portfolio rather than pushed retrospectively.
+
+Task 4: Ruling: report alerts preserve the existing shared-report access policy. Held assets outside public scope must also be on the current watchlist to read shared report content. Corporate events use stored source IDs and safe links for holdings/watchlist. Cost if wrong: a held asset without watchlist membership receives no shared report-content alert until added.
+
+Task 4: local verification covers baseline/restart, pending cooldown, recovery/new episode, disabled cancellation, owned notification read/mark-read and two concurrent SQLite workers creating one digest. The existing monitor hook dispatches the NAV batch and alert evaluation. Source-reader test reads stored events in user scope and preserves a future-event cursor.
+
+Task 4: complete — focused backend and report-PDF regression suite 68 passed; full frontend 343 passed; changed-file lint zero errors; Vite production build passed. Vue fixture verified opt-in, threshold change, saved state and disable, plus mobile layout at 390×844. Temporary Vite HMR errors occurred while adding exports, before the fresh reload; a final fresh-tab QA checks for current runtime errors. No production DB migration, external messages, paid analysis, push or deploy.

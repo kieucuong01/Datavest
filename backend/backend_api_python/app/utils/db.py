@@ -232,7 +232,7 @@ def _apply_init_sql(logger, *, strict: bool = False):
         vietnam_market_health_sql = _resolve_vietnam_market_health_sql_path()
         if vietnam_market_health_sql.exists():
             sql_parts.append(vietnam_market_health_sql.read_text(encoding='utf-8'))
-        for filename in ('20261005_portfolio_ledger.sql', '20261005_portfolio_nav.sql'):
+        for filename in ('20261005_portfolio_ledger.sql', '20261005_portfolio_nav.sql', '20261005_portfolio_selective_alerts.sql'):
             portfolio_sql = init_sql.parent / filename
             if portfolio_sql.exists():
                 sql_parts.append(portfolio_sql.read_text(encoding='utf-8'))

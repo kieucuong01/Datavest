@@ -863,8 +863,8 @@ def extract_portfolio_manager_decision_sections(content: str) -> dict[str, Any]:
 
     for raw_line in lines:
         line = raw_line.strip()
-        heading = re.match(r"^#{1,6}\s+(.+)$", line)
-        candidate = heading.group(1).strip() if heading else line
+        heading = re.match(r"^(#{1,6})\s+(.+)$", line)
+        candidate = heading.group(2).strip() if heading else line
         normalized = re.sub(r"^[IVXLC]+\.\s*", "", candidate, flags=re.IGNORECASE).casefold()
         is_portfolio_decision = "portfolio manager" in normalized or "quản lý danh mục" in normalized
         if is_portfolio_decision and not collecting:
@@ -884,6 +884,12 @@ def extract_portfolio_manager_decision_sections(content: str) -> dict[str, Any]:
 
     def field_key(label: str) -> str | None:
         normalized = clean(label, 160).casefold()
+        if normalized.startswith(('key risks', 'key risk', 'rủi ro chính')):
+            return 'key_risks'
+        if normalized.startswith(('invalidation', 'điều kiện vô hiệu', 'điều kiện vô hiệu hóa')):
+            return 'invalidation'
+        if normalized.startswith(('next watch', 'theo dõi tiếp', 'điểm cần theo dõi', 'điều cần theo dõi')):
+            return 'next_watch'
         if "phe bò" in normalized or re.match(r"^bull(?:\s+case)?(?:\s|:|$|\()", normalized):
             return "bull"
         if "phe gấu" in normalized or re.match(r"^bear(?:\s+case)?(?:\s|:|$|\()", normalized):
