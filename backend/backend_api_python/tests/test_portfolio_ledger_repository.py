@@ -30,6 +30,9 @@ def repository():
     sql = (Path(__file__).parents[1] / 'migrations/20261005_portfolio_ledger.sql').read_text()
     sql = sql.replace('TIMESTAMPTZ', 'TEXT').replace('BIGSERIAL PRIMARY KEY', 'INTEGER PRIMARY KEY AUTOINCREMENT').replace('REFERENCES qd_users(id)', '')
     conn.executescript(sql)
+    for name in ('20261005_portfolio_nav.sql', '20261005_portfolio_selective_alerts.sql'):
+        path = Path(__file__).parents[1] / 'migrations' / name
+        if path.exists(): conn.executescript(path.read_text().replace('TIMESTAMPTZ','TEXT').replace('BIGSERIAL PRIMARY KEY','INTEGER PRIMARY KEY AUTOINCREMENT').replace('REFERENCES qd_users(id)',''))
     @contextmanager
     def connection():
         try: yield DB(conn)

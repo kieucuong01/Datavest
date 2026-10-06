@@ -16,6 +16,16 @@ def unix(day: date, *, end=False):
 def vn_unix(day: date):
     return int(datetime.combine(day, time.min, tzinfo=ZoneInfo("Asia/Ho_Chi_Minh")).timestamp())
 
+def test_nav_raw_mode_requires_provider_confirmation_and_keeps_partial_history():
+    source = FakeVNSource([{'time':vn_unix(date(2026,10,1)),'close':100}])
+    gateway = QuantDingerOptimizerGateway(vn_source_factory=lambda:source)
+    with pytest.raises(ValueError,match='raw_price_mode_not_verified'):
+        gateway.fetch_daily(Instrument('VNStock','FPT','VND'),start_date='2026-10-01',end_date='2026-10-05',price_mode='raw')
+    source.last_price_mode = 'raw'
+    series = gateway.fetch_daily(Instrument('VNStock','FPT','VND'),start_date='2026-10-01',end_date='2026-10-05',price_mode='raw')
+    assert series.price_mode == 'raw' and series.coverage < .9
+    assert source.calls[-1][-1] == 'raw'
+
 
 class FakeVNSource:
     def __init__(self, bars, provider="yahoo-vn", attempts=("vndirect", "yahoo-vn")):

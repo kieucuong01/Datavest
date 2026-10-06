@@ -56,6 +56,7 @@ class QuantDingerOptimizerGateway:
         currency: str,
         start: date,
         end: date,
+        requested_price_mode: str = 'total_return',
     ) -> PriceSeries:
         if end < start:
             raise ValueError("vn_market_data_unavailable: invalid_date_range")
@@ -74,7 +75,7 @@ class QuantDingerOptimizerGateway:
                 limit,
                 before_time=_vn_unix(end + timedelta(days=1)),
                 after_time=_vn_unix(start),
-                price_mode="total_return",
+                price_mode=requested_price_mode,
             )
         except Exception as exc:
             raise ValueError("vn_market_data_unavailable: provider_request_failed") from exc
@@ -122,10 +123,12 @@ class QuantDingerOptimizerGateway:
             minimum_coverage = float(os.getenv("VN_OPTIMIZER_MIN_COVERAGE", "0.90"))
         except ValueError:
             minimum_coverage = 0.90
-        if coverage < max(0.0, min(1.0, minimum_coverage)):
+        if requested_price_mode != 'raw' and coverage < max(0.0, min(1.0, minimum_coverage)):
             raise ValueError("vn_market_data_unavailable: insufficient_coverage")
         quality_flags = tuple(str(value) for value in source_quality.get("flags", ()) if value)
         price_mode = str(getattr(source, "last_price_mode", "") or "total_return")
+        if requested_price_mode == 'raw' and price_mode != 'raw':
+            raise ValueError('raw_price_mode_not_verified')
         return PriceSeries(
             market="VNStock",
             symbol=symbol,
@@ -155,6 +158,7 @@ class QuantDingerOptimizerGateway:
         end_date: str,
         exchange_id: str = "",
         market_type: str = "",
+        price_mode: str | None = None,
     ) -> PriceSeries:
         try:
             start = date.fromisoformat(start_date)
@@ -170,6 +174,7 @@ class QuantDingerOptimizerGateway:
                 currency=currency,
                 start=start,
                 end=end,
+                requested_price_mode=price_mode or 'total_return',
             )
         normalized = DataSourceFactory.normalize_market(market)
         source = DataSourceFactory._create_source(normalized)
@@ -219,7 +224,9 @@ class QuantDingerOptimizerGateway:
             data_class="LIVE",
         )
 
-    def fetch_daily(self, instrument: Instrument, *, start_date: str, end_date: str) -> PriceSeries:
+    def fetch_daily(self, instrument: Instrument, *, start_date: str, end_date: str, price_mode: str | None = None) -> PriceSeries:
+        if price_mode not in {None, 'raw', 'adjusted', 'total_return'}:
+            raise ValueError('Invalid price mode')
         return self._fetch(
             market=instrument.market,
             symbol=instrument.symbol,
@@ -228,6 +235,7 @@ class QuantDingerOptimizerGateway:
             end_date=end_date,
             exchange_id=instrument.exchange_id,
             market_type=instrument.market_type,
+            price_mode=price_mode,
         )
 
     def fetch_fx(

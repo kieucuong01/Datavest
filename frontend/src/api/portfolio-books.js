@@ -11,3 +11,5 @@ export const importPreview = (id, data) => request({ url: `${base}/${id}/import/
 export const importCommit = (id, data) => request({ url: `${base}/${id}/import/commit`, method: 'post', data })
 export const openingPreview = (id, data) => request({ url: `${base}/${id}/opening/preview`, method: 'post', data })
 export const openingCommit = (id, data) => request({ url: `${base}/${id}/opening/commit`, method: 'post', data })
+export const bookHistory = (id, params = {}) => request({ url: `${base}/${id}/history`, method: 'get', params })
+export const refreshBookHistory = (id, data) => request({ url: `${base}/${id}/history/refresh`, method: 'post', data, timeout: 180000 })

@@ -2,6 +2,7 @@
 from datetime import datetime, timezone
 import json
 from uuid import uuid4
+from zoneinfo import ZoneInfo
 from app.utils.db import get_db_connection
 from .ledger import fingerprint, replay_ledger, timestamp
 
@@ -54,14 +55,14 @@ class LedgerRepository:
             for event_id, replacement in (replacements or {}).items():
                 if event_id not in ids: raise BookNotFound('Event not found')
                 old = next(row for row in current if row['eventId'] == event_id)
-                dirty_dates.append(timestamp(old['effectiveAt']).date().isoformat())
+                dirty_dates.append(timestamp(old['effectiveAt']).astimezone(ZoneInfo('Asia/Ho_Chi_Minh')).date().isoformat())
                 replacement = {**replacement, 'sequence': old['sequence']}
                 current = [replacement if row['eventId'] == event_id else row for row in current]
-                dirty_dates.append(timestamp(replacement['effectiveAt']).date().isoformat())
+                dirty_dates.append(timestamp(replacement['effectiveAt']).astimezone(ZoneInfo('Asia/Ho_Chi_Minh')).date().isoformat())
             for row in events:
                 if row['eventId'] in ids: raise ValueError('Duplicate eventId')
                 ids.add(row['eventId']); current.append({**row, 'sequence': len(current)})
-                dirty_dates.append(timestamp(row['effectiveAt']).date().isoformat())
+                dirty_dates.append(timestamp(row['effectiveAt']).astimezone(ZoneInfo('Asia/Ho_Chi_Minh')).date().isoformat())
             if not dirty_dates: raise ValueError('At least one event is required')
             state = replay_ledger(current) # validates later sells/cash after historical edits
             revision = book['revision'] + 1
@@ -70,8 +71,16 @@ class LedgerRepository:
                 cur.execute('INSERT INTO qd_portfolio_ledger_entries(book_id,revision,event_id,effective_at,quantity,unit_price,amount,fee,tax,event_json) VALUES(?,?,?,?,?,?,?,?,?,?)', (book_id, revision, row['eventId'], row['effectiveAt'], row['quantity'], row['unitPrice'], row['amount'], row['fee'], row['tax'], json.dumps(row)))
             dirty = min(dirty_dates + ([book['dirty_from']] if book.get('dirty_from') else []))
             cur.execute('UPDATE qd_portfolio_books SET revision=?,dirty_from=? WHERE id=? AND user_id=?', (revision, dirty, book_id, user_id))
+            self.carry_nav(cur,book_id,book['revision'],revision,dirty)
             db.commit(); cur.close()
             return {'id': book_id, 'revision': revision, 'state': state}
+    def carry_nav(self, cur, book_id, old_revision, new_revision, dirty):
+        cur.execute('SELECT day,snapshot_json FROM qd_portfolio_nav_snapshots WHERE book_id=? AND revision=? AND day<?', (book_id,old_revision,dirty))
+        for row in cur.fetchall():
+            snapshot = json.loads(row['snapshot_json'])
+            snapshot.update(ledgerRevision=new_revision,derivedFromRevision=old_revision)
+            snapshot['checksum'] = fingerprint({k:v for k,v in snapshot.items() if k != 'checksum'})
+            cur.execute('INSERT INTO qd_portfolio_nav_snapshots(book_id,day,revision,snapshot_json,created_at) VALUES(?,?,?,?,?)', (book_id,row['day'],new_revision,json.dumps(snapshot),datetime.now(timezone.utc).isoformat()))
     def revisions(self, user_id, book_id, event_id):
         with self.connection() as db:
             cur = db.cursor(); self._owned(cur, user_id, book_id)

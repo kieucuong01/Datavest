@@ -36,7 +36,7 @@ class PriceSeries:
 
 
 class MarketDataGateway(Protocol):
-    def fetch_daily(self, instrument: Instrument, *, start_date: str, end_date: str) -> PriceSeries:
+    def fetch_daily(self, instrument: Instrument, *, start_date: str, end_date: str, price_mode: str | None = None) -> PriceSeries:
         ...
 
     def fetch_fx(

@@ -57,3 +57,16 @@ def csv_import(book_id, operation):
 def opening(book_id, operation):
     if operation not in {'preview', 'commit'}: raise ValueError('Invalid operation')
     return getattr(service(), 'opening_' + operation)(g.user_id, book_id, body())
+
+@portfolio_books_blp.route('/books/<book_id>/history', methods=['GET'])
+@endpoint
+def history(book_id):
+    from app.services.portfolio.history import PortfolioHistoryService
+    return PortfolioHistoryService().history(g.user_id,book_id,request.args.get('start'),request.args.get('end'),request.args.get('revision'))
+
+@portfolio_books_blp.route('/books/<book_id>/history/refresh', methods=['POST'])
+@endpoint
+def refresh_history(book_id):
+    from app.services.portfolio.history import PortfolioHistoryService
+    payload = body()
+    return PortfolioHistoryService().refresh(g.user_id,book_id,payload.get('start'),payload.get('end'))

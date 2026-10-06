@@ -9,6 +9,7 @@
       <p>{{ $t('portfolioBook.revision') }} {{ book.revision }}</p>
       <h2>{{ $t('portfolioBook.positions') }}</h2><div class="table-scroll"><table><thead><tr><th>{{ $t('portfolioBook.symbol') }}</th><th>{{ $t('portfolioBook.quantity') }}</th><th>{{ $t('portfolioBook.unitPrice') }}</th></tr></thead><tbody><tr v-for="position in book.state.positions" :key="position.market + position.symbol"><td>{{ position.symbol }}</td><td>{{ position.quantity }}</td><td>{{ position.averageCost }} {{ book.currency }}</td></tr></tbody></table></div>
       <details v-if="book.revision === 0 && openingCandidates.length"><summary>{{ $t('portfolioBook.opening') }}</summary><p>{{ $t('portfolioBook.openingHelp') }}</p><label v-for="position in openingCandidates" :key="position.id"><input v-model="openingIds" type="checkbox" :value="position.id">{{ position.symbol }} · {{ position.quantity }}</label><label>{{ $t('portfolioBook.openingCash') }}<input v-model="openingCash" inputmode="decimal" @input="opening = null"></label><input v-model="openingTime" type="datetime-local" @input="opening = null"><button :disabled="busy || !openingIds.length" @click="previewOpening">{{ $t('portfolioBook.preview') }}</button><p v-if="opening">{{ $t('portfolioBook.cash') }}: {{ opening.state.cash }} · {{ opening.events.length }}</p><button v-if="opening" :disabled="busy" @click="commitOpening">{{ $t('portfolioBook.commit') }}</button></details>
+      <PortfolioNavHistory :key="selectedId" :book-id="selectedId" :currency="book.currency" :revision="book.revision" />
       <h2>{{ $t('portfolioBook.entries') }}</h2>
       <LedgerEntryForm :key="selectedId + ':' + (editing?.eventId || book.revision)" :currency="book.currency" :entry="editing" :busy="busy" @save="saveEntry" />
       <button v-if="editing" @click="editing = null">{{ $t('common.cancel') }}</button>
@@ -29,8 +30,9 @@
 import * as bookApi from '@/api/portfolio-books'
 import LedgerEntryForm from './LedgerEntryForm.vue'
 import LedgerImport from './LedgerImport.vue'
+import PortfolioNavHistory from './PortfolioNavHistory.vue'
 export default {
-  components: { LedgerEntryForm, LedgerImport },
+  components: { LedgerEntryForm, LedgerImport, PortfolioNavHistory },
   props: { legacyPositions: { type: Array, default: () => [] } },
   data () { return { books: [], selectedId: '', book: null, entries: [], total: 0, page: 1, newName: '', newCurrency: 'VND', busy: false, error: '', editing: null, audit: null, ticket: 0, openingIds: [], openingCash: '0', openingTime: new Date(Date.now() + 7 * 3600000).toISOString().slice(0, 16), opening: null, requestKey: null, pendingPayload: null, metrics: [{ key: 'cash', label: 'cash' }, { key: 'realizedPnl', label: 'realized' }, { key: 'income', label: 'income' }] } },
   computed: { openingCandidates () { return this.legacyPositions.filter(p => p.side === 'long' && (p.quote_currency || (p.market === 'VNStock' ? 'VND' : p.market === 'Forex' ? 'USD' : p.symbol.split('/')[1])) === this.book?.currency) } },

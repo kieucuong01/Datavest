@@ -1911,6 +1911,22 @@ def notify_strategy_signal_for_positions(market: str, symbol: str, signal_type: 
         logger.error(f"notify_strategy_signal_for_positions failed: {e}")
 
 
+_portfolio_books_tick_lock = threading.Lock()
+
+def _tick_portfolio_books():
+    """Run a bounded batch off the existing monitor tick without delaying AI jobs."""
+    if not _portfolio_books_tick_lock.acquire(blocking=False):
+        return
+    def run():
+        try:
+            from app.services.portfolio.history import refresh_due_books
+            refresh_due_books(limit=20)
+        except Exception:
+            logger.warning('Portfolio books tick deferred', exc_info=True)
+        finally:
+            _portfolio_books_tick_lock.release()
+    threading.Thread(target=run, name='portfolio-books-batch', daemon=True).start()
+
 def _monitor_loop():
     """Background loop that checks and runs due monitors.
 
@@ -1930,6 +1946,7 @@ def _monitor_loop():
                 continue
 
             _check_position_alerts()
+            _tick_portfolio_books()
 
             with get_db_connection() as db:
                 cur = db.cursor()
