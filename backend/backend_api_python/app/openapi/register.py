@@ -66,6 +66,7 @@ def register_human_blueprints(api: Api) -> None:
     from app.routes.dashboard import dashboard_blp
     from app.routes.settings import settings_blp
     from app.routes.portfolio import portfolio_blp
+    from app.routes.portfolio_books import portfolio_books_blp
     from app.routes.global_market import global_market_blp
     from app.routes.fast_analysis import fast_analysis_blp
 
@@ -86,6 +87,7 @@ def register_human_blueprints(api: Api) -> None:
         (dashboard_blp, "/api/dashboard"),
         (settings_blp, "/api/settings"),
         (portfolio_blp, "/api/portfolio"),
+        (portfolio_books_blp, "/api/portfolio"),
         (global_market_blp, "/api/global-market"),
         (fast_analysis_blp, "/api/fast-analysis"),
     ]

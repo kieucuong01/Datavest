@@ -10,7 +10,7 @@
 
 **Spec:** `docs/superpowers/specs/2026-10-05-portfolio-ledger-nav-alerts-design.md`
 
-**Status:** Thiết kế đã duyệt; kế hoạch triển khai này đang chờ người dùng xem và xác nhận trước khi viết code.
+**Status:** Người dùng đã duyệt thiết kế và kế hoạch ngày 2026-10-06; đang triển khai tuần tự. Bằng chứng kiểm tra và quyết định triển khai lưu ở `portfolio-execution-ledger.md`.
 
 ## Global Constraints
 

@@ -6,119 +6,124 @@
         <h1>{{ $t('mockPortfolio.title') }}</h1>
         <p>{{ $t('mockPortfolio.subtitle') }}</p>
       </div>
-      <div class="header-actions">
+      <div v-if="portfolioMode === 'legacy'" class="header-actions">
         <a-tag class="simulation-tag" color="blue">{{ $t('mockPortfolio.simulated') }}</a-tag>
         <a-button icon="reload" :loading="loading" @click="loadData(true)">{{ $t('mockPortfolio.refresh') }}</a-button>
         <a-button type="primary" icon="plus" @click="openCreateModal">{{ $t('mockPortfolio.addPosition') }}</a-button>
       </div>
     </header>
 
-    <a-alert
-      v-if="errorMessage"
-      class="page-alert"
-      type="error"
-      show-icon
-      closable
-      :message="errorMessage"
-      @close="errorMessage = ''" />
-    <a-alert class="paper-boundary" type="info" show-icon :message="$t('mockPortfolio.paperBoundary')" />
+    <a-radio-group v-model="portfolioMode" style="margin-bottom:20px"><a-radio-button value="legacy">{{ $t('portfolioBook.legacy') }}</a-radio-button><a-radio-button value="ledger">{{ $t('portfolioBook.ledger') }}</a-radio-button></a-radio-group>
+    <PortfolioBookWorkspace v-if="portfolioMode === 'ledger'" :legacy-positions="positions" />
+    <template v-else>
 
-    <a-alert
-      v-if="valuationSummary.valuation_status && valuationSummary.valuation_status !== 'AVAILABLE'"
-      class="page-alert"
-      type="warning"
-      show-icon
-      :message="valuationLabel(valuationSummary.valuation_status)"
-      :description="`${valuationSummary.valued_position_count || 0}/${valuationSummary.position_count || 0} ${isVietnamese ? 'vị thế có giá; giá thiếu không được tính bằng 0.' : 'positions priced; missing prices are not valued at zero.'}`" />
-    <section class="portfolio-hero" aria-label="Portfolio overview">
-      <div class="portfolio-left-column">
-        <a-card class="surface-card balance-card" :bordered="false">
-          <div class="card-topline">
-            <span>{{ $t('mockPortfolio.totalBalance') }} <a-icon type="info-circle" /></span>
-            <a-button type="primary" size="small" icon="plus" @click="openCreateModal">{{ $t('mockPortfolio.addPosition') }}</a-button>
-          </div>
-          <a-select v-if="currencyGroups.length" :value="activeCurrency" @change="selectedCurrency = $event" style="min-width: 120px; margin-top: 10px" :aria-label="isVietnamese ? 'Tiền tệ định giá' : 'Valuation currency'"><a-select-option v-for="group in currencyGroups" :key="group.currency" :value="group.currency">{{ group.currency }}</a-select-option></a-select>
-          <p v-if="summary.mixed_currencies" class="source-note">{{ isVietnamese ? 'Tổng và tỷ trọng tách theo tiền tệ, chưa quy đổi FX.' : 'Totals and allocations are grouped by currency; no FX conversion applied.' }}</p>
-          <strong class="balance-number">{{ formatNumber(valuationSummary.total_market_value) }}</strong>
-          <div class="pnl-pill" :class="valuationSummary.total_pnl >= 0 ? 'is-positive' : 'is-negative'">{{ signedPercent(valuationSummary.total_pnl_percent) }}</div>
-          <span class="pnl-caption">{{ $t('mockPortfolio.metrics.pnl') }}: <b :class="valuationSummary.total_pnl >= 0 ? 'value-positive' : 'value-negative'">{{ signedNumber(valuationSummary.total_pnl) }}</b></span>
-          <div class="balance-divider" />
-          <div class="balance-details">
-            <div><span>{{ $t('mockPortfolio.openCost') }}</span><strong>{{ formatNumber(valuationSummary.total_cost) }}</strong></div>
-            <div><span>{{ $t('mockPortfolio.metrics.pnl') }}</span><strong :class="valuationSummary.total_pnl >= 0 ? 'value-positive' : 'value-negative'">{{ signedNumber(valuationSummary.total_pnl) }}</strong></div>
-            <div><span>{{ $t('mockPortfolio.realizedPnl') }}</span><strong>—</strong></div>
-          </div>
-          <p class="source-note">{{ $t('mockPortfolio.metrics.sourceNote') }}</p>
-        </a-card>
+      <a-alert
+        v-if="errorMessage"
+        class="page-alert"
+        type="error"
+        show-icon
+        closable
+        :message="errorMessage"
+        @close="errorMessage = ''" />
+      <a-alert class="paper-boundary" type="info" show-icon :message="$t('mockPortfolio.paperBoundary')" />
 
-        <a-card class="surface-card allocation-card" :bordered="false">
-          <div class="section-heading compact"><div><h2>{{ $t('mockPortfolio.allocationTitle') }}</h2><p>{{ $t('mockPortfolio.allocationSubtitle') }}</p></div></div>
-          <div v-if="analytics.byCategory.length" class="allocation-body">
-            <div ref="allocationChart" class="allocation-chart" role="img" :aria-label="$t('mockPortfolio.allocationTitle')" />
-            <div class="allocation-legend"><div v-for="item in analytics.byCategory" :key="item.key" class="legend-row"><span class="legend-label"><i :style="{ background: item.color }" />{{ marketLabel(item.market) }}</span><strong>{{ item.allocation }}%</strong></div></div>
-          </div>
-          <a-empty v-else :description="$t('mockPortfolio.allocationEmpty')" :image="simpleEmptyImage" />
-          <div v-if="analytics.bySymbol.length" class="symbol-allocation-list"><span v-for="item in analytics.bySymbol.slice(0, 6)" :key="`${item.market}-${item.symbol}`" class="symbol-allocation-chip"><CryptoAssetIcon v-if="isIdentityMarket(item.market)" :market="item.market" :symbol="item.symbol" :size="20" /><b>{{ item.symbol }}</b><em>{{ item.allocation }}%</em></span></div>
-        </a-card>
-      </div>
+      <a-alert
+        v-if="valuationSummary.valuation_status && valuationSummary.valuation_status !== 'AVAILABLE'"
+        class="page-alert"
+        type="warning"
+        show-icon
+        :message="valuationLabel(valuationSummary.valuation_status)"
+        :description="`${valuationSummary.valued_position_count || 0}/${valuationSummary.position_count || 0} ${isVietnamese ? 'vị thế có giá; giá thiếu không được tính bằng 0.' : 'positions priced; missing prices are not valued at zero.'}`" />
+      <section class="portfolio-hero" aria-label="Portfolio overview">
+        <div class="portfolio-left-column">
+          <a-card class="surface-card balance-card" :bordered="false">
+            <div class="card-topline">
+              <span>{{ $t('mockPortfolio.totalBalance') }} <a-icon type="info-circle" /></span>
+              <a-button type="primary" size="small" icon="plus" @click="openCreateModal">{{ $t('mockPortfolio.addPosition') }}</a-button>
+            </div>
+            <a-select v-if="currencyGroups.length" :value="activeCurrency" @change="selectedCurrency = $event" style="min-width: 120px; margin-top: 10px" :aria-label="isVietnamese ? 'Tiền tệ định giá' : 'Valuation currency'"><a-select-option v-for="group in currencyGroups" :key="group.currency" :value="group.currency">{{ group.currency }}</a-select-option></a-select>
+            <p v-if="summary.mixed_currencies" class="source-note">{{ isVietnamese ? 'Tổng và tỷ trọng tách theo tiền tệ, chưa quy đổi FX.' : 'Totals and allocations are grouped by currency; no FX conversion applied.' }}</p>
+            <strong class="balance-number">{{ formatNumber(valuationSummary.total_market_value) }}</strong>
+            <div class="pnl-pill" :class="valuationSummary.total_pnl >= 0 ? 'is-positive' : 'is-negative'">{{ signedPercent(valuationSummary.total_pnl_percent) }}</div>
+            <span class="pnl-caption">{{ $t('mockPortfolio.metrics.pnl') }}: <b :class="valuationSummary.total_pnl >= 0 ? 'value-positive' : 'value-negative'">{{ signedNumber(valuationSummary.total_pnl) }}</b></span>
+            <div class="balance-divider" />
+            <div class="balance-details">
+              <div><span>{{ $t('mockPortfolio.openCost') }}</span><strong>{{ formatNumber(valuationSummary.total_cost) }}</strong></div>
+              <div><span>{{ $t('mockPortfolio.metrics.pnl') }}</span><strong :class="valuationSummary.total_pnl >= 0 ? 'value-positive' : 'value-negative'">{{ signedNumber(valuationSummary.total_pnl) }}</strong></div>
+              <div><span>{{ $t('mockPortfolio.realizedPnl') }}</span><strong>—</strong></div>
+            </div>
+            <p class="source-note">{{ $t('mockPortfolio.metrics.sourceNote') }}</p>
+          </a-card>
 
-      <a-card class="surface-card performance-card" :bordered="false">
-        <div class="section-heading performance-heading"><div><h2>{{ $t('mockPortfolio.performanceTitle') }}</h2><p>{{ $t('mockPortfolio.performanceSubtitle') }}</p></div><a-radio-group value="all" size="small" class="timeframe-controls"><a-radio-button value="1w">1W</a-radio-button><a-radio-button value="1m">1M</a-radio-button><a-radio-button value="ytd">YTD</a-radio-button><a-radio-button value="all">{{ $t('mockPortfolio.allTime') }}</a-radio-button></a-radio-group></div>
-        <div class="performance-summary">
-          <div class="comparison-tile"><span>{{ $t('mockPortfolio.currentPortfolio') }}</span><strong>{{ formatNumber(valuationSummary.total_market_value) }}</strong><small>{{ signedPercent(valuationSummary.total_pnl_percent) }}</small></div>
-          <div class="comparison-tile muted"><span>{{ $t('mockPortfolio.benchmark') }}</span><strong>—</strong><small>{{ $t('mockPortfolio.historyUnavailable') }}</small></div>
-          <div class="comparison-tile muted"><span>{{ $t('mockPortfolio.excessReturn') }}</span><strong>—</strong><small>{{ $t('mockPortfolio.historyUnavailable') }}</small></div>
+          <a-card class="surface-card allocation-card" :bordered="false">
+            <div class="section-heading compact"><div><h2>{{ $t('mockPortfolio.allocationTitle') }}</h2><p>{{ $t('mockPortfolio.allocationSubtitle') }}</p></div></div>
+            <div v-if="analytics.byCategory.length" class="allocation-body">
+              <div ref="allocationChart" class="allocation-chart" role="img" :aria-label="$t('mockPortfolio.allocationTitle')" />
+              <div class="allocation-legend"><div v-for="item in analytics.byCategory" :key="item.key" class="legend-row"><span class="legend-label"><i :style="{ background: item.color }" />{{ marketLabel(item.market) }}</span><strong>{{ item.allocation }}%</strong></div></div>
+            </div>
+            <a-empty v-else :description="$t('mockPortfolio.allocationEmpty')" :image="simpleEmptyImage" />
+            <div v-if="analytics.bySymbol.length" class="symbol-allocation-list"><span v-for="item in analytics.bySymbol.slice(0, 6)" :key="`${item.market}-${item.symbol}`" class="symbol-allocation-chip"><CryptoAssetIcon v-if="isIdentityMarket(item.market)" :market="item.market" :symbol="item.symbol" :size="20" /><b>{{ item.symbol }}</b><em>{{ item.allocation }}%</em></span></div>
+          </a-card>
         </div>
-        <div class="performance-empty-state"><div class="chart-grid"><span v-for="line in 6" :key="line" /></div><div class="empty-message"><a-icon type="line-chart" /><strong>{{ $t('mockPortfolio.performanceEmptyTitle') }}</strong><p>{{ $t('mockPortfolio.performanceEmptyBody') }}</p></div></div>
-        <p class="data-honesty-note"><a-icon type="safety-certificate" /> {{ $t('mockPortfolio.performanceDisclosure') }}</p>
+
+        <a-card class="surface-card performance-card" :bordered="false">
+          <div class="section-heading performance-heading"><div><h2>{{ $t('mockPortfolio.performanceTitle') }}</h2><p>{{ $t('mockPortfolio.performanceSubtitle') }}</p></div><a-radio-group value="all" size="small" class="timeframe-controls"><a-radio-button value="1w">1W</a-radio-button><a-radio-button value="1m">1M</a-radio-button><a-radio-button value="ytd">YTD</a-radio-button><a-radio-button value="all">{{ $t('mockPortfolio.allTime') }}</a-radio-button></a-radio-group></div>
+          <div class="performance-summary">
+            <div class="comparison-tile"><span>{{ $t('mockPortfolio.currentPortfolio') }}</span><strong>{{ formatNumber(valuationSummary.total_market_value) }}</strong><small>{{ signedPercent(valuationSummary.total_pnl_percent) }}</small></div>
+            <div class="comparison-tile muted"><span>{{ $t('mockPortfolio.benchmark') }}</span><strong>—</strong><small>{{ $t('mockPortfolio.historyUnavailable') }}</small></div>
+            <div class="comparison-tile muted"><span>{{ $t('mockPortfolio.excessReturn') }}</span><strong>—</strong><small>{{ $t('mockPortfolio.historyUnavailable') }}</small></div>
+          </div>
+          <div class="performance-empty-state"><div class="chart-grid"><span v-for="line in 6" :key="line" /></div><div class="empty-message"><a-icon type="line-chart" /><strong>{{ $t('mockPortfolio.performanceEmptyTitle') }}</strong><p>{{ $t('mockPortfolio.performanceEmptyBody') }}</p></div></div>
+          <p class="data-honesty-note"><a-icon type="safety-certificate" /> {{ $t('mockPortfolio.performanceDisclosure') }}</p>
+        </a-card>
+      </section>
+
+      <a-card class="surface-card holdings-card" :bordered="false">
+        <div class="section-heading"><div><h2>{{ $t('mockPortfolio.positionsTitle') }}</h2><p>{{ $t('mockPortfolio.positionsSubtitle') }}</p></div><span class="position-count">{{ positions.length }} {{ $t('mockPortfolio.assets') }}</span></div>
+        <a-table
+          v-if="positions.length"
+          row-key="id"
+          size="middle"
+          :loading="loading"
+          :pagination="false"
+          :columns="columns"
+          :data-source="positions"
+          :scroll="{ x: 1120 }">
+          <template slot="symbol" slot-scope="value, record"><div class="symbol-cell"><CryptoAssetIcon v-if="isIdentityMarket(record.market)" :market="record.market" :symbol="value" :size="26" /><span v-else class="asset-avatar">{{ assetInitial(value) }}</span><div><strong>{{ value }}</strong><small>{{ record.name || marketLabel(record.market) }}</small></div></div></template>
+          <template slot="quantity" slot-scope="value">{{ formatNumber(value, 6) }}</template><template slot="entry_price" slot-scope="value, record">{{ formatNumber(value, 6) }} {{ currencyFor(record) }}</template><template slot="current_price" slot-scope="value, record">{{ formatNumber(value, 6) }} {{ currencyFor(record) }}<small>{{ valuationLabel(record.valuation_status) }}</small></template><template slot="market_value" slot-scope="value, record">{{ formatNumber(value) }} {{ currencyFor(record) }}</template>
+          <template slot="allocation" slot-scope="_, record"><div class="allocation-bar"><span :style="{ width: `${allocationFor(record)}%` }" /></div><small>{{ allocationFor(record) === null ? '—' : allocationFor(record) + '%' }}</small></template>
+          <template slot="pnl" slot-scope="value, record"><span :class="value >= 0 ? 'value-positive' : 'value-negative'">{{ signedNumber(value) }} {{ currencyFor(record) }}<small> {{ signedPercent(record.pnl_percent) }}</small></span></template>
+          <template slot="signal" slot-scope="_, record"><a-tag :color="record.pnl === null ? 'default' : record.pnl >= 0 ? 'green' : 'red'">{{ record.pnl === null ? valuationLabel('UNAVAILABLE') : record.pnl >= 0 ? $t('mockPortfolio.inProfit') : $t('mockPortfolio.inLoss') }}</a-tag></template>
+          <template slot="actions" slot-scope="_, record"><a-button type="link" size="small" icon="edit" @click="openEditModal(record)" /><a-button type="link" size="small" icon="delete" class="delete-action" @click="confirmDelete(record)" /></template>
+        </a-table>
+        <a-empty v-else :description="$t('mockPortfolio.empty')"><a-button type="primary" icon="plus" @click="openCreateModal">{{ $t('mockPortfolio.addFirstPosition') }}</a-button></a-empty>
       </a-card>
-    </section>
 
-    <a-card class="surface-card holdings-card" :bordered="false">
-      <div class="section-heading"><div><h2>{{ $t('mockPortfolio.positionsTitle') }}</h2><p>{{ $t('mockPortfolio.positionsSubtitle') }}</p></div><span class="position-count">{{ positions.length }} {{ $t('mockPortfolio.assets') }}</span></div>
-      <a-table
-        v-if="positions.length"
-        row-key="id"
-        size="middle"
-        :loading="loading"
-        :pagination="false"
-        :columns="columns"
-        :data-source="positions"
-        :scroll="{ x: 1120 }">
-        <template slot="symbol" slot-scope="value, record"><div class="symbol-cell"><CryptoAssetIcon v-if="isIdentityMarket(record.market)" :market="record.market" :symbol="value" :size="26" /><span v-else class="asset-avatar">{{ assetInitial(value) }}</span><div><strong>{{ value }}</strong><small>{{ record.name || marketLabel(record.market) }}</small></div></div></template>
-        <template slot="quantity" slot-scope="value">{{ formatNumber(value, 6) }}</template><template slot="entry_price" slot-scope="value, record">{{ formatNumber(value, 6) }} {{ currencyFor(record) }}</template><template slot="current_price" slot-scope="value, record">{{ formatNumber(value, 6) }} {{ currencyFor(record) }}<small>{{ valuationLabel(record.valuation_status) }}</small></template><template slot="market_value" slot-scope="value, record">{{ formatNumber(value) }} {{ currencyFor(record) }}</template>
-        <template slot="allocation" slot-scope="_, record"><div class="allocation-bar"><span :style="{ width: `${allocationFor(record)}%` }" /></div><small>{{ allocationFor(record) === null ? '—' : allocationFor(record) + '%' }}</small></template>
-        <template slot="pnl" slot-scope="value, record"><span :class="value >= 0 ? 'value-positive' : 'value-negative'">{{ signedNumber(value) }} {{ currencyFor(record) }}<small> {{ signedPercent(record.pnl_percent) }}</small></span></template>
-        <template slot="signal" slot-scope="_, record"><a-tag :color="record.pnl === null ? 'default' : record.pnl >= 0 ? 'green' : 'red'">{{ record.pnl === null ? valuationLabel('UNAVAILABLE') : record.pnl >= 0 ? $t('mockPortfolio.inProfit') : $t('mockPortfolio.inLoss') }}</a-tag></template>
-        <template slot="actions" slot-scope="_, record"><a-button type="link" size="small" icon="edit" @click="openEditModal(record)" /><a-button type="link" size="small" icon="delete" class="delete-action" @click="confirmDelete(record)" /></template>
-      </a-table>
-      <a-empty v-else :description="$t('mockPortfolio.empty')"><a-button type="primary" icon="plus" @click="openCreateModal">{{ $t('mockPortfolio.addFirstPosition') }}</a-button></a-empty>
-    </a-card>
+      <section class="risk-section">
+        <div class="risk-heading"><div><h2>{{ $t('mockPortfolio.riskTitle') }}</h2><p>{{ $t('mockPortfolio.riskSubtitle') }}</p></div><span>{{ $t('mockPortfolio.derivedFromPositions') }}</span></div>
+        <div class="risk-grid"><div class="risk-card"><span>{{ $t('mockPortfolio.concentration') }}</span><strong>{{ analytics.concentration === null ? '—' : analytics.concentration.toFixed(3) }}</strong><small>{{ $t('mockPortfolio.concentrationHint') }}</small></div><div v-for="metric in unavailableRiskMetrics" :key="metric.key" class="risk-card unavailable"><span>{{ metric.label }}</span><strong>—</strong><small>{{ $t('mockPortfolio.historyUnavailable') }}</small></div></div>
+      </section>
 
-    <section class="risk-section">
-      <div class="risk-heading"><div><h2>{{ $t('mockPortfolio.riskTitle') }}</h2><p>{{ $t('mockPortfolio.riskSubtitle') }}</p></div><span>{{ $t('mockPortfolio.derivedFromPositions') }}</span></div>
-      <div class="risk-grid"><div class="risk-card"><span>{{ $t('mockPortfolio.concentration') }}</span><strong>{{ analytics.concentration === null ? '—' : analytics.concentration.toFixed(3) }}</strong><small>{{ $t('mockPortfolio.concentrationHint') }}</small></div><div v-for="metric in unavailableRiskMetrics" :key="metric.key" class="risk-card unavailable"><span>{{ metric.label }}</span><strong>—</strong><small>{{ $t('mockPortfolio.historyUnavailable') }}</small></div></div>
-    </section>
+      <a-card class="surface-card transaction-card" :bordered="false"><div class="section-heading"><div><h2>{{ $t('mockPortfolio.transactionTitle') }}</h2><p>{{ $t('mockPortfolio.transactionSubtitle') }}</p></div><span class="position-count">0 {{ $t('mockPortfolio.transactions') }}</span></div><div class="transaction-empty"><a-icon type="database" /><div><strong>{{ $t('mockPortfolio.transactionEmptyTitle') }}</strong><p>{{ $t('mockPortfolio.transactionEmptyBody') }}</p></div></div></a-card>
 
-    <a-card class="surface-card transaction-card" :bordered="false"><div class="section-heading"><div><h2>{{ $t('mockPortfolio.transactionTitle') }}</h2><p>{{ $t('mockPortfolio.transactionSubtitle') }}</p></div><span class="position-count">0 {{ $t('mockPortfolio.transactions') }}</span></div><div class="transaction-empty"><a-icon type="database" /><div><strong>{{ $t('mockPortfolio.transactionEmptyTitle') }}</strong><p>{{ $t('mockPortfolio.transactionEmptyBody') }}</p></div></div></a-card>
-
-    <a-modal
-      :visible="modalVisible"
-      :title="editingId ? $t('mockPortfolio.editTitle') : $t('mockPortfolio.addTitle')"
-      :confirm-loading="saving"
-      :ok-text="$t('mockPortfolio.save')"
-      :cancel-text="$t('common.cancel')"
-      :wrap-class-name="isDarkTheme ? 'mock-portfolio-modal theme-dark' : 'mock-portfolio-modal'"
-      @ok="savePosition"
-      @cancel="modalVisible = false">
-      <a-form layout="vertical"><div class="form-grid"><a-form-item :label="$t('mockPortfolio.market')"><a-select v-model="form.market" :disabled="Boolean(editingId)" @change="onMarketChange"><a-select-option value="Crypto">{{ $t('mockPortfolio.markets.crypto') }}</a-select-option><a-select-option value="VNStock">{{ $t('mockPortfolio.markets.vn') }}</a-select-option><a-select-option value="Forex">{{ $t('mockPortfolio.markets.gold') }}</a-select-option></a-select></a-form-item><a-form-item :label="$t('mockPortfolio.symbol')"><a-auto-complete
-        v-if="form.market === 'VNStock'"
-        v-model="form.symbol"
-        :disabled="Boolean(editingId)"
-        :data-source="hoseMatches"
-        :placeholder="symbolPlaceholder"
-        @search="searchHoseSymbols" /><a-input v-else v-model="form.symbol" :disabled="Boolean(editingId)" :placeholder="symbolPlaceholder" /></a-form-item></div><div class="form-grid"><a-form-item :label="$t('mockPortfolio.side')"><a-select v-model="form.side" :disabled="Boolean(editingId)"><a-select-option value="long">{{ $t('mockPortfolio.long') }}</a-select-option><a-select-option value="short">{{ $t('mockPortfolio.short') }}</a-select-option></a-select></a-form-item><a-form-item :label="$t('mockPortfolio.quantity')"><a-input-number v-model="form.quantity" :min="0" :step="0.000001" class="full-width" /></a-form-item></div><div class="form-grid"><a-form-item :label="$t('mockPortfolio.entryPrice')"><a-input-number v-model="form.entry_price" :min="0" :step="0.01" class="full-width" /></a-form-item><a-form-item :label="$t('mockPortfolio.group')"><a-input v-model="form.group_name" :placeholder="$t('mockPortfolio.groupPlaceholder')" /></a-form-item></div><a-form-item :label="$t('mockPortfolio.notes')"><a-textarea v-model="form.notes" :rows="3" :placeholder="$t('mockPortfolio.notesPlaceholder')" /></a-form-item></a-form>
-    </a-modal>
+      <a-modal
+        :visible="modalVisible"
+        :title="editingId ? $t('mockPortfolio.editTitle') : $t('mockPortfolio.addTitle')"
+        :confirm-loading="saving"
+        :ok-text="$t('mockPortfolio.save')"
+        :cancel-text="$t('common.cancel')"
+        :wrap-class-name="isDarkTheme ? 'mock-portfolio-modal theme-dark' : 'mock-portfolio-modal'"
+        @ok="savePosition"
+        @cancel="modalVisible = false">
+        <a-form layout="vertical"><div class="form-grid"><a-form-item :label="$t('mockPortfolio.market')"><a-select v-model="form.market" :disabled="Boolean(editingId)" @change="onMarketChange"><a-select-option value="Crypto">{{ $t('mockPortfolio.markets.crypto') }}</a-select-option><a-select-option value="VNStock">{{ $t('mockPortfolio.markets.vn') }}</a-select-option><a-select-option value="Forex">{{ $t('mockPortfolio.markets.gold') }}</a-select-option></a-select></a-form-item><a-form-item :label="$t('mockPortfolio.symbol')"><a-auto-complete
+          v-if="form.market === 'VNStock'"
+          v-model="form.symbol"
+          :disabled="Boolean(editingId)"
+          :data-source="hoseMatches"
+          :placeholder="symbolPlaceholder"
+          @search="searchHoseSymbols" /><a-input v-else v-model="form.symbol" :disabled="Boolean(editingId)" :placeholder="symbolPlaceholder" /></a-form-item></div><div class="form-grid"><a-form-item :label="$t('mockPortfolio.side')"><a-select v-model="form.side" :disabled="Boolean(editingId)"><a-select-option value="long">{{ $t('mockPortfolio.long') }}</a-select-option><a-select-option value="short">{{ $t('mockPortfolio.short') }}</a-select-option></a-select></a-form-item><a-form-item :label="$t('mockPortfolio.quantity')"><a-input-number v-model="form.quantity" :min="0" :step="0.000001" class="full-width" /></a-form-item></div><div class="form-grid"><a-form-item :label="$t('mockPortfolio.entryPrice')"><a-input-number v-model="form.entry_price" :min="0" :step="0.01" class="full-width" /></a-form-item><a-form-item :label="$t('mockPortfolio.group')"><a-input v-model="form.group_name" :placeholder="$t('mockPortfolio.groupPlaceholder')" /></a-form-item></div><a-form-item :label="$t('mockPortfolio.notes')"><a-textarea v-model="form.notes" :rows="3" :placeholder="$t('mockPortfolio.notesPlaceholder')" /></a-form-item></a-form>
+      </a-modal>
+    </template>
   </div>
 </template>
 
@@ -130,14 +135,15 @@ import { addPosition, deletePosition, getPositions, getPortfolioSummary, updateP
 import { buildPortfolioAnalytics, positionCurrency } from './portfolioAnalytics'
 import CryptoAssetIcon from '@/components/CryptoAssetIcon'
 import { searchSymbols } from '@/api/market'
+import PortfolioBookWorkspace from './components/PortfolioBookWorkspace.vue'
 
 const emptySummary = () => ({ total_market_value: 0, total_cost: 0, total_pnl: 0, total_pnl_percent: 0, position_count: 0, market_distribution: [] })
 const emptyForm = () => ({ market: 'Crypto', symbol: 'BTC/USDT', name: '', side: 'long', quantity: null, entry_price: null, group_name: '', notes: '' })
 
 export default {
   name: 'MockPortfolio',
-  components: { CryptoAssetIcon },
-  data () { return { loading: false, saving: false, modalVisible: false, editingId: null, positions: [], summary: emptySummary(), selectedCurrency: '', form: emptyForm(), hoseMatches: [], errorMessage: '', allocationChartInstance: null } },
+  components: { CryptoAssetIcon, PortfolioBookWorkspace },
+  data () { return { portfolioMode: 'legacy', loading: false, saving: false, modalVisible: false, editingId: null, positions: [], summary: emptySummary(), selectedCurrency: '', form: emptyForm(), hoseMatches: [], errorMessage: '', allocationChartInstance: null } },
   computed: {
     ...mapState({ navTheme: state => state.app.theme }),
     isDarkTheme () { return this.navTheme === 'dark' || this.navTheme === 'realdark' },

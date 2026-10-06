@@ -15,6 +15,7 @@ import portfolioOptimizerMessages from './portfolio-optimizer'
 import smartInsightsMessages from './smart-insights'
 import tradingAgentsMessages from './trading-agents'
 import productLocaleOverrides from './product-locale-overrides'
+import portfolioBookMessages from './portfolio-books'
 
 Vue.use(VueI18n)
 
@@ -37,6 +38,7 @@ const messages = {
     ...(smartInsightsMessages[defaultLang] || {}),
     ...(tradingAgentsMessages[defaultLang] || {}),
     ...(productLocaleOverrides[defaultLang] || {}),
+    ...(portfolioBookMessages[defaultLang] || {}),
     ...(generatedLocaleOverrides[defaultLang] || {})
   }
 }
@@ -107,6 +109,7 @@ function mergeLocaleOverrides (lang) {
     ...(smartInsightsMessages[lang] || {}),
     ...(tradingAgentsMessages[lang] || {}),
     ...(productLocaleOverrides[lang] || {}),
+    ...(portfolioBookMessages[lang] || {}),
     ...(generatedLocaleOverrides[lang] || {})
   }
   i18n.setLocaleMessage(lang, {
@@ -140,6 +143,7 @@ export async function loadLanguageAsync (lang = defaultLang) {
       ...(smartInsightsMessages[nextLang] || {}),
       ...(tradingAgentsMessages[nextLang] || {}),
       ...(productLocaleOverrides[nextLang] || {}),
+      ...(portfolioBookMessages[nextLang] || {}),
       ...(generatedLocaleOverrides[nextLang] || {})
     })
     i18n.setLocaleMessage(nextLang, locale)
