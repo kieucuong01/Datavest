@@ -21,3 +21,7 @@ Task 2: Ruling: cash-only flow valuations can be established exactly from the le
 Task 2: Ruling: use conservative weekday closure for HOSE/gold because the existing gateway has no verified exchange holiday calendar. Weekends retain valid previous closes; unverified weekday holidays may show stale/missing NAV. Cost if wrong: holiday gaps reduce displayed coverage until a verified calendar is integrated.
 
 Task 2: complete — NAV/history/ledger/routes/VN gateway tests 33 passed; frontend lifecycle/history 2 passed; changed lint zero errors. Vue fixture showed null return across a missing day and 1W control changed selection, with no console errors. Screenshot output/portfolio-nav-qa.png. Background work is a bounded batch dispatched from the existing monitor tick; no second scheduler.
+
+Task 2 commit: 7bf6e47.
+
+Task 3: complete — focused backend 36 passed; frontend lifecycle/history 4 passed, including a late response from a previous benchmark key. Vue local fixture: explicitly selected VNINDEX, rendered 10% price return and null excess across a NAV gap, sources and common dates visible, no console errors. Changed-file lint passed. Screenshot output/portfolio-benchmark-qa.png.

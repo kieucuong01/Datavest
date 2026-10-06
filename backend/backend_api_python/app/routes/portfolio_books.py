@@ -70,3 +70,11 @@ def refresh_history(book_id):
     from app.services.portfolio.history import PortfolioHistoryService
     payload = body()
     return PortfolioHistoryService().refresh(g.user_id,book_id,payload.get('start'),payload.get('end'))
+
+@portfolio_books_blp.route('/books/<book_id>/benchmark', methods=['GET','PUT'])
+@endpoint
+def benchmark(book_id):
+    from app.services.portfolio.benchmarks import BenchmarkService
+    svc = BenchmarkService()
+    if request.method == 'PUT': return svc.select(g.user_id,book_id,body().get('key'))
+    return svc.compare(g.user_id,book_id,request.args.get('key'),request.args.get('start'),request.args.get('end'))

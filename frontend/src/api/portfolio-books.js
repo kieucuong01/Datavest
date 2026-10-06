@@ -13,3 +13,5 @@ export const openingPreview = (id, data) => request({ url: `${base}/${id}/openin
 export const openingCommit = (id, data) => request({ url: `${base}/${id}/opening/commit`, method: 'post', data })
 export const bookHistory = (id, params = {}) => request({ url: `${base}/${id}/history`, method: 'get', params })
 export const refreshBookHistory = (id, data) => request({ url: `${base}/${id}/history/refresh`, method: 'post', data, timeout: 180000 })
+export const bookBenchmark = (id, params = {}) => request({ url: `${base}/${id}/benchmark`, method: 'get', params, timeout: 90000 })
+export const selectBookBenchmark = (id, data) => request({ url: `${base}/${id}/benchmark`, method: 'put', data })

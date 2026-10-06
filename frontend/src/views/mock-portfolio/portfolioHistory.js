@@ -9,3 +9,6 @@ export function filterHistory (points, timeframe, today = vietnamDay()) {
 export function navChartOptions (points) {
   return { tooltip: { trigger: 'axis' }, grid: { left: 65, right: 25, top: 20, bottom: 40 }, xAxis: { type: 'category', data: points.map(p => p.day) }, yAxis: { type: 'value', scale: true }, series: [{ name: 'NAV', type: 'line', connectNulls: false, data: points.map(p => p.nav === null || p.nav === undefined ? null : Number(p.nav)), showSymbol: true }] }
 }
+export function benchmarkChartOptions (points) {
+  return { ...navChartOptions(points), legend: { data: ['Benchmark', 'Portfolio'], bottom: 0 }, series: ['benchmark', 'portfolio'].map((key, index) => ({ name: index ? 'Portfolio' : 'Benchmark', type: 'line', connectNulls: false, data: points.map(p => p[key] == null ? null : Number(p[key])) })) }
+}

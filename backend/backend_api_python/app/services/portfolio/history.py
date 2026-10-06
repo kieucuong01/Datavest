@@ -67,9 +67,9 @@ class PortfolioHistoryService:
             db.commit(); cur.close()
         return self.history(user_id,book_id,start.isoformat(),end.isoformat())
     @staticmethod
-    def quote(series, market, day, cutoff):
+    def quote(series, market, day, cutoff, allow_index=False):
         if series is None: return {'status':'UNAVAILABLE','reason':'provider_unavailable'}
-        if series.price_mode != 'raw' or not series.mark_to_market_supported: return {'status':'UNAVAILABLE','reason':'raw_holding_prices_required'}
+        if series.price_mode != 'raw' or not series.mark_to_market_supported and not allow_index: return {'status':'UNAVAILABLE','reason':'raw_holding_prices_required'}
         # VN bars are session opens and complete by this local cutoff. UTC daily
         # crypto/gold bars must finish for 24h before they can contribute a close.
         rows = [(datetime.fromtimestamp(ts,timezone.utc),price) for ts,price in zip(series.timestamps,series.closes) if (ts <= cutoff.timestamp() if market=='VNStock' else ts+86400 <= cutoff.timestamp())]
