@@ -37,17 +37,30 @@ class LedgerRepository:
             cur = db.cursor(); book = self._owned(cur, user_id, book_id)
             book['events'] = self._events(cur, book_id, book['revision']); cur.close()
             return book
-    def mutate(self, user_id, book_id, expected_revision, request_key, events=(), replacements=None):
+    @staticmethod
+    def _validate_request(expected_revision, request_key):
         if not isinstance(request_key, str) or not 1 <= len(request_key) <= 100: raise ValueError('requestKey is required, max 100 characters')
         if not isinstance(expected_revision, int) or isinstance(expected_revision, bool): raise ValueError('expectedRevision must be integer')
-        request_hash = fingerprint({'events': events, 'replacements': replacements})
+    @staticmethod
+    def _replayed(cur, book_id, request_key, request_hash):
+        cur.execute('SELECT revision,request_hash FROM qd_portfolio_ledger_revisions WHERE book_id=? AND request_key=?', (book_id, request_key))
+        prior = cur.fetchone()
+        if prior:
+            if prior['request_hash'] != request_hash: raise BookConflict('requestKey already used with a different payload')
+            return {'id': book_id, 'revision': prior['revision'], 'replayedRequest': True}
+    def replay_request(self, user_id, book_id, expected_revision, request_key, command):
+        self._validate_request(expected_revision, request_key)
+        with self.connection() as db:
+            cur = db.cursor(); self._owned(cur, user_id, book_id)
+            result = self._replayed(cur, book_id, request_key, fingerprint(command)); cur.close()
+            return result
+    def mutate(self, user_id, book_id, expected_revision, request_key, events=(), replacements=None, command=None):
+        self._validate_request(expected_revision, request_key)
+        request_hash = fingerprint(command if command is not None else {'events': events, 'replacements': replacements})
         with self.connection() as db:
             cur = db.cursor(); book = self._owned(cur, user_id, book_id, lock=True)
-            cur.execute('SELECT revision,request_hash FROM qd_portfolio_ledger_revisions WHERE book_id=? AND request_key=?', (book_id, request_key))
-            prior = cur.fetchone()
-            if prior:
-                if prior['request_hash'] != request_hash: raise BookConflict('requestKey already used with a different payload')
-                return {'id': book_id, 'revision': prior['revision'], 'replayedRequest': True}
+            replayed = self._replayed(cur, book_id, request_key, request_hash)
+            if replayed: cur.close(); return replayed
             if book['revision'] != expected_revision: raise BookConflict('Book changed; reload before saving')
             current = self._events(cur, book_id, book['revision'])
             ids = {row['eventId'] for row in current}
@@ -72,15 +85,18 @@ class LedgerRepository:
             dirty = min(dirty_dates + ([book['dirty_from']] if book.get('dirty_from') else []))
             cur.execute('UPDATE qd_portfolio_books SET revision=?,dirty_from=? WHERE id=? AND user_id=?', (revision, dirty, book_id, user_id))
             self.carry_nav(cur,book_id,book['revision'],revision,dirty)
+            cur.execute('DELETE FROM qd_portfolio_nav_retries WHERE book_id=? AND revision<>?', (book_id,revision))
             db.commit(); cur.close()
             return {'id': book_id, 'revision': revision, 'state': state}
     def carry_nav(self, cur, book_id, old_revision, new_revision, dirty):
-        cur.execute('SELECT day,snapshot_json FROM qd_portfolio_nav_snapshots WHERE book_id=? AND revision=? AND day<?', (book_id,old_revision,dirty))
+        cur.execute('SELECT day,snapshot_json,created_at FROM qd_portfolio_nav_snapshots WHERE book_id=? AND revision=? AND day<?', (book_id,old_revision,dirty))
         for row in cur.fetchall():
             snapshot = json.loads(row['snapshot_json'])
             snapshot.update(ledgerRevision=new_revision,derivedFromRevision=old_revision)
             snapshot['checksum'] = fingerprint({k:v for k,v in snapshot.items() if k != 'checksum'})
             cur.execute('INSERT INTO qd_portfolio_nav_snapshots(book_id,day,revision,snapshot_json,created_at) VALUES(?,?,?,?,?)', (book_id,row['day'],new_revision,json.dumps(snapshot),datetime.now(timezone.utc).isoformat()))
+            if snapshot.get('nav') is None:
+                cur.execute('INSERT INTO qd_portfolio_nav_retries(book_id,day,revision,next_due) VALUES(?,?,?,?)', (book_id,row['day'],new_revision,row['created_at']))
     def revisions(self, user_id, book_id, event_id):
         with self.connection() as db:
             cur = db.cursor(); self._owned(cur, user_id, book_id)

@@ -26,3 +26,19 @@ test('late benchmark response cannot replace a newer selected key', async () => 
   const first=state.loadBenchmark();state.benchmarkKey='VN30';await state.loadBenchmark();release({data:{benchmarkKey:'VNINDEX',revision:2,points:[]}});await first
   assert.equal(state.comparison.benchmarkKey,'VN30')
 })
+
+test('charts rebind after Vue replaces their conditional DOM nodes', () => {
+  const componentSource = readFileSync(new URL('../../src/views/mock-portfolio/components/PortfolioNavHistory.vue',import.meta.url),'utf8')
+  const initialized=[];const disposed=[]
+  const context={component:null,navChartOptions:helper.navChartOptions,benchmarkChartOptions:helper.benchmarkChartOptions,echarts:{init:dom=>{initialized.push(dom);return {getDom:()=>dom,dispose:()=>disposed.push(dom),setOption:()=>{},resize:()=>{}}}}}
+  vm.runInNewContext(componentSource.match(/<script>([\s\S]*?)<\/script>/)[1].replace(/^import .*$/gm,'').replace('export default','component ='),context)
+  const first={},second={}
+  const state={$refs:{benchmarkChart:first,chart:first},comparison:{points:[]},visiblePoints:[],benchmarkChartInstance:null,chartInstance:null}
+  Object.assign(state,context.component.methods)
+  state.renderBenchmark();state.render()
+  state.$refs={benchmarkChart:second,chart:second}
+  state.renderBenchmark();state.render()
+  assert.equal(state.benchmarkChartInstance.getDom(),second)
+  assert.equal(state.chartInstance.getDom(),second)
+  assert.equal(initialized.length,4);assert.equal(disposed.length,2)
+})

@@ -24,6 +24,16 @@ def test_data_quality_recovery_and_valid_previous_close():
     closed=snapshot();closed['positions'][0]['quote']['status']='PREVIOUS_CLOSE'
     assert evaluate_selective_alerts(settings,{'snapshot':closed},old)==[]
 
+def test_stale_and_absent_snapshots_alert_once_then_recover():
+    settings = {**prefs(),'reports':False}
+    good = {'snapshot':snapshot()}; stale = {'snapshot':{**snapshot(),'fresh':False}}
+    alerts = evaluate_selective_alerts(settings,stale,good)
+    assert len(alerts) == 1 and alerts[0]['rule'] == 'data_quality' and alerts[0]['active']
+    absent = {'snapshot':None}
+    assert evaluate_selective_alerts(settings,absent,stale) == []
+    assert evaluate_selective_alerts(settings,good,absent)[0]['active'] is False
+    assert evaluate_selective_alerts(settings,absent,good)[0]['active']
+
 def report(day,text,**kw): return {'assetKey':'vnstock:FPT','reportKind':'deep','locale':'vi-VN','status':'complete','effectiveDate':day,'generatedAt':day+'T02:00:00Z','body':'## V. Portfolio Manager\n### Key Risks\n'+text,**kw}
 def test_only_comparable_final_report_fields_change():
     old=report('2026-10-01','Debt'); new=report('2026-10-05','Liquidity')

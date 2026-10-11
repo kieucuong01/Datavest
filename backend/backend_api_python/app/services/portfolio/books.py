@@ -25,14 +25,18 @@ class BooksService:
         book = self.repo.load_owned(user_id, book_id)
         return self.repo.mutate(user_id, book_id, payload.get('expectedRevision'), payload.get('requestKey'), self._events(book, payload))
     def revise(self, user_id, book_id, event_id, payload):
+        command = {'operation':'cancel','eventId':event_id} if payload.get('cancelled') is True else None
+        if command:
+            prior = self.repo.replay_request(user_id, book_id, payload.get('expectedRevision'), payload.get('requestKey'), command)
+            if prior: return prior
         book = self.repo.load_owned(user_id, book_id)
         old = next((r for r in book['events'] if r['eventId'] == event_id), None)
         if old is None: raise ValueError('Event not found')
         if payload.get('cancelled') is True:
-            # Canonical cancellation is independent of the current edited version.
+            # Replay is keyed by cancellation intent, independently of this version.
             row = {'eventId': event_id, 'cancelled': True, 'type': old['type'], 'effectiveAt': old['effectiveAt'], **{k: old[k] for k in ('market','symbol','quantity','unitPrice','amount','fee','tax','notes')}}
         else: row = normalize_event({**payload.get('event', {}), 'eventId': event_id}, book['currency'], now=self.clock())
-        return self.repo.mutate(user_id, book_id, payload.get('expectedRevision'), payload.get('requestKey'), replacements={event_id: row})
+        return self.repo.mutate(user_id, book_id, payload.get('expectedRevision'), payload.get('requestKey'), replacements={event_id: row}, command=command)
     def csv_preview(self, user_id, book_id, payload):
         book = self.repo.load_owned(user_id, book_id)
         text = payload.get('csv')
@@ -71,6 +75,9 @@ class BooksService:
         normalized = self._events(book, {**payload, 'events': events})
         return {'events': normalized, 'state': replay_ledger(normalized), 'fingerprint': fingerprint({'positions': rows, 'cash': payload.get('cash'), 'effectiveAt': payload.get('effectiveAt')})}
     def opening_commit(self, user_id, book_id, payload):
+        command = {'operation':'opening', **{key:payload.get(key) for key in ('positionIds','cash','effectiveAt','fingerprint')}}
+        prior = self.repo.replay_request(user_id, book_id, payload.get('expectedRevision'), payload.get('requestKey'), command)
+        if prior: return prior
         preview = self.opening_preview(user_id, book_id, payload)
         if preview['fingerprint'] != payload.get('fingerprint'): raise BookConflict('Opening balances changed; preview again')
-        return self.repo.mutate(user_id, book_id, payload.get('expectedRevision'), payload.get('requestKey'), preview['events'])
+        return self.repo.mutate(user_id, book_id, payload.get('expectedRevision'), payload.get('requestKey'), preview['events'], command=command)

@@ -92,3 +92,29 @@ def test_opening_preview_source_changed_conflict(repository, monkeypatch):
     rows[0]['quantity'] = '11'
     with pytest.raises(BookConflict): svc.opening_commit(1, book['id'], {**payload, 'fingerprint':preview['fingerprint']})
     assert svc.state(1, book['id'])['revision'] == 0
+
+def test_opening_retry_replays_before_mutable_source_validation(repository, monkeypatch):
+    svc = BooksService(repository, clock=lambda: NOW)
+    book = svc.create(1, {'name':'Test', 'currency':'VND'})
+    rows = [{'id':4, 'market':'VNStock', 'symbol':'FPT', 'side':'long', 'quantity':'10', 'entry_price':'12'}]
+    monkeypatch.setattr(repository, 'opening_positions', lambda uid, ids: rows)
+    payload = {'positionIds':[4], 'cash':'100', 'effectiveAt':'2026-10-01T00:00:00Z', 'expectedRevision':0, 'requestKey':'opening'}
+    payload['fingerprint'] = svc.opening_preview(1, book['id'], payload)['fingerprint']
+    assert svc.opening_commit(1, book['id'], payload)['revision'] == 1
+    rows.clear()
+    assert svc.opening_commit(1, book['id'], payload)['replayedRequest']
+    with pytest.raises(BookConflict): svc.opening_commit(1, book['id'], {**payload,'cash':'200'})
+    with pytest.raises(BookNotFound): svc.opening_commit(2, book['id'], payload)
+    assert svc.state(1, book['id'])['revision'] == 1
+
+def test_cancel_retry_after_restoring_event_replays_original_command(repository):
+    svc = BooksService(repository, clock=lambda: NOW)
+    book = svc.create(1, {'name':'Test','currency':'VND'})
+    event = {'type':'deposit','amount':'100','effectiveAt':'2026-10-01T00:00:00Z'}
+    svc.append(1, book['id'], {'events':[event],'expectedRevision':0,'requestKey':'fund'})
+    event_id = svc.state(1,book['id'])['events'][0]['eventId']
+    payload = {'cancelled':True,'expectedRevision':1,'requestKey':'cancel'}
+    svc.revise(1,book['id'],event_id,payload)
+    svc.revise(1,book['id'],event_id,{'event':{**event,'amount':'200'},'expectedRevision':2,'requestKey':'restore'})
+    assert svc.revise(1,book['id'],event_id,payload)['revision'] == 2
+    assert svc.state(1,book['id'])['state']['cash'] == '200'

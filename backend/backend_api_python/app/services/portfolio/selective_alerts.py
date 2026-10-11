@@ -35,9 +35,11 @@ def evaluate_selective_alerts(settings,current,previous):
                 add('allocation',asset,bool(after.get('active')),{'percent':after.get('pct','0'),'threshold':str(settings['concentrationPct']),'tradeDate':after.get('quote',{}).get('tradeDate'),'source':after.get('quote',{}).get('source')})
     if settings.get('dataQuality'):
         before,after = previous.get('snapshot'),current.get('snapshot')
-        if before and after and before.get('fresh') and after.get('fresh'):
-            old_bad,new_bad = before.get('nav') is None or before.get('status')!='AVAILABLE',after.get('nav') is None or after.get('status')!='AVAILABLE'
-            if old_bad != new_bad: add('data_quality','book',new_bad,{'day':after.get('day'),'status':after.get('status'),'checksum':after.get('checksum')})
+        def degraded(snapshot): return not snapshot or not snapshot.get('fresh') or snapshot.get('nav') is None or snapshot.get('status')!='AVAILABLE'
+        old_bad,new_bad = degraded(before),degraded(after)
+        if old_bad != new_bad:
+            evidence = after or {}
+            add('data_quality','book',new_bad,{'day':evidence.get('day'),'status':'UNAVAILABLE' if not after else 'STALE' if not after.get('fresh') else after.get('status'),'checksum':evidence.get('checksum')})
     if settings.get('reports'):
         old_reports = {(r.get('assetKey'),r.get('reportKind'),r.get('locale')):r for r in previous.get('reports',[])}
         for report in current.get('reports',[]):

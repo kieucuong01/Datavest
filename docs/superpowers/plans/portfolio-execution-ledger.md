@@ -35,3 +35,27 @@ Task 4: Ruling: report alerts preserve the existing shared-report access policy.
 Task 4: local verification covers baseline/restart, pending cooldown, recovery/new episode, disabled cancellation, owned notification read/mark-read and two concurrent SQLite workers creating one digest. The existing monitor hook dispatches the NAV batch and alert evaluation. Source-reader test reads stored events in user scope and preserves a future-event cursor.
 
 Task 4: complete — focused backend and report-PDF regression suite 68 passed; full frontend 343 passed; changed-file lint zero errors; Vite production build passed. Vue fixture verified opt-in, threshold change, saved state and disable, plus mobile layout at 390×844. Temporary Vite HMR errors occurred while adding exports, before the fresh reload; a final fresh-tab QA checks for current runtime errors. No production DB migration, external messages, paid analysis, push or deploy.
+
+Task 4 commit: 5733d34.
+
+Final review: one independent fresh-context reviewer examined bc85a35..5733d34. No critical findings; four important findings: NAV missing-date retry, opening request replay, stale/absent data-quality transitions, conditional chart DOM lifecycle. Cancellation replay was labelled minor; re-graded Important because an identical accepted request must keep its original result after later edits. All five are fixed in one pass; no second review was dispatched.
+
+Final: fixed unavailable NAV dates being skipped — test_worker_retries_missing_dates_without_blocking_newer_days RED→GREEN. Follow-up regression tests test_carried_incomplete_date_keeps_retry_in_new_revision and test_worker_defers_idle_book_so_retry_books_are_not_starved also observed RED→GREEN, covering retry inheritance and idle-job fairness. Final backend suite 102/102.
+
+Final: Ruling: each worker batch processes at most one new date plus one due retry per book, maximum 20 books; missing dates retry after five minutes and preserve immutable evidence. Idle books defer until the next retry or Vietnam midnight. Cost if wrong: an outage may require up to twice the former bounded provider work, and long missing histories recover gradually rather than all at once.
+
+Final: fixed opening retry validation order — test_opening_retry_replays_before_mutable_source_validation RED→GREEN; stored canonical command replay is owner-scoped and still rejects changed payloads. Final backend suite 102/102.
+
+Final: fixed stale/missing snapshot alert suppression — test_stale_and_absent_snapshots_alert_once_then_recover RED→GREEN. Allocation still requires fresh complete NAV; valid weekend closes retain their accepted status. Final backend suite 102/102.
+
+Final: fixed ECharts attachment to replaced DOM — charts rebind after Vue replaces their conditional DOM nodes RED→GREEN, covering NAV and benchmark chart instances. Full frontend suite 344/344.
+
+Final: fixed cancellation retry after later restoration/edit — test_cancel_retry_after_restoring_event_replays_original_command RED→GREEN. Canonical cancellation intent is independent of the mutable event contents. Final backend suite 102/102.
+
+Final: minor (deferred): LedgerImport.vue has one vue/no-template-shadow warning for the preview-error loop variable; zero lint errors. This is naming polish and does not change preview validation or commit eligibility.
+
+Final verification completed 2026-10-11: 102 backend tests passed (ledger, routes, NAV, gateway, benchmarks, alerts, stored source reading, monitor hook, PDF extraction, existing valuation/optimizer regressions); 344 frontend tests passed; changed-file lint zero errors/one naming warning; Vite production build passed in 37.40s; git diff --check passed. Graphify AST update completed and graph artifacts remain excluded from feature commits; SQL graph extraction is limited by the missing optional tree_sitter_sql parser.
+
+Final browser evidence: local fixture UI, not production or real-provider evidence. Deposit, two buys, sale with fee/tax and dividend yielded cash 34430, quantity 150, average cost 111, realized P&L 880, dividend income 200. VNINDEX→VN30 and history reload each recreated a visible canvas on the current DOM; console warning/error log was empty. Screenshots: output/portfolio-final-qa.png, output/portfolio-benchmark-qa.png, output/portfolio-alerts-qa.png, output/portfolio-mobile-qa.png. Alert opt-in/save/disable and invalid CSV commit prevention were checked. Desktop/mobile fixture checks do not establish authenticated production delivery.
+
+Release boundary: branch remains local, with four separate feature commits plus the final review-fix commit. No push, merge, deployment, production migrations, external notifications or paid AI calls were performed. PostgreSQL lock behavior/migration execution, real-provider completeness, and authenticated production browser behavior remain unverified; SQLite tests and the UI fixture are explicitly scoped evidence. Three idempotent migration files are already wired into database bootstrap, including the retry table in 20261005_portfolio_nav.sql.

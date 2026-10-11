@@ -1,6 +1,6 @@
 # Portfolio Ledger, NAV, Benchmark and Alerts Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Hoàn thiện sổ giao dịch, NAV lịch sử, benchmark và cảnh báo chọn lọc ngay trong trang Danh mục, mỗi phần một commit.
 
@@ -10,7 +10,7 @@
 
 **Spec:** `docs/superpowers/specs/2026-10-05-portfolio-ledger-nav-alerts-design.md`
 
-**Status:** Người dùng đã duyệt thiết kế và kế hoạch ngày 2026-10-06; đang triển khai tuần tự. Bằng chứng kiểm tra và quyết định triển khai lưu ở `portfolio-execution-ledger.md`.
+**Status:** Người dùng đã duyệt thiết kế và kế hoạch ngày 2026-10-06; đã hoàn tất local ngày 2026-10-11, gồm bản sửa sau rà soát. Bằng chứng kiểm tra và quyết định triển khai lưu ở `portfolio-execution-ledger.md`.
 
 ## Global Constraints
 
@@ -64,12 +64,12 @@ Frontend, tại `frontend`: `node --test tests/unit/*.test.mjs` và lint các fi
 - CSV text UTF-8 trong JSON, tối đa 1 MB/1.000 dòng; cột `eventId,type,effectiveAt,market,symbol,quantity,unitPrice,amount,fee,tax,notes`. Preview không ghi; commit xác minh lại server, all-or-nothing.
 - Opening preview đọc ID vị thế thuộc user/cùng currency/long; opening events giữ giá vốn đã khai báo, cash do user nhập. Commit xác minh fingerprint preview để không nhập từ dữ liệu cũ đã thay đổi.
 
-- [ ] **Step 1: Viết kiểm tra failing cho số học và abuse cases.**
+- [x] **Step 1: Viết kiểm tra failing cho số học và abuse cases.**
   Mua 100 x 100 phí 100, mua 100 x 120 phí 100 => cost 22.200, average 111. Bán 50 x 130 phí 50 thuế 20 => realized 880, còn 150, cost 16.650. Cổ tức 200 tăng cash/income, externalFlows không đổi. Test fractional token, NaN/infinity, cash âm, oversell; revision làm giao dịch sau invalid; requestKey payload khác; user B không đọc/ghi được sổ user A.
-- [ ] **Step 2: Chạy test mới và xác nhận RED do interface chưa có.** Dùng lệnh backend trên, node:test cho lifecycle mới. Không sửa test để bỏ trường hợp yêu cầu.
-- [ ] **Step 3: Triển khai ledger, repository, service, API, migration và UI.** Unique replay, append audit trail; revision cũ luôn đọc lại được. `PortfolioBookWorkspace` chỉ mount khi chọn sổ, không cộng vị thế legacy vào sổ. CSV có lỗi từng dòng/preview tổng tiền trước nút ghi; UI sửa/hủy tạo revision.
-- [ ] **Step 4: Xác nhận GREEN.** SQLite-backed SQL fixture cho ownership/idempotency/revision; adapter SQLite chỉ bỏ cú pháp PostgreSQL-specific, thêm kiểm tra migration/bootstrap. Browser: mở sổ VND, deposit/buy/partial sell, CSV lỗi/trùng, đổi sổ khi request cũ chưa xong. Existing portfolio/optimizer tests vẫn qua.
-- [ ] **Step 5: Commit riêng.** `feat: add owner-scoped portfolio transaction and cash ledger` với đúng file task 1; ghi SHA vào kế hoạch.
+- [x] **Step 2: Chạy test mới và xác nhận RED do interface chưa có.** Dùng lệnh backend trên, node:test cho lifecycle mới. Không sửa test để bỏ trường hợp yêu cầu.
+- [x] **Step 3: Triển khai ledger, repository, service, API, migration và UI.** Unique replay, append audit trail; revision cũ luôn đọc lại được. `PortfolioBookWorkspace` chỉ mount khi chọn sổ, không cộng vị thế legacy vào sổ. CSV có lỗi từng dòng/preview tổng tiền trước nút ghi; UI sửa/hủy tạo revision.
+- [x] **Step 4: Xác nhận GREEN.** SQLite-backed SQL fixture cho ownership/idempotency/revision; adapter SQLite chỉ bỏ cú pháp PostgreSQL-specific, thêm kiểm tra migration/bootstrap. Browser: mở sổ VND, deposit/buy/partial sell, CSV lỗi/trùng, đổi sổ khi request cũ chưa xong. Existing portfolio/optimizer tests vẫn qua.
+- [x] **Step 5: Commit riêng.** `feat: add owner-scoped portfolio transaction and cash ledger` với đúng file task 1; ghi SHA vào kế hoạch.
 
 ## Task 2: NAV lịch sử và lợi nhuận điều chỉnh dòng tiền
 
@@ -87,14 +87,14 @@ Frontend, tại `frontend`: `node --test tests/unit/*.test.mjs` và lint các fi
 - `PortfolioHistoryService.refresh(user_id, book_id, start_date, end_date)`: max 366 ngày/request, cutoff trước ngày đang chạy; lock/claim mỗi book/date/revision, abort write nếu revision đổi trong fetch. Snapshot unique `(book_id, day, revision)`, giá và ledger checksum đóng băng.
 - `history(user_id, book_id, start_date, end_date)`: mặc định 90 ngày, chỉ revision hiện tại; revision cũ có nhãn superseded, không làm current chart. `mark_dirty_from(day)` từ mutation task 1, không xóa bằng chứng cũ.
 - Gateway `fetch_daily(instrument, *, start_date, end_date, price_mode=None)` giữ default cũ; NAV truyền raw, từ chối provider trả mode khác, index không là holding. Snapshot chỉ dùng bar đã hoàn tất, không future lookahead.
-- Monitor `refresh_due_books(limit=20)`: tối đa một ngày/book/tick, durable next_due/lease, retry lease timeout, không chặn monitor cũ bằng backfill dài. Người dùng có nút tạo lại lịch sử trong API riêng, không làm trên GET.
+- Monitor `refresh_due_books(limit=20)`: tối đa một ngày mới và một ngày cần thử lại/book/tick, durable next_due/lease và hàng đợi retry, retry lease timeout, không chặn monitor cũ bằng backfill dài. Người dùng có nút tạo lại lịch sử trong API riêng, không làm trên GET.
 - UI timeframe 1W/1M/YTD/All hoạt động; ECharts `connectNulls:false`; hai nguồn ledger NAV và giá trị phần định giá phân biệt rõ.
 
-- [ ] **Step 1: Viết failing tests.** Cash-only 100 -> end150, flow+50 giữa kỳ => return0; end160 => 10/125 cho flow nhỏ hoặc valuation tại flow. Flow20 trên begin100 thiếu flow valuation => return null, reason rõ. Dividend 10 end110, flow0 =>10%. Revision cũ không lên chart, missing price không thành0, adjusted-price input từ chối, future bar bỏ, fractional times và zero denominator giữ null.
-- [ ] **Step 2: Chạy test NAV/history/gateway và quan sát RED.** Thêm kiểm tra boot migration và existing optimizer VN tests vào cùng nhóm phù hợp.
-- [ ] **Step 3: Triển khai hàm snapshot/performance, persistence, gateway option, scheduler và chart.** Cash flow tại đúng biên kỳ theo quy ước `(start,end]`; flow đầu kỳ đã trong beginNAV. Không geometric-chain qua gap; sau gap dùng mốc bắt đầu mới có nhãn, không quảng cáo all-time return.
-- [ ] **Step 4: Xác nhận GREEN và UI.** So độc lập bảng Decimal; giả lập 3 ngày, mất provider ngày giữa, worker claim lặp, sửa CSV lùi ngày đang refresh. Cuối tuần HOSE giữ ngày quote phiên trước và không giả lập phiên giao dịch. Snapshot pipeline/test runtime local phải đi qua hook monitor mới.
-- [ ] **Step 5: Commit riêng.** `feat: persist provenance-backed daily portfolio NAV and cash-flow-adjusted returns`.
+- [x] **Step 1: Viết failing tests.** Cash-only 100 -> end150, flow+50 giữa kỳ => return0; end160 => 10/125 cho flow nhỏ hoặc valuation tại flow. Flow20 trên begin100 thiếu flow valuation => return null, reason rõ. Dividend 10 end110, flow0 =>10%. Revision cũ không lên chart, missing price không thành0, adjusted-price input từ chối, future bar bỏ, fractional times và zero denominator giữ null.
+- [x] **Step 2: Chạy test NAV/history/gateway và quan sát RED.** Thêm kiểm tra boot migration và existing optimizer VN tests vào cùng nhóm phù hợp.
+- [x] **Step 3: Triển khai hàm snapshot/performance, persistence, gateway option, scheduler và chart.** Cash flow tại đúng biên kỳ theo quy ước `(start,end]`; flow đầu kỳ đã trong beginNAV. Không geometric-chain qua gap; sau gap dùng mốc bắt đầu mới có nhãn, không quảng cáo all-time return.
+- [x] **Step 4: Xác nhận GREEN và UI.** So độc lập bảng Decimal; giả lập 3 ngày, mất provider ngày giữa, worker claim lặp, sửa CSV lùi ngày đang refresh. Cuối tuần HOSE giữ ngày quote phiên trước và không giả lập phiên giao dịch. Snapshot pipeline/test runtime local phải đi qua hook monitor mới.
+- [x] **Step 5: Commit riêng.** `feat: persist provenance-backed daily portfolio NAV and cash-flow-adjusted returns`.
 
 ## Task 3: Benchmark cùng kỳ và đơn vị
 
@@ -108,11 +108,11 @@ Frontend, tại `frontend`: `node --test tests/unit/*.test.mjs` và lint các fi
 - `compare_benchmark(nav_points, benchmark_series, *, benchmark_key, currency) -> dict`: đồng bộ ngày hoàn tất, require >=2 điểm hợp lệ; first common date normalize100. Return benchmarkReturn, portfolioReturn|null, excessPctPoints|null, common dates, provider/checksum/priceMode, disclaimer. Portfolio missing segment => không tính excess toàn kỳ.
 - API GET `/books/<id>/benchmark?key=&start=&end=` và PUT lựa chọn benchmark trên owned book. Gateway market data raw, bounds366 ngày, cache chỉ chuỗi giá công khai, không cache portfolio theo key thiếu user/revision.
 
-- [ ] **Step 1: Viết failing tests.** Benchmark100->110, portfolio100->108 cùng kỳ không flow => excess -2 điểm%; ngày bắt đầu khác phải reset tại giao nhau, benchmark USD cho bookVND từ chối, thiếu đoạn hoặc chỉ1điểm trả null. Cổ tức NAV được tính nhưng price-index label không gọi total return/alpha.
-- [ ] **Step 2: Xác nhận RED cho module/interface mới.** Chạy test benchmark và frontend alignment; giữ fixtures không dùng giá thị trường hiện tại.
-- [ ] **Step 3: Triển khai registry, alignment và UI.** Chọn index rõ ràng, biểu đồ100, source/date/method cạnh chart; không biến benchmark thành mã giao dịch. Đổi key chỉ đổi comparison; ledger revision và NAV giữ nguyên.
-- [ ] **Step 4: Xác nhận GREEN và UI.** Switching benchmark khi response cũ về muộn không ghi đè, same currency/date check server, không nội suy thiếu phiên; chart light/dark/mobile.
-- [ ] **Step 5: Commit riêng.** `feat: compare portfolio performance with aligned native-currency benchmarks`.
+- [x] **Step 1: Viết failing tests.** Benchmark100->110, portfolio100->108 cùng kỳ không flow => excess -2 điểm%; ngày bắt đầu khác phải reset tại giao nhau, benchmark USD cho bookVND từ chối, thiếu đoạn hoặc chỉ1điểm trả null. Cổ tức NAV được tính nhưng price-index label không gọi total return/alpha.
+- [x] **Step 2: Xác nhận RED cho module/interface mới.** Chạy test benchmark và frontend alignment; giữ fixtures không dùng giá thị trường hiện tại.
+- [x] **Step 3: Triển khai registry, alignment và UI.** Chọn index rõ ràng, biểu đồ100, source/date/method cạnh chart; không biến benchmark thành mã giao dịch. Đổi key chỉ đổi comparison; ledger revision và NAV giữ nguyên.
+- [x] **Step 4: Xác nhận GREEN và UI.** Switching benchmark khi response cũ về muộn không ghi đè, same currency/date check server, không nội suy thiếu phiên; chart light/dark/mobile.
+- [x] **Step 5: Commit riêng.** `feat: compare portfolio performance with aligned native-currency benchmarks`.
 
 ## Task 4: Cảnh báo chọn lọc và digest
 
@@ -131,15 +131,15 @@ Frontend, tại `frontend`: `node --test tests/unit/*.test.mjs` và lint các fi
 - Cooldown không gửi lại state không đổi. Recovery một lần; episode mới sau false->true được cảnh báo dù text giống lần trước. Khi tắt, hủy pending và không nhận delivery; worker restart không reset baseline.
 - API GET/PUT `/books/<id>/alert-preferences`; notifications dùng route owned `strategy_notifications.py` hiện có. Có source links đọc lại, đánh dấu đã đọc qua API hiện tại; chỉ in-app.
 
-- [ ] **Step 1: Viết failing tests.** Threshold vượt/chưa vượt, same fingerprint, recovery/new episode, baseline, pending qua cooldown, concurrent claim chỉ một notice, tắt trong lúc digest, missing/incompatible report không tạo diff, event không có ID/source không tạo notice; user B không thấy payload user A.
-- [ ] **Step 2: Xác nhận RED ở pure evaluator/repository/API.** Kiểm tra ownership route và migration; không phát email/Telegram thật trong test.
-- [ ] **Step 3: Triển khai preferences/evaluator/persistence/digest và hook monitor.** Không thêm schedule song song; chọn event IDs/source dates từ bằng chứng đã lưu. Ghi message plain text và payload allowlist, không HTML từ ghi chú/report untrusted.
-- [ ] **Step 4: Xác nhận GREEN và UI.** Opt-in, đổi ngưỡng/tắt, một digest thay vì nhiều report; fake clock worker hai lần và restart. Verify monitor hook, owned notification GET/mark-read và không bật external channels.
-- [ ] **Step 5: Commit riêng.** `feat: add opt-in portfolio change alerts with durable dedup and digests`.
+- [x] **Step 1: Viết failing tests.** Threshold vượt/chưa vượt, same fingerprint, recovery/new episode, baseline, pending qua cooldown, concurrent claim chỉ một notice, tắt trong lúc digest, missing/incompatible report không tạo diff, event không có ID/source không tạo notice; user B không thấy payload user A.
+- [x] **Step 2: Xác nhận RED ở pure evaluator/repository/API.** Kiểm tra ownership route và migration; không phát email/Telegram thật trong test.
+- [x] **Step 3: Triển khai preferences/evaluator/persistence/digest và hook monitor.** Không thêm schedule song song; chọn event IDs/source dates từ bằng chứng đã lưu. Ghi message plain text và payload allowlist, không HTML từ ghi chú/report untrusted.
+- [x] **Step 4: Xác nhận GREEN và UI.** Opt-in, đổi ngưỡng/tắt, một digest thay vì nhiều report; fake clock worker hai lần và restart. Verify monitor hook, owned notification GET/mark-read và không bật external channels.
+- [x] **Step 5: Commit riêng.** `feat: add opt-in portfolio change alerts with durable dedup and digests`.
 
 ## Kết thúc đợt
 
-- [ ] Chạy tests tập trung cho cả bốn phần, full frontend unit, changed-file lint, production build; kiểm tra không có paid AI/broker calls ở read/refresh path.
-- [ ] Kiểm tra browser authenticated với hai user trên DB thử nghiệm nếu có; nếu không, ghi rõ giới hạn và dùng fixture UI + server ownership tests, không gọi đó là production proof.
-- [ ] Cập nhật Graphify, giữ graph artifacts khỏi commit feature; rà exact staged diff từng commit.
-- [ ] Báo bốn SHA, kết quả test, migration cần khi release và giới hạn phương pháp tính; không push/deploy nếu chưa được yêu cầu.
+- [x] Chạy tests tập trung cho cả bốn phần, full frontend unit, changed-file lint, production build; kiểm tra không có paid AI/broker calls ở read/refresh path.
+- [x] Kiểm tra browser authenticated với hai user trên DB thử nghiệm nếu có; nếu không, ghi rõ giới hạn và dùng fixture UI + server ownership tests, không gọi đó là production proof.
+- [x] Cập nhật Graphify, giữ graph artifacts khỏi commit feature; rà exact staged diff từng commit.
+- [x] Báo bốn SHA, kết quả test, migration cần khi release và giới hạn phương pháp tính; không push/deploy nếu chưa được yêu cầu.

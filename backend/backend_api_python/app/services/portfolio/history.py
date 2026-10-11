@@ -59,8 +59,14 @@ class PortfolioHistoryService:
                 cur.execute('INSERT INTO qd_portfolio_nav_evidence(book_id,day,revision,checksum,snapshot_json,created_at) VALUES(?,?,?,?,?,?) ON CONFLICT(book_id,day,revision,checksum) DO NOTHING', (book_id,point['day'],book['revision'],point['checksum'],json.dumps(point),self.clock().isoformat()))
                 cur.execute('SELECT snapshot_json FROM qd_portfolio_nav_snapshots WHERE book_id=? AND day=? AND revision=?',(book_id,point['day'],book['revision']))
                 prior = cur.fetchone()
-                if prior and json.loads(prior['snapshot_json']).get('nav') is not None: continue
+                if prior and json.loads(prior['snapshot_json']).get('nav') is not None:
+                    cur.execute('DELETE FROM qd_portfolio_nav_retries WHERE book_id=? AND day=? AND revision=?',(book_id,point['day'],book['revision']))
+                    continue
                 cur.execute('INSERT INTO qd_portfolio_nav_snapshots(book_id,day,revision,snapshot_json,created_at) VALUES(?,?,?,?,?) ON CONFLICT(book_id,day,revision) DO UPDATE SET snapshot_json=excluded.snapshot_json,created_at=excluded.created_at', args)
+                if point['nav'] is None:
+                    cur.execute('INSERT INTO qd_portfolio_nav_retries(book_id,day,revision,next_due) VALUES(?,?,?,?) ON CONFLICT(book_id,day,revision) DO UPDATE SET next_due=excluded.next_due', (book_id,point['day'],book['revision'],(self.clock()+timedelta(minutes=5)).isoformat()))
+                else:
+                    cur.execute('DELETE FROM qd_portfolio_nav_retries WHERE book_id=? AND day=? AND revision=?',(book_id,point['day'],book['revision']))
             if current.get('dirty_from') and start.isoformat() <= current['dirty_from'] <= end.isoformat():
                 dirty = (end+timedelta(days=1)).isoformat()
                 cur.execute('UPDATE qd_portfolio_books SET dirty_from=? WHERE id=? AND user_id=?', (dirty,book_id,user_id))
@@ -96,12 +102,25 @@ def refresh_due_books(*, service=None, limit=20):
             events = svc.repo._events(cur,row['id'],book['revision'])
             first = min(timestamp(e['effectiveAt']).astimezone(VN).date() for e in events)
             day = date.fromisoformat(book['dirty_from']) if book.get('dirty_from') else first
-            if day >= now.astimezone(VN).date(): db.commit(); continue
+            cur.execute('SELECT day,next_due FROM qd_portfolio_nav_retries WHERE book_id=? AND revision=? AND day<? ORDER BY next_due,day LIMIT 1',(row['id'],book['revision'],now.astimezone(VN).date().isoformat()))
+            retry = cur.fetchone()
+            days = [day] if day < now.astimezone(VN).date() else []
+            if retry and timestamp(retry['next_due']) <= now and date.fromisoformat(retry['day']) not in days: days.append(date.fromisoformat(retry['day']))
+            if not days:
+                next_day = datetime.combine(now.astimezone(VN).date()+timedelta(days=1),time.min,tzinfo=VN).astimezone(timezone.utc)
+                next_due = min(next_day,timestamp(retry['next_due'])) if retry else next_day
+                cur.execute('UPDATE qd_portfolio_nav_jobs SET next_due=? WHERE book_id=?',(next_due.isoformat(),row['id']))
+                db.commit(); continue
             cur.execute('UPDATE qd_portfolio_nav_jobs SET lease_token=?,lease_until=? WHERE book_id=?',(token,(now+timedelta(minutes=10)).isoformat(),row['id'])); db.commit()
-        try: svc.refresh(row['user_id'],row['id'],day.isoformat(),day.isoformat()); count += 1
-        except Exception:
-            from app.utils.logger import get_logger
-            get_logger(__name__).warning('Portfolio NAV refresh deferred for book %s',row['id'])
+        try:
+            successful = False
+            for selected_day in days:
+                try:
+                    svc.refresh(row['user_id'],row['id'],selected_day.isoformat(),selected_day.isoformat()); successful = True
+                except Exception:
+                    from app.utils.logger import get_logger
+                    get_logger(__name__).warning('Portfolio NAV refresh deferred for book %s',row['id'])
+            count += int(successful)
         finally:
             with svc.repo.connection() as db:
                 cur = db.cursor(); cur.execute('UPDATE qd_portfolio_nav_jobs SET lease_token=NULL,lease_until=NULL,next_due=? WHERE book_id=? AND lease_token=?',((now+timedelta(minutes=1)).isoformat(),row['id'],token)); db.commit(); cur.close()
