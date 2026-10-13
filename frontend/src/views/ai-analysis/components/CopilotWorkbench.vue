@@ -3469,7 +3469,7 @@ export default {
           content: data.reply || this.text.chatUnavailable,
           isThinking: false,
           actions: data.actions || [],
-          meta: data.intent ? `${data.intent} · ${data.confidence || 50}%` : ''
+          meta: data.intent ? `${data.intent}${Number.isFinite(data.confidence) ? ` · ${data.confidence}%` : ''}` : ''
         })
         fallbackAssistant.created_at = fallbackAssistant.created_at || new Date().toISOString()
         this.appendMemoryActions(fallbackAssistant, data.memory_candidates)
@@ -3731,7 +3731,7 @@ export default {
         this.sessionId = payload.session_id || this.sessionId
         if (payload.message_id) this.$set ? this.$set(assistantMsg, 'id', payload.message_id) : (assistantMsg.id = payload.message_id)
         assistantMsg.created_at = assistantMsg.created_at || new Date().toISOString()
-        assistantMsg.meta = payload.intent ? `${payload.intent} - ${payload.confidence || 50}%` : assistantMsg.meta
+        assistantMsg.meta = payload.intent ? `${payload.intent}${Number.isFinite(payload.confidence) ? ` · ${payload.confidence}%` : ''}` : assistantMsg.meta
         this.setAgentUsageActions(assistantMsg, payload.actions, payload.agent_usage)
         this.appendMemoryActions(assistantMsg, payload.memory_candidates)
         this.appendAgentNextActions(assistantMsg)

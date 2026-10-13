@@ -236,28 +236,22 @@ const user = {
       })
     },
 
-    Logout ({ commit, dispatch }) {
-      return new Promise((resolve) => {
-        logout().then(() => {
-          commit('SET_TOKEN', '')
-          commit('SET_ROLES', [])
-          commit('SET_INFO', {})
-          commit('SET_NAME', { name: '', welcome: '' })
-          commit('SET_AVATAR', '')
-          storage.remove(ACCESS_TOKEN)
-          storage.remove(USER_INFO)
-          storage.remove(USER_ROLES)
-          dispatch('ResetRoutes')
-          resolve()
-        }).catch(() => {
-          storage.remove(ACCESS_TOKEN)
-          storage.remove(USER_INFO)
-          storage.remove(USER_ROLES)
-          dispatch('ResetRoutes')
-          resolve()
-        }).finally(() => {
-        })
-      })
+    async Logout ({ commit, dispatch }, { localOnly = false } = {}) {
+      try {
+        // Password changes already revoke the token; skip another authenticated request.
+        if (!localOnly) await logout()
+      } catch (_) {
+      } finally {
+        commit('SET_TOKEN', '')
+        commit('SET_ROLES', [])
+        commit('SET_INFO', {})
+        commit('SET_NAME', { name: '', welcome: '' })
+        commit('SET_AVATAR', '')
+        storage.remove(ACCESS_TOKEN)
+        storage.remove(USER_INFO)
+        storage.remove(USER_ROLES)
+        await dispatch('ResetRoutes')
+      }
     }
 
   }

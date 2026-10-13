@@ -184,12 +184,18 @@ class StrategyV2BacktestService:
             frequency_frames[frequency] = frames
             self.validate_fundamental_dependencies(frames, manifest)
 
+        available_universe_members = frozenset(frames)
+
         def resolve_universe(reference: str, timestamp: pd.Timestamp) -> list[str]:
             del reference
             if not universe_id:
                 return [item["key"] for item in candidates]
             members = self.universe_service.resolve_members(user_id, universe_id, as_of=timestamp.date())
-            return [_member_key(item) for item in members]
+            return [
+                key
+                for item in members
+                if (key := _member_key(item)) in available_universe_members
+            ]
 
         runner = StrategyV2BacktestRunner(
             code=code,

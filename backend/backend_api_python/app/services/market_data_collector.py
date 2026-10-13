@@ -16,7 +16,7 @@
 
 import time
 from typing import Dict, List, Any, Optional
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from concurrent.futures import ThreadPoolExecutor, as_completed, TimeoutError
 
 import yfinance as yf
@@ -1592,8 +1592,15 @@ class MarketDataCollector:
                     for item in raw_news[:10]:
                         if not item.get('headline'):
                             continue
+                        try:
+                            # Finnhub Unix timestamps are UTC, independent of the server timezone.
+                            published_at = datetime.fromtimestamp(
+                                float(item.get('datetime') or 0), tz=timezone.utc,
+                            ).isoformat().replace("+00:00", "Z")
+                        except (TypeError, ValueError, OverflowError, OSError):
+                            published_at = ""
                         news_list.append({
-                            "datetime": datetime.fromtimestamp(item.get('datetime', 0)).strftime('%Y-%m-%d %H:%M'),
+                            "datetime": published_at,
                             "headline": item.get('headline', ''),
                             "summary": item.get('summary', '')[:300] if item.get('summary') else '',
                             "source": item.get('source', 'Finnhub'),
@@ -1635,7 +1642,15 @@ class MarketDataCollector:
                 seen_titles.add(title)
                 unique_news.append(item)
         
-        unique_news.sort(key=lambda x: x.get('datetime', ''), reverse=True)
+        def published_timestamp(item):
+            try:
+                parsed = datetime.fromisoformat(str(item.get('datetime') or '').replace('Z', '+00:00'))
+                # Legacy search/global timestamps use the server's local timezone.
+                return parsed.timestamp()
+            except (TypeError, ValueError, OverflowError, OSError):
+                return float('-inf')
+
+        unique_news.sort(key=published_timestamp, reverse=True)
         
         return {
             "news": unique_news[:15],  # 最多15条

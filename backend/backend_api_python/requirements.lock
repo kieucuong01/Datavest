@@ -203,7 +203,7 @@ mini-racer==0.14.1
     # via akshare
 mss==10.2.0
     # via nodriver
-multidict==6.7.1
+multidict==6.9.1
     # via
     #   aiohttp
     #   ccxt
@@ -293,7 +293,7 @@ pyluach==2.3.0
     # via exchange-calendars
 pyotp==2.10.0
     # via -r requirements.txt
-pypdf==6.15.0
+pypdf==6.19.0
     # via -r requirements.txt
 pyproject-hooks==1.2.0
     # via build
@@ -418,7 +418,7 @@ websockets==16.1
     # via
     #   nodriver
     #   yfinance
-werkzeug==3.1.8
+werkzeug==3.1.9
     # via
     #   -r requirements.txt
     #   flask

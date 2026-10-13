@@ -1100,7 +1100,8 @@ export default {
           if (res.code === 1) {
             this.$message.success(res.msg || 'Password changed successfully')
             this.passwordForm.resetFields()
-            this.$store.dispatch('FetchUserInfo').catch(() => {})
+            await this.$store.dispatch('Logout', { localOnly: true })
+            this.$router.replace({ path: '/user/login' })
           } else {
             this.$message.error(res.msg || 'Change password failed')
           }
