@@ -19,7 +19,7 @@ DataVest has adopted the complete upstream release.
 | Backend `13f2cdab958b421402130eceef956768bec84653` | Filter dynamic universe members against loaded market data so missing symbols do not abort a backtest; retain skipped-symbol diagnostics. |
 | Backend `f76396fc35bd38c8ee34103339287b36d40099e6` | Use UTC ISO timestamps for Finnhub news and retain headlines with malformed timestamps. Only the news collector portion is adopted; DataVest has no upstream `professional_report` module. |
 | Frontend `a5f3d39a9ecc4aa72c4902aa835c93050b757fb5` | Display confidence only when the API supplies a finite number; preserve zero confidence in both streamed and fallback responses. |
-| Backend `a5a9f4c79a263113504e882531585a9f2d3b24f9`, `ba8cd667acca3e934bbc1cb354922eff413393dc` | Update security baselines and lock versions to pypdf 6.19.0, Werkzeug 3.1.9 and multidict 6.9.1. |
+| Backend `a5a9f4c79a263113504e882531585a9f2d3b24f9`, `ba8cd667acca3e934bbc1cb354922eff413393dc` | Update security baselines and lock versions to pypdf 6.19.0 and Werkzeug 3.1.9. The multidict portion is deferred because DataVest's CCXT 4.5.73 requires multidict 6.7.1. |
 
 Upstream tests accompany the backend fixes. The Finnhub tests are adapted to
 simulate a non-UTC server on Windows without changing the host timezone or
@@ -45,6 +45,12 @@ fails. Both adaptations have behavioral regression coverage.
   extraction warnings remain.
 
 No production deployment or authenticated browser smoke was performed.
+
+The first release CI run caught a dependency-resolution conflict before any
+upload or production activation: upstream's multidict 6.9.1 is incompatible
+with DataVest's retained CCXT 4.5.73, which pins multidict 6.7.1. The follow-up
+keeps that compatible pin. Upstream removed CCXT in a separate architecture
+change; adopting its transitive dependency pins alone is not sufficient.
 
 ## Deferred upstream work
 

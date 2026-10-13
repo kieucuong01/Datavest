@@ -203,7 +203,7 @@ mini-racer==0.14.1
     # via akshare
 mss==10.2.0
     # via nodriver
-multidict==6.9.1
+multidict==6.7.1
     # via
     #   aiohttp
     #   ccxt
